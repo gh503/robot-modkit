@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>modkit · 渲染</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { background: #eef2f7; }
+  body.bg-studio {
+    background:
+      radial-gradient(120% 100% at 30% 12%, #ffffff 0%, #f2f5f9 38%, #dfe6ef 100%);
+  }
+  body.bg-white { background: #ffffff; }
+  body.bg-dark { background: radial-gradient(120% 100% at 30% 10%, #2a3441 0%, #141a21 100%); }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #ready { position: fixed; left: -9999px; }
+</style>
+</head>
+<body class="bg-studio">
+<canvas id="c"></canvas>
+<div id="ready">0</div>
+<script src="vendor/three.min.js"></script>
+<script src="scene.js"></script>
+<script src="poster.js"></script>
+</body>
+</html>

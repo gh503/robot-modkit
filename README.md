@@ -17,6 +17,8 @@
 
 [![实时查看器](docs/images/viewer.png)](https://gh503.github.io/robot-modkit/)
 
+![整机](docs/images/hero.png)
+
 ## 它现在到了哪一步
 
 | 层 | 状态 | 证据 |
@@ -38,8 +40,8 @@
 | 想做什么 | 怎么做 |
 |---|---|
 | 网页里实时转、实时摆姿态 | 打开 <https://gh503.github.io/robot-modkit/>（或本地 `cd web && python3 -m http.server`） |
-| 生成四视图 / 尺寸图 | `make -C sim views` |
-| 抓取动画 GIF | `make -C sim grasp` |
+| 生成高质量四视图 / 爆炸图 | `make -C sim shots`（需本机有 Chrome） |
+| 抓取动画 GIF | `make -C sim grasp` 或 `make -C sim shots` |
 | 底盘闭环仿真 | `make -C sim drive` |
 | 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |
 | 拼打印板 | `cd cad && python plate.py` → `plate_A/B/C.stl` |
@@ -104,6 +106,7 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 - 想改东西：先看 [CONTRIBUTING.md](CONTRIBUTING.md)（五条必跑命令 + 六条硬规则）
 - 想提问题：用 [issue 模板](.github/ISSUE_TEMPLATE/)
+- 文档怎么找：[docs/README.md](docs/README.md)（按角色 + 按类型两张表）
 - 想了解"为什么这么做"：[docs/13-业界实践对照](docs/13-业界实践对照.md) 把 SO-ARM100、OSHWA、
   Diátaxis、REP-103 逐项对照过，并列出还欠什么
 
@@ -113,5 +116,8 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 可下载的图纸打包在 [Releases](https://github.com/gh503/robot-modkit/releases)。
 
 ## 许可
+
+MIT（代码、CAD、文档统一）。为什么暂不改 CERN-OHL：见 [D17](docs/10-决策记录.md)。
+
 
 MIT，见 [LICENSE](LICENSE)。硬件图纸同样 MIT，商用注明出处即可。

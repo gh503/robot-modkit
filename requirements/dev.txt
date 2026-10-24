@@ -1,0 +1,5 @@
+# 开发/可视化（CI 与本地都装这套）
+-r base.txt
+matplotlib==3.10.9
+pillow==12.3.0
+pytest==9.1.1

@@ -8,9 +8,11 @@
 ```bash
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv
-./.venv/bin/pip install -e software matplotlib numpy pillow pyserial
-# CAD 需要额外装
-./.venv/bin/pip install build123d trimesh
+./.venv/bin/pip install -r requirements.txt -e software
+# 只跑上位机/仿真（不装 CAD）：
+#   ./.venv/bin/pip install -r requirements/dev.txt -e software
+# 只跑 CAD 自检：
+#   ./.venv/bin/pip install -r requirements/cad.txt
 ```
 
 ## 2. 改完必须跑这五条

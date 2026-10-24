@@ -106,3 +106,14 @@ M0 单关节模块：5 个零件、33 项几何自检、FT-SCS 协议与驱动�
 
 - `shots.py` 需要本机 Chrome；无浏览器时 CI 仍走 matplotlib
 - 渲染仍是运动学骨架（无柔性、无碰撞）
+
+## 未发布
+
+### 新增
+
+- **13 页工程图**（A4 横版 PDF）：`cad/drawings.py`，正投影 + 尺寸 + 孔表 + 关键接口 + 技术要求
+- **可制造性分析**：`cad/manufacture.py`，方向/悬垂/壁厚/质量/时长，全部从 STL 算
+- **成本模型**：`cad/cost.py` + `hardware/bom.json`，三档 × 1/5/20 台
+- **标定向导**：`modkit calib`（scan/probe/limits/zero/verify/report），10 项测试
+- **质检与验收**：`docs/18`，Q1/Q2/Q3 三道关 + 记录表 + 不合格处理
+- **生产链路总览**：`docs/15`，八环节现状与门禁

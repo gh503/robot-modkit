@@ -11,9 +11,11 @@
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 import time
 
+from . import calibrate as cal
 from . import kinematics as kin
 from . import protocol as p
 from .bus import SerialLink, SimLink
@@ -115,6 +117,60 @@ def cmd_demo(args) -> int:
     return 0
 
 
+def cmd_calib(args) -> int:
+    """标定向导：零位/方向/限位/验证。仿真先跑通再上真机。"""
+    link = _make_link(args)
+    bot = Robot(link)
+
+    if args.action == "scan":
+        ids = cal.scan_joints(bot, expected=args.expect)
+        for sid in ids:
+            print(f"  ID {sid}: {cal.probe(bot, sid)}")
+        return 0
+
+    if args.action == "probe":
+        print(cal.probe(bot, args.id))
+        return 0
+
+    if args.action == "limits":
+        lo, hi = cal.find_limits(bot, args.id, lo=args.lo, hi=args.hi,
+                                 step=args.step, settle=args.settle)
+        print(f"ID {args.id}: tick 范围 {lo}..{hi}  （{lo * p.DEG_PER_TICK:.1f}°..{hi * p.DEG_PER_TICK:.1f}°）")
+        print(f"  建议限位：min_deg={lo * p.DEG_PER_TICK:.1f}  max_deg={hi * p.DEG_PER_TICK:.1f}")
+        return 0
+
+    if args.action == "zero":
+        ticks = cal.set_zero(bot, args.id, deg=args.deg)
+        c = cal.Calibration()
+        if args.save and pathlib.Path(args.save).exists():
+            c = cal.Calibration.load(args.save)
+        c.add(cal.Joint(name=args.name, servo_id=args.id, zero_ticks=ticks,
+                        dir=args.dir, min_deg=args.min, max_deg=args.max))
+        out = c.save(args.save or "calibration.json")
+        print(f"零位：ID {args.id} 在 {args.deg}° 时 tick={ticks}；已写入 {out}")
+        return 0
+
+    if args.action == "verify":
+        c = cal.Calibration.load(args.file)
+        rows = []
+        for name, j in c.joints.items():
+            rows += [(name, r) for r in cal.verify(bot, j, tol_deg=args.tol)]
+            print(f"  {name}: 通过")
+        for name, r in rows:
+            print(f"    {name:10s} 目标 {r['want']:7.1f}  实测 {r['got']:7.1f}  误差 {r['err']:.2f}")
+        return 0
+
+    if args.action == "report":
+        c = cal.Calibration.load(args.file)
+        print(f"{c.robot}  标定时间 {c.created}")
+        print(f"{'关节':<10}{'ID':>4}{'零位tick':>9}{'方向':>5}{'下限':>8}{'上限':>8}")
+        for name, j in c.joints.items():
+            print(f"{name:<10}{j.servo_id:>4}{j.zero_ticks:>9}{j.dir:>5}{j.min_deg:>8.1f}{j.max_deg:>8.1f}")
+        return 0
+
+    raise SystemExit(f"未知动作 {args.action}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -140,6 +196,25 @@ def main(argv: list[str] | None = None) -> int:
     d = sub.add_parser("demo", help="逐个关节小角度摆动")
     d.add_argument("--max-joints", type=int, default=4)
     d.set_defaults(func=cmd_demo)
+
+    cb = sub.add_parser("calib", help="标定向导（零位/方向/限位/验证）")
+    cb.add_argument("--action", required=True,
+                    choices=["scan", "probe", "limits", "zero", "verify", "report"])
+    cb.add_argument("--id", type=int)
+    cb.add_argument("--name", default="yaw")
+    cb.add_argument("--deg", type=float, default=0.0)
+    cb.add_argument("--dir", type=int, choices=[1, -1], default=1)
+    cb.add_argument("--min", type=float, default=0.0)
+    cb.add_argument("--max", type=float, default=180.0)
+    cb.add_argument("--lo", type=float, default=0.0)
+    cb.add_argument("--hi", type=float, default=180.0)
+    cb.add_argument("--step", type=float, default=10.0)
+    cb.add_argument("--settle", type=float, default=0.2)
+    cb.add_argument("--tol", type=float, default=2.0)
+    cb.add_argument("--expect", type=int, default=6)
+    cb.add_argument("--file", default="calibration.json")
+    cb.add_argument("--save", default="calibration.json")
+    cb.set_defaults(func=cmd_calib)
 
     args = ap.parse_args(argv)
     return args.func(args)

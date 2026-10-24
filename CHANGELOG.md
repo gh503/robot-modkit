@@ -100,6 +100,7 @@ M0 单关节模块：5 个零件、33 项几何自检、FT-SCS 协议与驱动�
 
 - README 主图换成 three.js 渲染；四视图/爆炸图/动画全部重出
 - `sim/Makefile` 加 `shots` 目标；matplotlib 路线保留给 CI
+- 在线查看器同步换材质（Standard）并打开实时阴影，与渲染图观感一致
 
 ### 已知限制
 

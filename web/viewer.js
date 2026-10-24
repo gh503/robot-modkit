@@ -31,6 +31,8 @@
   var canvas = $("view");
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0xeaeff6);
@@ -45,8 +47,18 @@
   controls.dampingFactor = 0.08;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa4b2, 0.95));
-  var dir = new THREE.DirectionalLight(0xffffff, 0.75);
-  dir.position.set(300, -400, 500);
+  var dir = new THREE.DirectionalLight(0xfff6ec, 1.0);
+  dir.position.set(300, -420, 520);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048, 2048);
+  dir.shadow.camera.near = 50;
+  dir.shadow.camera.far = 2200;
+  dir.shadow.camera.left = -420;
+  dir.shadow.camera.right = 420;
+  dir.shadow.camera.top = 420;
+  dir.shadow.camera.bottom = -420;
+  dir.shadow.bias = -0.0009;
+  dir.shadow.radius = 3;
   scene.add(dir);
   var dir2 = new THREE.DirectionalLight(0xffffff, 0.35);
   dir2.position.set(-300, 250, 200);
@@ -55,9 +67,10 @@
   // 地面 + 网格（three 的 GridHelper 在 XZ 平面，转到 XY）
   var ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1400, 1400),
-    new THREE.MeshLambertMaterial({ color: 0xf7f9fc })
+    new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0xf7f9fc })
   );
   ground.position.z = -55.1;
+  ground.receiveShadow = true;
   scene.add(ground);
 
   var grid = new THREE.GridHelper(800, 16, 0xc8d2e0, 0xdfe6ef);
@@ -66,24 +79,30 @@
   scene.add(grid);
 
   var MAT = {
-    chassis: new THREE.MeshLambertMaterial({ color: 0xd8dee9 }),
-    steel: new THREE.MeshLambertMaterial({ color: 0x4c78a8 }),
-    joint: new THREE.MeshLambertMaterial({ color: 0x2f3b45 }),
-    wheel: new THREE.MeshLambertMaterial({ color: 0x33383f }),
-    bracket: new THREE.MeshLambertMaterial({ color: 0xe45756 }),
-    gripper: new THREE.MeshLambertMaterial({ color: 0x54a24b }),
-    wrist: new THREE.MeshLambertMaterial({ color: 0xf58518 }),
-    servo: new THREE.MeshLambertMaterial({ color: 0x8c8c8c }),
-    cam: new THREE.MeshLambertMaterial({ color: 0xb279a2 }),
-    block: new THREE.MeshLambertMaterial({ color: 0xe45756 })
+    chassis: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0xd8dee9 }),
+    steel: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0x4c78a8 }),
+    joint: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0x2f3b45 }),
+    wheel: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0x33383f }),
+    bracket: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0xe45756 }),
+    gripper: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0x54a24b }),
+    wrist: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0xf58518 }),
+    servo: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0x8c8c8c }),
+    cam: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0xb279a2 }),
+    block: new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.04, color: 0xe45756 })
   };
 
   function box(w, d, h, mat) {
-    return new THREE.Mesh(new THREE.BoxGeometry(w, d, h), mat);
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    return m;
   }
   function cyl(r, h, mat) {
     // three 的圆柱轴默认沿 Y，正好是轮轴方向
-    return new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24), mat);
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24), mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    return m;
   }
 
   // ------------------------------------------------------------------ 机器人

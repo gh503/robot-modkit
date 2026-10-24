@@ -107,6 +107,13 @@ M0 单关节模块：5 个零件、33 项几何自检、FT-SCS 协议与驱动�
 - `shots.py` 需要本机 Chrome；无浏览器时 CI 仍走 matplotlib
 - 渲染仍是运动学骨架（无柔性、无碰撞）
 
+## 未发布
+
+### 新增
+
+- **需求追溯矩阵**：`hardware/requirements.json` + `tools/traceability.py` → `docs/34`
+  · 20 条需求：16 已验证、3 待实测、1 未开始；验证文件不存在则 CI 红
+
 ## v0.6.2 — 2026-10-25
 
 ### 新增

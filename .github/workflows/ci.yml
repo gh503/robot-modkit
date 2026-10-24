@@ -66,6 +66,8 @@ jobs:
         run: python tools/linkcheck.py .
       - name: 跨文件一致性（文档索引/BOM/可制造性）
         run: python tools/consistency.py
+      - name: 需求追溯（验证文件必须存在）
+        run: python tools/traceability.py
       - name: 产物上传
         uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,25 @@
+{
+  "note": "需求追溯矩阵：每条需求都要有设计落点 + 验证方式 + 状态。验证文件必须存在，否则 CI 红。",
+  "requirements": [
+    {"id": "R1", "req": "整机可拆装、单模块可独立更换", "design": "joint_base/lid + 4×M3", "verify": "docs/05-装配手册.md", "status": "verified", "method": "文档+几何检查"},
+    {"id": "R2", "req": "机械臂 4 自由度（偏航/肩/肘/夹爪）", "design": "3 关节 + 夹爪", "verify": "docs/01-系统设计.md", "status": "verified", "method": "文档+IK 测试"},
+    {"id": "R3", "req": "夹爪开口 ≥40mm", "design": "JAW_GAP_OPEN=40", "verify": "cad/jigs.py", "status": "verified", "method": "断言"},
+    {"id": "R4", "req": "差速底盘 + 万向轮", "design": "2 驱动舵机 + 2 万向球", "verify": "firmware/test/test_drive.cpp", "status": "verified", "method": "30 项测试"},
+    {"id": "R5", "req": "相机支架可调俯角", "design": "camera_mount 55°", "verify": "cad/parts_m1.py", "status": "verified", "method": "几何"},
+    {"id": "R6", "req": "6 只 12V 总线舵机菊花链", "design": "TTL 半双工 1Mbps", "verify": "firmware/test/test_scs.cpp", "status": "verified", "method": "41 项协议测试"},
+    {"id": "R7", "req": "硬件急停（断 12V）", "design": "NC 按钮 + 5A 保险", "verify": "docs/03-配电与线束.md", "status": "verified", "method": "文档（待实物）"},
+    {"id": "R8", "req": "电池低压保护", "design": "10.8V 限速 / 10.2V 卸力", "verify": "firmware/test/test_power.cpp", "status": "verified", "method": "6 组测试"},
+    {"id": "R9", "req": "标定可复现、可归档", "design": "calib zero/limits/verify + JSON", "verify": "software/tests/test_calibrate.py", "status": "verified", "method": "10 项测试"},
+    {"id": "R10", "req": "单台物料 ≤¥1200（B 档 ¥1147）", "design": "BOM 三档", "verify": "docs/17-成本模型.md", "status": "verified", "method": "cost.py 自检"},
+    {"id": "R11", "req": "所有零件 ≤220×220×250 床", "design": "拆分底盘/短连杆", "verify": "cad/out/check_report.json", "status": "verified", "method": "85 项几何断言"},
+    {"id": "R12", "req": "单台人工 ≤8h", "design": "17 道工序 7.0h", "verify": "docs/30-工序卡.md", "status": "verified", "method": "routing.py 对账"},
+    {"id": "R13", "req": "重复定位 ≤2mm", "design": "回差补偿 + 标定", "verify": "software/modkit/bench.py", "status": "pending", "method": "待实测"},
+    {"id": "R14", "req": "开环末端 p95 ≤8mm", "design": "连杆 6mm + Ø3.6 对接", "verify": "cad/tolerance_mc.py", "status": "verified", "method": "蒙特卡洛 p95 6.24mm"},
+    {"id": "R15", "req": "抓放成功率 ≥8/10", "design": "40mm 夹爪 + 硅胶垫", "verify": "software/modkit/qc.py", "status": "pending", "method": "待实测"},
+    {"id": "R16", "req": "连续运行 30min 不宕机、壳温 <55℃", "design": "限流 + 散热间隙", "verify": "software/modkit/bench.py", "status": "pending", "method": "待实测"},
+    {"id": "R17", "req": "批次可追溯（序列号/固件/标定指纹）", "design": "records/*.json + qc 校验", "verify": "software/tests/test_qc.py", "status": "verified", "method": "11 项测试"},
+    {"id": "R18", "req": "他人可照文档复现设计与工艺", "design": "docs/15–33 + 脚本", "verify": "tools/consistency.py", "status": "verified", "method": "链接/索引/BOM 检查"},
+    {"id": "R19", "req": "固件可移植（HAL 隔离）", "design": "IHalfDuplexBus + g++ 测试", "verify": "firmware/Makefile", "status": "verified", "method": "主机测试 77 项"},
+    {"id": "R20", "req": "自主导航 + 视觉抓取（M2/M3）", "design": "未实现", "verify": "docs/00-项目计划.md", "status": "not_started", "method": "路线图"}
+  ]
+}

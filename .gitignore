@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# CAD 输出（可由 build.py 重新生成，不入库）
+cad/out/
+
+# 固件构建产物
+firmware/build/
+
+# 工具链（arduino-cli 二进制，约 30MB）
+tools/arduino-cli
+tools/ac.tar.gz

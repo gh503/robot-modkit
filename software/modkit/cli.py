@@ -18,6 +18,7 @@ import time
 from . import bench as bench
 from . import calibrate as cal
 from . import qc as qc
+from . import selftest as st
 from . import kinematics as kin
 from . import protocol as p
 from .bus import SerialLink, SimLink
@@ -237,6 +238,22 @@ def cmd_bench(args) -> int:
     raise SystemExit(f"未知动作 {args.action}")
 
 
+def cmd_selftest(args) -> int:
+    link = _make_link(args)
+    bot = Robot(link)
+    expect = [int(x) for x in args.expect.split(",") if x.strip()]
+    rep = st.selftest(bot, expect, amp=args.amp, tol=args.tol, settle=args.settle)
+    print(f"{'ID':>3} {'关节':<10}{'结果':<6}{'到位误差':>10}{'温度':>6}")
+    for s in rep.steps:
+        mark = "✓" if s.ok else "✗"
+        print(f"{s.sid:>3} {s.name:<10}{mark:<6}{s.detail:>10}{s.temp_c:>5}℃")
+    path = rep.save(args.json)
+    print(f"\n{'通过' if rep.ok else '未通过'}；记录 {path}")
+    if rep.stopped:
+        print(f"中止原因：{rep.stopped}")
+    return 0 if rep.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -301,6 +318,14 @@ def main(argv: list[str] | None = None) -> int:
     bn.add_argument("--limit", type=float, default=55.0)
     bn.add_argument("--csv", default="bench.csv")
     bn.set_defaults(func=cmd_bench)
+
+    stp = sub.add_parser("selftest", help="新机自检：在线/温度/运动/到位")
+    stp.add_argument("--expect", default="1,2,3,4,5,6")
+    stp.add_argument("--amp", type=float, default=5.0)
+    stp.add_argument("--tol", type=float, default=1.5)
+    stp.add_argument("--settle", type=float, default=0.25)
+    stp.add_argument("--json", default="selftest.json")
+    stp.set_defaults(func=cmd_selftest)
 
     args = ap.parse_args(argv)
     return args.func(args)

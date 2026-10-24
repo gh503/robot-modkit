@@ -15,6 +15,7 @@ import pathlib
 import sys
 import time
 
+from . import bench as bench
 from . import calibrate as cal
 from . import qc as qc
 from . import kinematics as kin
@@ -214,6 +215,28 @@ def cmd_qc(args) -> int:
     raise SystemExit(f"未知动作 {args.action}")
 
 
+def cmd_bench(args) -> int:
+    link = _make_link(args)
+    bot = Robot(link)
+    if args.action == "repeat":
+        r = bench.repeatability(bot, args.x, args.y, args.z, n=args.n)
+        print(f"目标 {r['target']}  均值 {r['mean']}  离散 {r['span_mm']}mm  "
+              f"{'通过' if r['ok'] else '超差（限 2mm）'}")
+        return 0 if r["ok"] else 1
+
+    if args.action == "burnin":
+        log = bench.BenchLog(pathlib.Path(args.csv))
+        r = bench.burn_in(bot, minutes=args.minutes, cycle_s=args.cycle,
+                          limit_c=args.limit, log=log)
+        print(f"循环 {r['cycles']} 次 / {r['duration_s']}s，最高温 {r['max_temp_c']}℃")
+        if r["stopped"]:
+            print(f"中止：{r['stopped']}")
+        print(f"CSV：{args.csv}")
+        return 0 if r["ok"] else 1
+
+    raise SystemExit(f"未知动作 {args.action}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -266,6 +289,18 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--dir", default="records")
     q.add_argument("--file", nargs="+", default=[])
     q.set_defaults(func=cmd_qc)
+
+    bn = sub.add_parser("bench", help="台架测试：重复精度/连续运行")
+    bn.add_argument("--action", required=True, choices=["repeat", "burnin"])
+    bn.add_argument("--n", type=int, default=10)
+    bn.add_argument("--x", type=float, default=180.0)
+    bn.add_argument("--y", type=float, default=0.0)
+    bn.add_argument("--z", type=float, default=120.0)
+    bn.add_argument("--minutes", type=float, default=1.0)
+    bn.add_argument("--cycle", type=float, default=2.0)
+    bn.add_argument("--limit", type=float, default=55.0)
+    bn.add_argument("--csv", default="bench.csv")
+    bn.set_defaults(func=cmd_bench)
 
     args = ap.parse_args(argv)
     return args.func(args)

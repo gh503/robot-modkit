@@ -119,7 +119,7 @@ def link_deflection(payload_n: float) -> dict:
 def tolerance_stack() -> dict:
     """底盘左右 + 连接板：三块板、两道对接，最坏情况累积。"""
     t_part = 0.2          # 单件孔位 ±0.2（FDM 实测）
-    clr = (P.M3_CLR - 3.0) / 2   # Ø3.4 过孔对 M3 的单边间隙 0.2
+    clr = (P.M3_CLR_FIT - 3.0) / 2   # Ø3.6 对接孔对 M3 的单边间隙 0.3
     # 每个对接面：两块板各 ±0.2 → 相对错位最坏 0.4；过孔每边让 0.2 → 可吃 0.4
     worst = 2 * t_part
     allow = 2 * clr
@@ -131,7 +131,7 @@ def tolerance_stack() -> dict:
         "allowance_mm": round(allow, 2),
         "margin_mm": round(margin, 2) + 0.0,   # 避免 -0.0
         "ok": margin >= 0.1,
-        "note": "余量为 0 时能装上但没有任何容错；建议过孔改 Ø3.6（单边 0.3）或做椭圆孔",
+        "note": "对接面用 Ø3.6 留容错；其余孔仍 Ø3.4 保证定位",
     }
 
 
@@ -228,7 +228,7 @@ def main() -> int:
         "## 3. 公差链（底盘三块板）",
         "",
         f"- 单件孔位 ±{tol['part_tol_mm']} mm → 相对错位最坏 {tol['worst_case_mm']} mm",
-        f"- Ø3.4 过孔单边间隙 {tol['hole_clearance_mm']} mm，可吃 {tol['allowance_mm']} mm；"
+        f"- Ø{P.M3_CLR_FIT} 对接孔单边间隙 {tol['hole_clearance_mm']} mm，可吃 {tol['allowance_mm']} mm；"
         f"**余量 {tol['margin_mm']} mm**",
         f"- {tol['note']}",
         "",

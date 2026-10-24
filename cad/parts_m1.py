@@ -70,7 +70,7 @@ def chassis_half(side: int = 1):
             continue
         if abs(abs(x) - 30) < 12 and abs(y) > 26:
             continue
-        part -= _hole(P.M3_CLR, P.CHASSIS_T, x, y, Z_PLATE_BOT)
+        part -= _hole(P.M3_CLR_FIT, P.CHASSIS_T, x, y, Z_PLATE_BOT)
 
     # 线缆过孔
     part -= _hole(12.0, P.CHASSIS_T, side * 70, 0, Z_PLATE_BOT)
@@ -82,7 +82,7 @@ def chassis_joiner():
     part = Pos(0, 0, Z_PLATE_BOT / 2) * Box(60, P.CHASSIS_Y, P.CHASSIS_T)
     for dy in (-60, -40, 40, 60):
         for dx in (-30, 30):
-            part -= _hole(P.M3_CLR, P.CHASSIS_T, dx, dy, Z_PLATE_BOT)
+            part -= _hole(P.M3_CLR_FIT, P.CHASSIS_T, dx, dy, Z_PLATE_BOT)
     part -= _hole(14.0, P.CHASSIS_T, 0, 0, Z_PLATE_BOT)
     return part
 

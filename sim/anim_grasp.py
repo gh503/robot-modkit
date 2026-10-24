@@ -1,0 +1,131 @@
+"""抓取动作仿真：给定起止位姿，用逆解算出关节轨迹，逐帧渲染成 GIF。
+
+这是"没有硬件也能调动作"的核心工具：
+  改目标点 → 立刻能看到臂会不会撞桌子、够不够得着、姿态顺不顺。
+它不替代真机（没有碰撞动力学、没有舵机延迟），但能把 80% 的"明显不对"提前暴露。
+"""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+
+import model as M
+import draw as R
+from modkit import kinematics as kin
+
+OUT = Path(__file__).resolve().parent / "out"
+
+
+def ik_or_fail(pose: kin.Pose) -> M.RobotState:
+    y, s, e = kin.inverse(M.arm_geometry(), pose, elbow_up=False)
+    return M.RobotState(yaw=y, shoulder=s, elbow=e)
+
+
+def lerp_state(a: M.RobotState, b: M.RobotState, t: float, jaw: float) -> M.RobotState:
+    return M.RobotState(
+        yaw=a.yaw + (b.yaw - a.yaw) * t,
+        shoulder=a.shoulder + (b.shoulder - a.shoulder) * t,
+        elbow=a.elbow + (b.elbow - a.elbow) * t,
+        jaw=jaw,
+    )
+
+
+def build_sequence() -> list[tuple[M.RobotState, float, str]]:
+    """返回 (状态, 持续帧数, 字幕)。所有目标都必须能被逆解，否则直接抛错。"""
+    home = M.RobotState(yaw=0, shoulder=35, elbow=-55, jaw=1.0)
+    above = ik_or_fail(kin.Pose(200, 0, 120))
+    above.jaw = 1.0
+    grasp = ik_or_fail(kin.Pose(200, 0, 62))
+    grasp.jaw = 1.0
+    grasp_closed = M.RobotState(grasp.yaw, grasp.shoulder, grasp.elbow, jaw=0.0)
+    lift = ik_or_fail(kin.Pose(200, 0, 170))
+    lift.jaw = 0.0
+    # 放到 +Y 侧（左前方）的托盘
+    place_hi = ik_or_fail(kin.Pose(150, 110, 150))
+    place_hi.jaw = 0.0
+    place = ik_or_fail(kin.Pose(150, 110, 70))
+    place.jaw = 0.0
+    place_open = M.RobotState(place.yaw, place.shoulder, place.elbow, jaw=1.0)
+
+    return [
+        (home, 10, "① 待机"),
+        (above, 18, "② 移到方块上方 (x=200,z=120)"),
+        (grasp, 16, "③ 下降抓取 (z=62)"),
+        (grasp_closed, 10, "④ 夹爪闭合"),
+        (lift, 18, "⑤ 抬起 (z=170)"),
+        (place_hi, 22, "⑥ 转到托盘上方"),
+        (place, 16, "⑦ 下降到托盘 (z=70)"),
+        (place_open, 10, "⑧ 松开"),
+        (home, 20, "⑨ 回到待机"),
+    ]
+
+
+def frames() -> list[tuple[M.RobotState, str]]:
+    seq = build_sequence()
+    out: list[tuple[M.RobotState, str]] = []
+    for i in range(len(seq) - 1):
+        a, n, label = seq[i]
+        b = seq[i + 1][0]
+        for k in range(n):
+            out.append((lerp_state(a, b, k / n, a.jaw + (b.jaw - a.jaw) * k / n), label))
+    out.append((seq[-1][0], seq[-1][2]))
+    return out
+
+
+def draw_frame(st: M.RobotState, label: str, block_held: bool, block_xy: tuple[float, float]):
+    fig = plt.figure(figsize=(8, 6.4), dpi=110)
+    ax = fig.add_subplot(111, projection="3d")
+    R.draw_robot(ax, st)
+    if not block_held:
+        R._box(ax, block_xy[0], block_xy[1], M.GROUND + 20, 40, 40, 40, "#E45756")
+    else:
+        pts = M.joint_points(st)
+        tip = pts["tip"]
+        R._box(ax, tip[0], tip[1], tip[2] - 20, 40, 40, 40, "#E45756")
+    R.set_view(ax, 20, -62, span=320)
+    ax.set_title(f"modkit M1 · 抓取仿真   {label}\n"
+                 f"偏航 {st.yaw:+.0f}°  肩 {st.shoulder:+.0f}°  肘 {st.elbow:+.0f}°  "
+                 f"夹爪 {M.gap_mm(st.jaw):.0f}mm", fontsize=10)
+    fig.tight_layout()
+    fig.canvas.draw()
+    img = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
+    plt.close(fig)
+    return img
+
+
+def main() -> None:
+    OUT.mkdir(exist_ok=True)
+    seq = frames()
+    imgs = []
+    block_xy = (200.0, 0.0)
+    for i, (st, label) in enumerate(seq):
+        imgs.append(Image.fromarray(draw_frame(st, label, block_held=st.jaw < 0.5, block_xy=block_xy)))
+        if i % 10 == 0:
+            print(f"  帧 {i}/{len(seq)}")
+
+    gif = OUT / "arm_grasp.gif"
+    imgs[0].save(gif, save_all=True, append_images=imgs[1:], duration=90, loop=0, optimize=True)
+    print(f"写出 {gif}  ({len(imgs)} 帧, {gif.stat().st_size // 1024} KB)")
+
+    # 关键帧拼图，方便一眼看全流程
+    picks = [0, 28, 44, 54, 72, 94, 110, 120, 140]
+    picks = [p for p in picks if p < len(imgs)][:9]
+    cols, rows = 3, (len(picks) + 2) // 3
+    w, h = imgs[0].size
+    sheet = Image.new("RGB", (cols * w // 2, rows * h // 2), "white")
+    for i, p in enumerate(picks):
+        sheet.paste(imgs[p].resize((w // 2, h // 2)), ((i % cols) * w // 2, (i // cols) * h // 2))
+    sheet.save(OUT / "arm_grasp_sheet.png")
+    print(f"写出 {OUT / 'arm_grasp_sheet.png'}")
+
+
+if __name__ == "__main__":
+    main()

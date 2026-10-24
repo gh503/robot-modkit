@@ -27,8 +27,8 @@ struct DriveConfig {
   uint16_t ticks_per_rev = 4096;
   float speed_unit = 1.0f;   // 每 LSB 多少 tick/s，必须标定
   float track_mm = 150.0f;
-  float kp = 0.8f;
-  float ki = 0.6f;
+  float kp = 2.0f;   // 与 sim/drive.py 同步（网格搜索得出）
+  float ki = 12.0f;
 };
 
 class DriveTrain {

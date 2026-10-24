@@ -133,7 +133,7 @@ static void test_pi_closes_loop() {
   DriveTrain drive(scs, DriveConfig{});
   CHECK(drive.begin() == Result::Ok);
 
-  const float dt = 0.05f;
+  const float dt = 0.02f;   // 与 sim/drive.py 的控制周期一致（50Hz）
   const float target = 120.0f;                                   // mm/s
   const double circ = 2 * 3.14159265358979 * 32.5;
   const double mm_per_tick = circ / 4096.0;
@@ -141,6 +141,9 @@ static void test_pi_closes_loop() {
   // 先建立"上一拍位置"
   drive.updateVelocityLoop(target, 0.0f, dt);
 
+  // 一阶惯性 + 70% 增益：模拟"舵机有跟随延迟、且实际转速只有指令的七成"
+  float actual_l = 0.0f, actual_r = 0.0f;
+  const float tau = 0.12f;
   auto plant = [&](float gain) {
     for (uint8_t id : {5, 6}) {
       const int16_t reg = static_cast<int16_t>(reg16(bus, id, drivereg::Speed));
@@ -148,7 +151,9 @@ static void test_pi_closes_loop() {
                                                          : float(reg & 0x7FFFu);
       // LSB → mm/s（与 mmToRegister 的逆）
       const float mm_s = cmd * static_cast<float>(circ / 4096.0);
-      const float actual = gain * mm_s;
+      float& actual = (id == 5) ? actual_l : actual_r;
+      const float target = gain * mm_s;
+      actual += (dt / (tau + dt)) * (target - actual);
       const int32_t ticks = std::lround(actual * dt / mm_per_tick);
       auto& mem = bus.servos[id].mem;
       const uint16_t pos = static_cast<uint16_t>(mem[reg::PresentPosition] |
@@ -161,8 +166,8 @@ static void test_pi_closes_loop() {
   };
 
   float last = 0;
-  // 400 拍 × 50ms = 20s 仿真时间。PI 收敛靠积分慢慢爬，别指望 10 拍到位。
-  for (int i = 0; i < 400; ++i) {
+  // 1000 拍 × 20ms = 20s 仿真时间。PI 收敛靠积分慢慢爬，别指望 10 拍到位。
+  for (int i = 0; i < 1000; ++i) {
     drive.updateVelocityLoop(target, 0.0f, dt);
     plant(0.7f);
     last = drive.measuredLeft();

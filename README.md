@@ -19,6 +19,7 @@
 | 固件：总线协议 + 驱动 + 底盘闭环 | ✅ 可用 | **65 项** C++ 测试（协议 41 + 底盘 24） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
 | 上位机：协议/运动学/仿真/CLI | ✅ 可用 | 23 项 pytest；无硬件可跑全流程 |
+| 仿真：整机多视图 + 抓取动画 + 底盘闭环 | ✅ 可用 | 5 张图 + 121 帧 GIF；闭环判据 7mm / 0.1° 全过 |
 | 自主任务（导航+视觉+抓取） | ⬜ 未开始 | 路线图 M3–M5 |
 | 整机实测 | ⬜ 未开始 | 等你的打印机和舵机 |
 
@@ -32,6 +33,14 @@ python3 -m venv .venv && ./.venv/bin/pip install -e software
 ./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点
 ./.venv/bin/python -m modkit.cli --sim demo          # 逐关节摆动
+```
+
+看整机长什么样、动作顺不顺（不需要硬件）：
+
+```bash
+make -C sim views    # 四视图 + 尺寸图 + 工作空间
+make -C sim grasp    # 抓取动画 GIF
+make -C sim drive    # 底盘闭环仿真（打印判据）
 ```
 
 看图纸、跑自检：
@@ -51,9 +60,10 @@ cd firmware && make test
 ## 目录
 
 ```
-docs/     00 计划 · 01 系统设计 · 02 接口 · 03 配电 · 04 BOM · 11 零件清单
+docs/     00 计划 · 01 系统设计 · 02 接口 · 03 配电 · 04 BOM · 11 零件清单 · 12 仿真
           05 装配 · 06 调试测试 · 07 小白手册 · 08 学习路径 · 09 故障排查 · 10 决策
 cad/      params.py（唯一尺寸源）· parts.py（M0）· parts_m1.py（整机）· build.py · render.py
+sim/      model.py（可动模型）· draw.py（多视图）· anim_grasp.py（动画）· drive.py（闭环仿真）
 firmware/ src/（协议+驱动，可脱离硬件测试）· esp32/（平台层）· test/（假总线）
 software/ modkit/（协议/运动学/仿真/CLI）· tests/
 ```

@@ -11,7 +11,10 @@
 
 from __future__ import annotations
 
+import json
+import math
 import pathlib
+import sys
 
 import params as P
 import trimesh
@@ -43,7 +46,48 @@ PLATES: dict[str, list[tuple[str, float, float]]] = {
 }
 
 
+def batch_plan(copies: int) -> dict:
+    """按套数估排产：件数 → 面积 → 需要几张板、多少料/机时。
+
+    注意：`plate_A/B/C.stl` 是"一套"的排法，适合单台。
+    批量时按面积重排（同样的床，塞更多小件），这里只给面积与张数估算。
+    """
+    mfg = json.loads((OUT / "manufacturing.json").read_text(encoding="utf-8"))
+    bed_area = P.PRINTER_BED[0] * P.PRINTER_BED[1]
+    usable = 0.65                     # 实际可排面积比例（留边距/间隙）
+
+    rows = []
+    total_mass = total_hours = total_area = 0.0
+    for name, m in mfg.items():
+        if m.get("tooling"):
+            continue                  # 工装只打一套，不算进批量
+        pieces = m["qty"] * copies
+        bbox = m["bbox"]
+        area = bbox[0] * bbox[1]
+        total_area += area * pieces
+        total_mass += m["mass_g"] * pieces
+        total_hours += m["hours"] * pieces
+        rows.append({"part": name, "pieces": pieces,
+                     "mass_g": round(m["mass_g"] * pieces, 1),
+                     "hours": round(m["hours"] * pieces, 2)})
+
+    plates = math.ceil(total_area / (bed_area * usable))
+    return {
+        "copies": copies,
+        "total_mass_g": round(total_mass, 1),
+        "total_hours": round(total_hours, 1),
+        "estimated_plates": plates,
+        "bed_area_cm2": round(bed_area / 100, 0),
+        "parts_area_cm2": round(total_area / 100, 0),
+        "utilization": round(total_area / (plates * bed_area) * 100, 0) if plates else 0,
+        "rows": rows,
+    }
+
+
 def main():
+    copies = 1
+    if "--copies" in sys.argv:
+        copies = int(sys.argv[sys.argv.index("--copies") + 1])
     bed_x, bed_y, bed_z = P.PRINTER_BED
     total_area = 0.0
     for plate_name, items in PLATES.items():
@@ -83,6 +127,18 @@ def main():
           f"= {total_area/bed_area*100:.0f}% 利用率")
     print("切片提示：一个 STL 里多个实体，Orca/PrusaSlicer 会问"
           "“按对象拆分”，选“是”才能给校准件单独设参数。")
+
+    plan = batch_plan(copies)
+    (OUT / "print_plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\n=== 排产：{copies} 套 ===")
+    print(f"件数合计 {sum(r['pieces'] for r in plan['rows'])} 件，"
+          f"耗材 {plan['total_mass_g']:.0f} g，机时 {plan['total_hours']:.1f} h")
+    print(f"按 {plan['bed_area_cm2']:.0f} cm² 床面、{plan['utilization']:.0f}% 利用率 → "
+          f"约 {plan['estimated_plates']} 张板（重排后，不是简单重复 plate_A/B/C）")
+    print(f"两台打印机 → 约 {plan['total_hours'] / 2:.0f} 小时")
+    print("\n单台 vs 批量：")
+    print(f"  单台 {plan['total_mass_g'] / copies:.0f} g / {plan['total_hours'] / copies:.1f} h"
+          f"（与 docs/16 一致）；批量 {copies} 台有失败重打与换料损耗，建议 +8%")
 
 
 if __name__ == "__main__":

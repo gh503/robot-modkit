@@ -46,6 +46,8 @@ jobs:
         run: cd cad && python manufacture.py
       - name: 成本模型自检
         run: cd cad && python cost.py
+      - name: 排产估算（5 套）
+        run: cd cad && python plate.py --copies 5
       - name: 工程图（13 页 PDF）
         run: cd cad && python drawings.py
       - name: 设计校核（力矩/刚度/公差/驱动）

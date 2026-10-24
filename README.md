@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/gh503/robot-modkit/actions/workflows/ci.yml/badge.svg)](https://github.com/gh503/robot-modkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/gh503/robot-modkit)](https://github.com/gh503/robot-modkit/releases)
+[![Live](https://img.shields.io/badge/live-3D%20viewer-4c78a8)](https://gh503.github.io/robot-modkit/)
 
 > 一台"接口先定、形态后长"的机器人：**差速底盘 + 4 自由度臂 + 夹爪**，
 > 目标不是演示视频，而是**能独立完成物理任务**（导航到指定位置 → 识别目标 → 抓取 → 放到另一处）。
@@ -94,6 +96,11 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 - ROS 2 Humble 的 `launch_testing` 会被 pytest 自动加载并因缺 `pyyaml` 报错 → 用 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`。
 - 本机 `~/Documents/infra-dev` 是另一个项目（Jarvis），故本项目独立在 `~/Documents/robot-modkit`，独立 git 仓库。
 - 机械臂逆解的肩角符号写反过一次，被 `test_forward_ik_roundtrip` 抓住 —— 所以那条测试必须保留。
+
+## 版本
+
+当前 **v0.3.0**（整机图纸 + 仿真 + 在线查看器）。完整变更见 [CHANGELOG.md](CHANGELOG.md)，
+可下载的图纸打包在 [Releases](https://github.com/gh503/robot-modkit/releases)。
 
 ## 许可
 

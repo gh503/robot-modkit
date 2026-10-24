@@ -39,13 +39,15 @@ jobs:
         with:
           python-version: "3.11"
       - name: 安装 build123d（约 2 分钟）
-        run: pip install build123d trimesh rtree
+        run: pip install build123d trimesh rtree matplotlib
       - name: 构建 + 断言
         run: cd cad && python build.py
       - name: 可制造性（方向/悬垂/壁厚/时长）
         run: cd cad && python manufacture.py
       - name: 成本模型自检
         run: cd cad && python cost.py
+      - name: 工程图（13 页 PDF）
+        run: cd cad && python drawings.py
       - name: 产物上传
         uses: actions/upload-artifact@v4
         with:
@@ -55,6 +57,7 @@ jobs:
             cad/out/cost.json
             docs/16-可制造性报告.md
             docs/17-成本模型.md
+            docs/drawings/modkit-m1-drawings.pdf
 
   sim:
     name: 仿真与可视化

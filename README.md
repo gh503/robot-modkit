@@ -106,6 +106,7 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 - 想改东西：先看 [CONTRIBUTING.md](CONTRIBUTING.md)（五条必跑命令 + 六条硬规则）
 - 想提问题：用 [issue 模板](.github/ISSUE_TEMPLATE/)
+- **要有尺寸的图纸**：[13 页工程图](docs/drawings/modkit-m1-drawings.pdf)（A4 可直接打印）
 - **要真的造出来**：[docs/15-生产链路总览](docs/15-生产链路总览.md)（八个环节 + 每环门禁）
 - **要算成本/排产**：[docs/17-成本模型](docs/17-成本模型.md)（三档 × 1/5/20 台）
 - **要打件**：[docs/16-可制造性报告](docs/16-可制造性报告.md)（方向/悬垂/壁厚/时长）

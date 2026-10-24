@@ -27,6 +27,13 @@ COLORS = {
     "link_bar": "#54A24B",
     "wheel_hub": "#B279A2",
     "servo_reference": "#8C8C8C",
+    "chassis_right": "#4C78A8",
+    "chassis_left": "#4C78A8",
+    "chassis_joiner": "#72B7B2",
+    "drive_bracket": "#E45756",
+    "jaw_fixed": "#54A24B",
+    "jaw_moving": "#F58518",
+    "camera_mount": "#B279A2",
 }
 
 VIEWS = {

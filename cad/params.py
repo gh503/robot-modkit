@@ -59,3 +59,31 @@ MIN_WALL = 1.2       # [DESIGN] FDM 最小可靠壁厚（0.4 喷嘴 ×3）
 BUS_VOLTAGE = 12.0   # [DS] 额定工作电压
 BUS_BAUD = 1_000_000 # [DS] 出厂默认波特率（内存表地址 0x06 = 0）
 BUS_BAUD_IDX_115200 = 4  # [DS] 波特率索引表：0=1M,1=500k,2=250k,3=128k,4=115200
+# ================================================================ M1 整机（底盘 / 夹爪 / 相机）
+# ---------------------------------------------------------------- 底盘
+CHASSIS_X = 240.0    # [DESIGN] 底盘长
+CHASSIS_Y = 200.0    # [DESIGN] 底盘宽
+CHASSIS_T = 5.0      # [DESIGN] 底盘板厚
+CHASSIS_SPLIT = True # [DESIGN] True = 分两块打印（240 超出多数打印床）
+DRIVE_Y = 50.0       # [DESIGN] 驱动舵机中心 |y|（轮子在 y=±75，轮距 150）
+WHEEL_Y = 75.0       # [DESIGN] 轮平面 |y| → TRACK = 150
+SERVO_Z = -22.5      # [DESIGN] 驱动舵机中心 z（吊在底盘板下方，板底 z=-5）
+WHEEL_R = 32.5       # [DESIGN] 轮半径（Ø65 轮）
+CASTER_X = 90.0      # [DESIGN] 万向球轮 |x| 位置
+BATT_SLOT_W = 5.0    # [DESIGN] 电池扎带槽宽
+BATT_SLOT_L = 70.0   # [DESIGN] 扎带槽长
+ARM_ORIGIN_X = 20.0  # [DESIGN] 臂底座中心在底盘上的 x 偏移（靠后，给前方相机留位）
+
+# ---------------------------------------------------------------- 夹爪（复用关节模块：底座+舵机+盖板）
+JAW_T = 6.0          # [DESIGN] 夹爪壁厚
+JAW_H = 60.0         # [DESIGN] 夹爪高度
+JAW_W = 40.0         # [DESIGN] 夹爪宽度
+JAW_GAP_OPEN = 40.0  # [DESIGN] 全开内距
+JAW_SWING = 70.0     # [DESIGN] 动爪最大摆角（度）→ 全闭内距约 27mm
+FINGER_PAD_T = 3.0   # [DESIGN] 指尖软胶垫厚度（不计入打印件）
+
+# ---------------------------------------------------------------- 相机支架
+CAM_BASE_X = 60.0    # [DESIGN]
+CAM_BASE_Y = 50.0    # [DESIGN]
+CAM_TILT = 55.0      # [DESIGN] 俯角（度）
+CAM_HOLE = 14.0      # [DESIGN] 镜头孔

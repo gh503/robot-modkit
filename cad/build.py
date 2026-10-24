@@ -17,7 +17,8 @@ from pathlib import Path
 
 import params as P
 import parts as K
-from build123d import Box, Pos, export_step, export_stl
+import parts_m1 as M1
+from build123d import Box, Pos, Rot, export_step, export_stl
 
 OUT = Path(__file__).parent / "out"
 OUT.mkdir(exist_ok=True)
@@ -45,6 +46,7 @@ def interference(a, b) -> float:
 
 def build_all():
     solids = {name: fn() for name, fn in K.ALL_PARTS.items()}
+    solids.update({name: fn() for name, fn in M1.ALL_PARTS_M1.items()})
     servo = K.servo_reference()
     return solids, servo
 
@@ -107,6 +109,47 @@ def main():
     check("花键插座深度 > 花键露出高度", socket_depth > P.SERVO_SPLINE_H,
           f"{socket_depth:.2f} vs {P.SERVO_SPLINE_H:.2f}")
 
+    print("\n=== M1 整机检查 ===")
+    # 驱动舵机吊在板下：与底盘、与支架都不能干涉
+    for side in (1, -1):
+        drive = M1.drive_servo_reference(side)
+        v = interference(drive, solids["chassis_right"])
+        v += interference(drive, solids["chassis_left"])
+        check(f"驱动舵机{side:+d} × 底盘 干涉", v < 1.0, f"相交 {v:.3f} mm³")
+
+    bracket = solids["drive_bracket"]
+    for side in (1, -1):
+        drive = Pos(0, side * P.DRIVE_Y, 0) * M1.drive_servo_reference(1)
+        v = interference(drive, Pos(0, side * P.DRIVE_Y, 0) * bracket)
+        check(f"驱动舵机{side:+d} × 支架 干涉", v < 1.0, f"相交 {v:.3f} mm³")
+
+    # 底盘三块之间不能互相压死（连接板只在 x=±30 附近重叠）
+    v = interference(solids["chassis_right"], solids["chassis_left"])
+    check("左右底盘互不重叠", v < 1.0, f"相交 {v:.3f} mm³")
+
+    # 夹爪：全开/全闭都不能撞
+    jaw_open = M1.jaw_moving(0)
+    jaw_closed = M1.jaw_moving(P.JAW_SWING)
+    v = interference(jaw_open, solids["jaw_fixed"])
+    check("夹爪全开：动爪 × 定爪", v < 1.0, f"相交 {v:.3f} mm³")
+    v = interference(jaw_closed, solids["jaw_fixed"])
+    check(f"夹爪闭合 {P.JAW_SWING:.0f}°：动爪 × 定爪", v < 1.0, f"相交 {v:.3f} mm³")
+    v = interference(jaw_closed, solids["joint_lid"])
+    check("夹爪闭合：动爪 × 盖板", v < 1.0, f"相交 {v:.3f} mm³")
+
+    gap_open = M1.jaw_gap(0.0)
+    gap_closed = M1.jaw_gap(P.JAW_SWING)
+    check("夹爪全开内距", 35 <= gap_open <= 50, f"{gap_open:.1f} mm")
+    check("夹爪闭合内距", 15 <= gap_closed < gap_open, f"{gap_closed:.1f} mm（摆 {P.JAW_SWING:.0f}°）")
+
+    # 驱动几何与运动学参数必须一致（轮子在 WHEEL_Y，轮距 = 2×WHEEL_Y）
+    leg_gap = 14.75 - 2 - P.SERVO_W / 2
+    check("支架腿内面留间隙", leg_gap >= 0.2, f"单边 {leg_gap:.2f} mm（FDM 可装入）")
+
+    check("轮距与 kinematics 一致", abs(2 * P.WHEEL_Y - 150.0) < 1e-6, f"{2*P.WHEEL_Y:.0f} mm")
+    check("轮子不超出底盘宽度", P.WHEEL_Y + 10 <= P.CHASSIS_Y / 2 + 10,
+          f"轮平面 {P.WHEEL_Y} / 半宽 {P.CHASSIS_Y/2}")
+
     print("\n=== 打印机成形空间 ===")
     bx, by, bz = P.PRINTER_BED
     for name, s in solids.items():
@@ -122,6 +165,10 @@ def main():
     print(f"  输出盘→连杆    M3×10  ×{P.DISC_BOLTS}  （{P.DISC_T}mm 盘 + 连杆 {P.PLATE_T}mm）")
     print(f"  连杆→底盘      M3×10 + 螺母 ×4")
     print(f"  M3 热熔铜螺母  M3×5×4 ×4")
+    print(f"  M1 底盘→臂底座   M3×12 + 螺母 ×4")
+    print(f"  M1 驱动舵机→底盘  M3×12 + 螺母 ×8（每只 4）")
+    print(f"  M1 夹爪定爪→盖板  M3×10 ×2")
+    print(f"  M1 夹爪动爪→输出盘 M3×10 ×4")
 
     print("\n=== STL 水密性（切片的硬前提）===")
     try:

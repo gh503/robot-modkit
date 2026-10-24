@@ -192,7 +192,7 @@
   // ------------------------------------------------------------------ 状态
   var state = {
     yaw: 0, shoulder: 35, elbow: -55, jaw: 1,
-    playing: false, t: 0, held: false
+    playing: false, t: 0, held: false, follow: false
   };
 
   function gapMm(jaw) {
@@ -323,7 +323,7 @@
   });
 
   // ------------------------------------------------------------------ Web Serial
-  var port = null, writer = null, reader = null, reading = false;
+  var port = null, writer = null, reader = null, reading = false, pollTimer = null;
 
   function frame(id, instr, params) {
     var len = params.length + 2;
@@ -396,7 +396,13 @@
           var params = f.slice(5, total - 1);
           if (f[4] === 0x00 && params.length >= 8) {
             var pos = params[0] | (params[1] << 8);
-            log("ID " + f[2] + " 位置 " + pos + " (" + (pos * 0.087890625).toFixed(1) + "°)");
+            var deg = (pos - 2048) * 0.087890625;
+            log("ID " + f[2] + " 位置 " + pos + " (" + deg.toFixed(1) + "°)");
+            if (state.follow) {
+              if (f[2] === S.ids.yaw) { state.yaw = deg; state.playing = false; applyState(); }
+              else if (f[2] === S.ids.shoulder) { state.shoulder = deg; state.playing = false; applyState(); }
+              else if (f[2] === S.ids.elbow) { state.elbow = deg; state.playing = false; applyState(); }
+            }
           }
         }
       }
@@ -414,6 +420,25 @@
     S.ids && Object.keys(S.ids).forEach(function (k) {
       send(frame(S.ids[k], 0x03, [0x28, 0x00]), "卸力 ID " + S.ids[k]);
     });
+  });
+
+  $("serial-follow").addEventListener("click", function () {
+    if (!writer) { log("先连接串口", "err"); return; }
+    state.follow = !state.follow;
+    $("serial-follow").textContent = state.follow ? "停止跟随" : "跟随真机反馈（只读）";
+    $("serial-follow").className = state.follow ? "primary" : "";
+    if (state.follow) {
+      log("跟随模式：每 200ms 读一次 0x38 位置（只读，不发指令）", "ok");
+      pollTimer = setInterval(function () {
+        [S.ids.yaw, S.ids.shoulder, S.ids.elbow].forEach(function (id) {
+          send(frame(id, 0x02, [0x38, 0x08]), "读 ID " + id);
+        });
+      }, 200);
+    } else {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+      log("停止跟随");
+    }
   });
 
   $("serial-send").addEventListener("click", function () {

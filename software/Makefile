@@ -1,6 +1,6 @@
 # 注意：本机装了 ROS 2 Humble，pytest 会自动加载 launch_testing 插件并因缺 pyyaml 报错。
 # 因此这里显式关闭插件自动加载。
-PY ?= ../.venv/bin/python
+PY ?= $(shell test -x ../.venv/bin/python && echo ../.venv/bin/python || echo python3)
 
 .PHONY: test install demo lint
 install:

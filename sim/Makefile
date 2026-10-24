@@ -3,7 +3,7 @@
 #   make -C sim grasp   # 抓取动画 GIF（约 90 秒）
 #   make -C sim drive   # 底盘闭环仿真 + 判据（CI 会跑这一条）
 #   make -C sim all
-PY ?= ../.venv/bin/python
+PY ?= $(shell test -x ../.venv/bin/python && echo ../.venv/bin/python || echo python3)
 
 .PHONY: all views grasp drive clean
 

@@ -111,6 +111,9 @@ M0 单关节模块：5 个零件、33 项几何自检、FT-SCS 协议与驱动�
 
 ### 新增
 
+- **线束加工**：`hardware/harness.json`（14 根 / 1960mm）+ `cad/harness.py`
+  · 裁线表、按线号备料、走线示意图 `docs/images/harness.png`、通断验收
+  · 断言：长度/线号/端点必须能画到图上
 - **公差修正**：底盘↔连接板对接孔 Ø3.4 → Ø3.6（新增 `params.M3_CLR_FIT`），
   错位最坏 0.4mm 时余量从 0 提到 0.2mm；图纸/DFM/FMEA/校核报告同步
 - **低压保护**：`firmware/src/power.cpp`（1s 滤波 + 0.2V 迟滞；<10.8V 限速 50%，<10.2V 锁存卸力）

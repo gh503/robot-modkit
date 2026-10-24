@@ -1,0 +1,20 @@
+{
+  "note": "线束加工表：长度是含两端余量的成品长度，不是直线距离；改布局必须同步改这里。",
+  "defaults": {"strip_mm": 3, "label": "热缩管 + 编号"},
+  "cables": [
+    {"id": "W1", "from": "电池 XT60", "to": "保险丝座", "length_mm": 150, "awg": 18, "connector": "XT60-M / 快插", "note": "正极，先过保险"},
+    {"id": "W2", "from": "保险丝座", "to": "急停按钮", "length_mm": 120, "awg": 18, "connector": "快插 6.3mm", "note": "NC 回路"},
+    {"id": "W3", "from": "急停按钮", "to": "12V 分线端子", "length_mm": 180, "awg": 18, "connector": "快插 6.3mm", "note": "分给舵机与 DC-DC"},
+    {"id": "W4", "from": "12V 分线端子", "to": "DC-DC 5V 输入", "length_mm": 100, "awg": 20, "connector": "焊接/端子", "note": "加 1A 保险更稳"},
+    {"id": "W5", "from": "DC-DC 5V 输出", "to": "ESP32 5V", "length_mm": 120, "awg": 22, "connector": "USB-A / 排针", "note": "与树莓派共用 5V"},
+    {"id": "W6", "from": "DC-DC 5V 输出", "to": "树莓派 5V", "length_mm": 150, "awg": 22, "connector": "USB-C / GPIO", "note": "树莓派 4 需 3A"},
+    {"id": "W7", "from": "ESP32 TX/RX", "to": "半双工收发器", "length_mm": 80, "awg": 24, "connector": "杜邦 2.54", "note": "TX/RX/GND 三根一组"},
+    {"id": "W8", "from": "收发器 DATA", "to": "舵机 1 DATA", "length_mm": 200, "awg": 24, "connector": "PH2.0-3P", "note": "双绞更好"},
+    {"id": "W9", "from": "舵机 1 DATA", "to": "舵机 2 DATA", "length_mm": 120, "awg": 24, "connector": "PH2.0-3P", "note": "菊花链"},
+    {"id": "W10", "from": "舵机 2 DATA", "to": "舵机 3 DATA", "length_mm": 120, "awg": 24, "connector": "PH2.0-3P", "note": "沿臂走，留 20mm 弯折余量"},
+    {"id": "W11", "from": "舵机 3 DATA", "to": "舵机 4 DATA", "length_mm": 100, "awg": 24, "connector": "PH2.0-3P", "note": "夹爪"},
+    {"id": "W12", "from": "12V 分线端子", "to": "驱动舵机 5/6 电源", "length_mm": 220, "awg": 18, "connector": "PH2.0-2P", "note": "左右各一根，共 2 根"},
+    {"id": "W13", "from": "电池分压", "to": "ESP32 GPIO5", "length_mm": 140, "awg": 26, "connector": "杜邦", "note": "100k/20k，见 docs/03 §3.6"},
+    {"id": "W14", "from": "急停辅助触点", "to": "ESP32 GPIO（可选）", "length_mm": 160, "awg": 26, "connector": "杜邦", "note": "用于记录急停状态"}
+  ]
+}

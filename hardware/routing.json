@@ -1,0 +1,22 @@
+{
+  "note": "工序卡：单台工时分解。分钟数为熟练工，新手 ×1.5；合计必须与 bom.json 的 labor 对上。",
+  "operations": [
+    {"id": "P1", "station": "打印区", "op": "排产与切片（按套）", "min": 15, "tools": "切片软件", "qc": "", "key": false},
+    {"id": "P2", "station": "打印区", "op": "拆支撑、修孔、去毛刺", "min": 45, "tools": "剪钳/锉刀/钻头", "qc": "Q1 外观", "key": false},
+    {"id": "A1", "station": "装配区", "op": "热熔螺母压入（24 只）", "min": 30, "tools": "烙铁 280℃ + 导向块", "qc": "Q1 螺母齐平/拉力", "key": true},
+    {"id": "A2", "station": "装配区", "op": "关节模块装配（4 套）", "min": 60, "tools": "M3 螺丝刀 0.4N·m", "qc": "Q2 无卡滞", "key": true},
+    {"id": "A3", "station": "装配区", "op": "底盘 + 驱动支架 + 轮", "min": 45, "tools": "M3 螺丝刀 0.5N·m", "qc": "Q2 四轮共面", "key": false},
+    {"id": "A4", "station": "装配区", "op": "夹爪 + 相机架 + 连杆", "min": 30, "tools": "40mm 开口块", "qc": "Q2 夹爪间隙", "key": false},
+    {"id": "E1", "station": "电气区", "op": "线束裁线/压接/贴标", "min": 40, "tools": "压线钳/热风枪", "qc": "通断测试", "key": true},
+    {"id": "E2", "station": "电气区", "op": "接线、理线、扎带固定", "min": 20, "tools": "扎带/波纹管", "qc": "Q2 无短路", "key": true},
+    {"id": "E3", "station": "电气区", "op": "上电前短路检查", "min": 10, "tools": "万用表蜂鸣档", "qc": "12V–GND 不响", "key": true},
+    {"id": "F1", "station": "测试区", "op": "烧录固件 + 记录版本", "min": 10, "tools": "tools/flash.sh", "qc": "scan 6 个 ID", "key": false},
+    {"id": "F2", "station": "测试区", "op": "新机自检 selftest", "min": 10, "tools": "modkit selftest", "qc": "六轴 ✓", "key": true},
+    {"id": "C1", "station": "测试区", "op": "标定（limits/zero/verify）", "min": 25, "tools": "modkit calib", "qc": "verify ≤2°", "key": true},
+    {"id": "T1", "station": "测试区", "op": "Q3 功能 + 抓放 10 次", "min": 20, "tools": "砝码/卷尺", "qc": "≥8/10", "key": true},
+    {"id": "T2", "station": "测试区", "op": "烧机 30 分钟（可无人值守）", "min": 10, "tools": "modkit bench", "qc": "壳温 <55℃", "key": false},
+    {"id": "Q1", "station": "测试区", "op": "清洁 + 外观复检", "min": 20, "tools": "无纺布/酒精", "qc": "Q1 外观", "key": false},
+    {"id": "K1", "station": "包装区", "op": "包装 + 配件清点", "min": 10, "tools": "气泡膜/珍珠棉", "qc": "配件清单", "key": false},
+    {"id": "K2", "station": "包装区", "op": "首件确认（仅首台）", "min": 20, "tools": "全检表", "qc": "全项", "key": false}
+  ]
+}

@@ -1,0 +1,324 @@
+{
+  "currency": "CNY",
+  "note": "价格是 2026-10 的国内零售价（含税、不含运费）。qty_breaks 是 1/5/20 件的单价，来自常见批发阶梯。",
+  "items": [
+    {
+      "id": "servo",
+      "name": "总线舵机 ST-3215-C018",
+      "spec": "12V 30kg·cm TTL 半双工",
+      "qty": 6,
+      "price": [
+        95,
+        88,
+        82
+      ],
+      "supplier": "幻尔/飞特 淘宝",
+      "url": "https://www.feetechrc.com/",
+      "lead_days": 7,
+      "category": "执行器",
+      "essential": true
+    },
+    {
+      "id": "servo_spare",
+      "name": "备用舵机",
+      "spec": "同上",
+      "qty": 1,
+      "price": [
+        95,
+        88,
+        82
+      ],
+      "supplier": "同上",
+      "url": "",
+      "lead_days": 7,
+      "category": "执行器",
+      "essential": false
+    },
+    {
+      "id": "esp32",
+      "name": "ESP32-S3 DevKitC-1",
+      "spec": "N8R2 或 N16R8",
+      "qty": 1,
+      "price": [
+        35,
+        33,
+        30
+      ],
+      "supplier": "乐鑫官方店",
+      "url": "https://www.espressif.com/",
+      "lead_days": 5,
+      "category": "主控",
+      "essential": true
+    },
+    {
+      "id": "pi",
+      "name": "树莓派 Zero 2 W",
+      "spec": "带排针，跑视觉/导航",
+      "qty": 1,
+      "price": [
+        120,
+        115,
+        108
+      ],
+      "supplier": "微雪/淘宝",
+      "url": "https://www.raspberrypi.com/",
+      "lead_days": 10,
+      "category": "主控",
+      "essential": false
+    },
+    {
+      "id": "sd",
+      "name": "microSD 32GB A1",
+      "spec": "Class10",
+      "qty": 1,
+      "price": [
+        30,
+        28,
+        25
+      ],
+      "supplier": "闪迪",
+      "url": "",
+      "lead_days": 3,
+      "category": "主控",
+      "essential": false
+    },
+    {
+      "id": "psu",
+      "name": "12V 5A 电源适配器",
+      "spec": "5.5×2.1 插头",
+      "qty": 1,
+      "price": [
+        45,
+        42,
+        38
+      ],
+      "supplier": "明纬/国产",
+      "url": "",
+      "lead_days": 3,
+      "category": "电源",
+      "essential": true
+    },
+    {
+      "id": "battery",
+      "name": "3S 18650 电池组",
+      "spec": "11.1V 2200mAh 带保护板",
+      "qty": 1,
+      "price": [
+        70,
+        65,
+        58
+      ],
+      "supplier": "格氏/淘宝",
+      "url": "",
+      "lead_days": 5,
+      "category": "电源",
+      "essential": false
+    },
+    {
+      "id": "buck",
+      "name": "DC-DC 降压 5V 5A",
+      "spec": "MP1584 或 LM2596 模块",
+      "qty": 1,
+      "price": [
+        15,
+        13,
+        11
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 5,
+      "category": "电源",
+      "essential": true
+    },
+    {
+      "id": "estop",
+      "name": "急停按钮",
+      "spec": "常闭 NC，Ø16 自锁旋转复位",
+      "qty": 1,
+      "price": [
+        8,
+        7,
+        6
+      ],
+      "supplier": "正泰/德力西",
+      "url": "",
+      "lead_days": 4,
+      "category": "安全",
+      "essential": true
+    },
+    {
+      "id": "fuse",
+      "name": "保险丝座 + 5A 保险",
+      "spec": "5×20mm 面板式",
+      "qty": 1,
+      "price": [
+        4,
+        3.5,
+        3
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 4,
+      "category": "安全",
+      "essential": true
+    },
+    {
+      "id": "screws",
+      "name": "M3 螺钉套装",
+      "spec": "M3×6/8/10/12/16 + 螺母 + 垫片",
+      "qty": 1,
+      "price": [
+        30,
+        26,
+        22
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 4,
+      "category": "紧固",
+      "essential": true
+    },
+    {
+      "id": "inserts",
+      "name": "M3 热熔铜螺母",
+      "spec": "M3×5×4，100 只",
+      "qty": 1,
+      "price": [
+        15,
+        13,
+        11
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 4,
+      "category": "紧固",
+      "essential": true
+    },
+    {
+      "id": "wire",
+      "name": "线材与连接器",
+      "spec": "22AWG 硅胶线 + PH2.0 + XT30 + 热缩管",
+      "qty": 1,
+      "price": [
+        40,
+        36,
+        32
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 4,
+      "category": "线束",
+      "essential": true
+    },
+    {
+      "id": "filament",
+      "name": "PETG 耗材",
+      "spec": "1kg，按单套 351g 折算",
+      "qty": 1,
+      "price": [
+        90,
+        85,
+        78
+      ],
+      "supplier": "eSun/ Polymaker",
+      "url": "",
+      "lead_days": 4,
+      "category": "耗材",
+      "essential": true
+    },
+    {
+      "id": "camera",
+      "name": "树莓派摄像头",
+      "spec": "CSI 500 万像素",
+      "qty": 1,
+      "price": [
+        60,
+        56,
+        50
+      ],
+      "supplier": "微雪",
+      "url": "",
+      "lead_days": 6,
+      "category": "感知",
+      "essential": false
+    },
+    {
+      "id": "cable_tie",
+      "name": "扎带/魔术贴",
+      "spec": "混装",
+      "qty": 1,
+      "price": [
+        10,
+        9,
+        8
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 3,
+      "category": "线束",
+      "essential": true
+    }
+  ],
+  "tiers": {
+    "A 最小可动（USB 供电，无线束）": [
+      "servo",
+      "esp32",
+      "psu",
+      "buck",
+      "screws",
+      "inserts",
+      "wire",
+      "estop",
+      "fuse"
+    ],
+    "B 推荐整机（电池 + 树莓派）": [
+      "servo",
+      "servo_spare",
+      "esp32",
+      "pi",
+      "sd",
+      "psu",
+      "battery",
+      "buck",
+      "estop",
+      "fuse",
+      "screws",
+      "inserts",
+      "wire",
+      "camera",
+      "cable_tie"
+    ],
+    "C 批量 5 台（仅电子与耗材）": [
+      "servo",
+      "esp32",
+      "pi",
+      "sd",
+      "psu",
+      "battery",
+      "buck",
+      "estop",
+      "fuse",
+      "screws",
+      "inserts",
+      "wire",
+      "camera",
+      "cable_tie"
+    ]
+  },
+  "labor": {
+    "打印后处理（拆支撑/修边）h": 1.5,
+    "机械装配 h": 3.0,
+    "接线 h": 1.0,
+    "烧录与标定 h": 1.0,
+    "测试与包装 h": 0.5,
+    "rate_cny_per_h": 60
+  },
+  "overhead": {
+    "scrap_rate": 0.08,
+    "shipping_per_unit": 25,
+    "packaging_per_unit": 8
+  },
+  "machine": {
+    "printer_cny_per_h": 2.0
+  }
+}

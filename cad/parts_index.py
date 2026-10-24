@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import pathlib
 
 import parts as K
@@ -43,6 +44,10 @@ FASTENERS = """
 
 
 def main() -> None:
+    # 打印时间优先用 manufacture.py 算出来的（同一个来源），没有再退回手填值
+    mfg_path = pathlib.Path(__file__).parent / "out" / "manufacturing.json"
+    mfg = json.loads(mfg_path.read_text(encoding="utf-8")) if mfg_path.exists() else {}
+
     rows = []
     total_time = 0
     for name, fn in list(K.ALL_PARTS.items()) + list(M1.ALL_PARTS_M1.items()):
@@ -50,6 +55,9 @@ def main() -> None:
         bb = part.bounding_box()
         vol = part.volume / 1000.0
         qty, note, t = META[name]
+        if name in mfg:
+            mins = round(mfg[name]["hours"] * 60)
+            t = f"{mins // 60}:{mins % 60:02d}"
         h, m = t.split(":")
         total_time += qty * (int(h) * 60 + int(m))
         rows.append(

@@ -106,6 +106,9 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 - 想改东西：先看 [CONTRIBUTING.md](CONTRIBUTING.md)（五条必跑命令 + 六条硬规则）
 - 想提问题：用 [issue 模板](.github/ISSUE_TEMPLATE/)
+- **要真的造出来**：[docs/15-生产链路总览](docs/15-生产链路总览.md)（八个环节 + 每环门禁）
+- **要算成本/排产**：[docs/17-成本模型](docs/17-成本模型.md)（三档 × 1/5/20 台）
+- **要打件**：[docs/16-可制造性报告](docs/16-可制造性报告.md)（方向/悬垂/壁厚/时长）
 - 文档怎么找：[docs/README.md](docs/README.md)（按角色 + 按类型两张表）
 - 想了解"为什么这么做"：[docs/13-业界实践对照](docs/13-业界实践对照.md) 把 SO-ARM100、OSHWA、
   Diátaxis、REP-103 逐项对照过，并列出还欠什么

@@ -13,6 +13,8 @@
 **在线看：<https://gh503.github.io/robot-modkit/>** —— 浏览器里拖动滑杆改关节角、播放抓取动画、
 也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。
 
+[![实时查看器](docs/images/viewer.png)](https://gh503.github.io/robot-modkit/)
+
 ## 它现在到了哪一步
 
 | 层 | 状态 | 证据 |

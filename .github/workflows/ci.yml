@@ -56,6 +56,10 @@ jobs:
         run: cd cad && python harness.py
       - name: 设计空间（载荷×厚度）
         run: cd cad && python design_space.py
+      - name: 文档链接检查
+        run: python tools/linkcheck.py .
+      - name: 跨文件一致性（文档索引/BOM/可制造性）
+        run: python tools/consistency.py
       - name: 产物上传
         uses: actions/upload-artifact@v4
         with:

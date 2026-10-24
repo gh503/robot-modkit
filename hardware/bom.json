@@ -224,7 +224,8 @@
       "url": "",
       "lead_days": 4,
       "category": "耗材",
-      "essential": true
+      "essential": false,
+      "note": "耗材不放进 tier，由 cost.py 按克重单独算（避免重复计）"
     },
     {
       "id": "camera",

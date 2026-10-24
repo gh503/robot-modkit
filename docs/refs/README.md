@@ -49,3 +49,21 @@
 1. 只写"能从来源读到"的事实；推断一律标 `[TODO]` 或写进 `06-决策与风险.md`。
 2. 来源冲突时（如工作电压 4–14V vs 12.0V），**两条都记下来**，不要挑一个好写的。
 3. 更新外部资料后，在本文表格里改"核对日期"，并重跑 `build.py` 与 `make test`。
+## M1 阶段新增引用（核验于 2026-10-24，均返回 200）
+
+| 资料 | URL | 用在哪 |
+|---|---|---|
+| ROS REP-103 坐标约定 | https://www.ros.org/reps/rep-0103.html | `docs/01` §2、`software/kinematics.py` |
+| ROS REP-105 帧命名 | https://www.ros.org/reps/rep-0105.html | `docs/01` §2（map/odom/base_link） |
+| ROS 2 Humble 文档 | https://docs.ros.org/en/humble/ | M4 迁移路径 |
+| nav2 文档 | https://docs.nav2.org/ | M4 导航 |
+| URDF 教程 | https://docs.ros.org/en/humble/Tutorials/Intermediate/URDF/URDF-Main.html | 描述几何/做 TF |
+| ros2_control | https://github.com/ros-controls/ros2_control | 控制器组织方式 |
+| build123d | https://build123d.readthedocs.io/ | 参数化 CAD |
+| SO-ARM100 | https://github.com/TheRobotStudio/SO-ARM100 | 同款舵机的开源机械臂参考 |
+| LeRobot | https://github.com/huggingface/lerobot | 视觉+机械臂+数据闭环参考 |
+| Dynamixel 协议 2.0 | https://emanual.robotis.com/docs/en/dxl/protocol2/ | 总线舵机协议对照 |
+| OpenCV 文档 | https://docs.opencv.org/4.x/ | 标定与检测 |
+| Arduino Serial 参考 | https://www.arduino.cc/reference/en/language/functions/communication/serial/ | 串口语义 |
+
+> 注：本机装有 ROS 2 Humble（`/opt/ros/humble`），M4 阶段可直接用；M1–M2 故意不用，理由见 `docs/10-决策记录.md` D11。

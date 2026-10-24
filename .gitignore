@@ -12,3 +12,7 @@ firmware/build/
 # 工具链（arduino-cli 二进制，约 30MB）
 tools/arduino-cli
 tools/ac.tar.gz
+
+# 测试缓存
+.pytest_cache/
+*.egg-info/

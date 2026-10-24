@@ -257,6 +257,57 @@
       "lead_days": 3,
       "category": "线束",
       "essential": true
+    },
+    {
+      "id": "servo_budget",
+      "name": "总线舵机（省钱替代）",
+      "spec": "20kg·cm 级 TTL 总线舵机",
+      "qty": 6,
+      "price": [
+        68,
+        62,
+        58
+      ],
+      "supplier": "国产（如 LX-824 / 幻尔同級）",
+      "url": "",
+      "lead_days": 10,
+      "category": "执行器",
+      "essential": false,
+      "note": "力矩少 1/3，臂长/载荷要按 20kg·cm 重算；见 docs/24"
+    },
+    {
+      "id": "esp32_mini",
+      "name": "ESP32-S3 SuperMini",
+      "spec": "N4R2，体积小、引脚少",
+      "qty": 1,
+      "price": [
+        25,
+        23,
+        21
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 7,
+      "category": "主控",
+      "essential": false,
+      "note": "少 2 个 ADC 引脚；当前固件只用 UART + 2 路 PWM，够用"
+    },
+    {
+      "id": "battery_budget",
+      "name": "3S 18650 电池组（省钱）",
+      "spec": "11.1V 1500mAh 带保护",
+      "qty": 1,
+      "price": [
+        55,
+        50,
+        45
+      ],
+      "supplier": "淘宝",
+      "url": "",
+      "lead_days": 7,
+      "category": "电源",
+      "essential": false,
+      "note": "续航从 ≈55min 降到 ≈38min"
     }
   ],
   "tiers": {
@@ -303,6 +354,18 @@
       "wire",
       "camera",
       "cable_tie"
+    ],
+    "D 省钱优先（物料 ≈¥650）": [
+      "servo_budget",
+      "esp32_mini",
+      "psu",
+      "buck",
+      "estop",
+      "fuse",
+      "screws",
+      "inserts",
+      "wire",
+      "battery_budget"
     ]
   },
   "labor": {

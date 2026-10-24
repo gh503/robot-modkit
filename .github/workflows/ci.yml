@@ -54,6 +54,8 @@ jobs:
         run: cd cad && python verify_design.py
       - name: 线束加工表 + 走线图
         run: cd cad && python harness.py
+      - name: 设计空间（载荷×厚度）
+        run: cd cad && python design_space.py
       - name: 产物上传
         uses: actions/upload-artifact@v4
         with:

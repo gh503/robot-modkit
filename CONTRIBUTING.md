@@ -18,7 +18,7 @@ python3 -m venv .venv
 ## 2. 改完必须跑这五条
 
 ```bash
-cd cad && ../.venv/bin/python build.py      # 期望 79/79
+cd cad && ../.venv/bin/python build.py      # 期望 85/85
 make -C firmware test                        # 期望 41 + 30
 cd software && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 ../.venv/bin/python -m pytest
 make -C sim drive                            # 期望"仿真判据全部通过"

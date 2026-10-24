@@ -44,7 +44,7 @@ def unit_price(item: dict, qty: int) -> float:
 def labour_hours(bom: dict) -> float:
     """只统计以 h 结尾的工时项，别把 rate_cny_per_h 也加进去。"""
     return sum(v for k, v in bom["labor"].items()
-               if k.endswith(" h") and isinstance(v, (int, float)))
+               if k.endswith("h") and "rate" not in k and isinstance(v, (int, float)))
 
 
 def compute(bom: dict, mfg: dict, tier_ids: list[str], qty: int, learning: float = 0.92) -> dict:
@@ -58,10 +58,15 @@ def compute(bom: dict, mfg: dict, tier_ids: list[str], qty: int, learning: float
         parts_unit += p
         lines.append((it, it["qty"], unit_price(it, qty), p))
 
-    mass = sum(v["mass_g"] * v.get("qty", 1) for v in mfg.values())
-    hours = sum(v["hours"] * v.get("qty", 1) for v in mfg.values())
+    # 工装夹具是一次性投入，摊到批量里，不能算进"每台"
+    mass = sum(v["mass_g"] * v.get("qty", 1) for v in mfg.values() if not v.get("tooling"))
+    hours = sum(v["hours"] * v.get("qty", 1) for v in mfg.values() if not v.get("tooling"))
+    tool_mass = sum(v["mass_g"] for v in mfg.values() if v.get("tooling"))
+    tool_hours = sum(v["hours"] for v in mfg.values() if v.get("tooling"))
     fil_price = unit_price(items["filament"], qty)
     filament_unit = mass / 1000.0 * fil_price
+    tooling_unit = (tool_mass / 1000.0 * unit_price(items["filament"], qty)
+                    + tool_hours * bom["machine"]["printer_cny_per_h"]) / max(1, qty)
     machine_unit = hours * bom["machine"]["printer_cny_per_h"]
 
     rate = bom["labor"]["rate_cny_per_h"]
@@ -70,7 +75,7 @@ def compute(bom: dict, mfg: dict, tier_ids: list[str], qty: int, learning: float
     labor_unit = base_hours * rate * factor
 
     overhead = bom["overhead"]
-    subtotal = parts_unit + filament_unit + machine_unit + labor_unit
+    subtotal = parts_unit + filament_unit + machine_unit + labor_unit + tooling_unit
     scrap_unit = subtotal * overhead["scrap_rate"]
     ship_unit = overhead["shipping_per_unit"] + overhead["packaging_per_unit"]
     per_unit = subtotal + scrap_unit + ship_unit
@@ -81,6 +86,7 @@ def compute(bom: dict, mfg: dict, tier_ids: list[str], qty: int, learning: float
         "filament_cost": round(filament_unit, 1),
         "print_hours": round(hours, 1),
         "machine_cost": round(machine_unit, 1),
+        "tooling_cost": round(tooling_unit, 1),
         "labor_hours": round(base_hours * factor, 1),
         "labor_cost": round(labor_unit, 1),
         "scrap": round(scrap_unit, 1),

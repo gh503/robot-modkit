@@ -22,6 +22,7 @@ import math
 import pathlib
 
 import numpy as np
+import jigs as J
 import params as P
 import parts as K
 import parts_m1 as M1
@@ -40,7 +41,10 @@ QTY = {
     "joint_base": 4, "joint_lid": 4, "output_disc": 4, "link_bar": 4, "wheel_hub": 2,
     "chassis_right": 1, "chassis_left": 1, "chassis_joiner": 1, "drive_bracket": 2,
     "jaw_fixed": 1, "jaw_moving": 1, "camera_mount": 1, "print_gauge": 1,
+    # 工装夹具：一套只用打一次，不是每台都打
+    "insert_guide": 1, "jaw_block": 1, "cradle": 1,
 }
+TOOLING = {"insert_guide", "jaw_block", "cradle"}
 
 # 设计姿态不一定适合打印：这里给每个零件试几个候选方向
 CANDIDATES = [
@@ -55,7 +59,7 @@ CANDIDATES = [
 
 def load_all() -> dict[str, trimesh.Trimesh]:
     meshes = {}
-    for name in list(K.ALL_PARTS) + list(M1.ALL_PARTS_M1) + list(T.TOOLS):
+    for name in list(K.ALL_PARTS) + list(M1.ALL_PARTS_M1) + list(T.TOOLS) + list(J.JIGS):
         path = OUT / f"{name}.stl"
         if not path.exists():
             raise SystemExit(f"缺 {path}，先跑 build.py")
@@ -154,13 +158,19 @@ def main() -> int:
     meshes = load_all()
     rows = []
     total_mass = total_hours = 0.0
+    tool_mass = tool_hours = 0.0
     fails = []
 
     for name, mesh in meshes.items():
         r = analyse(mesh)
         qty = QTY.get(name, 1)
+        tool = name in TOOLING
+        r["tooling"] = tool
         total_mass += r["mass_g"] * qty
         total_hours += r["hours"] * qty
+        if tool:
+            tool_mass += r["mass_g"]
+            tool_hours += r["hours"]
         rows.append((name, qty, r))
 
         bx, by, bz = P.PRINTER_BED
@@ -176,6 +186,7 @@ def main() -> int:
         print(f"{name:<16}{qty:>4}{r['orientation']:>10}{r['overhang_pct']:>7.1f}"
               f"{r['min_thickness_mm']:>7.2f}{r['mass_g']:>8.1f}{r['hours']:>7.2f}  {r['support']}")
     print(f"\n合计：{total_mass:.0f} g  PETG，{total_hours:.1f} 小时（含 {sum(QTY.values())} 件）")
+    print(f"  其中工装套件 {tool_mass:.0f} g / {tool_hours:.1f} h（一次性，不是每台都打）")
     print(f"单套耗材成本（¥90/kg）：¥{total_mass/1000*90:.0f}")
 
     (OUT / "manufacturing.json").write_text(json.dumps(
@@ -197,7 +208,8 @@ def main() -> int:
             f"{r['min_thickness_mm']} mm | {r['mass_g']} g | {r['hours']} h | {r['support']} | {r['brim']} |")
     lines += [
         "",
-        f"**合计**：{total_mass:.0f} g PETG、{total_hours:.1f} 小时、{sum(QTY.values())} 件；"
+        f"**整机**：{total_mass - tool_mass:.0f} g PETG、{total_hours - tool_hours:.1f} 小时（27 件）；"
+        f"**工装**：{tool_mass:.0f} g / {tool_hours:.1f} h（3 件，只打一次）；"
         f"耗材约 ¥{total_mass/1000*90:.0f}（¥90/kg）。",
         "",
         "## 判据（CI 会跑）",

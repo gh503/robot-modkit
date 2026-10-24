@@ -16,6 +16,7 @@ import pathlib
 import sys
 from pathlib import Path
 
+import jigs as J
 import params as P
 import parts as K
 import parts_m1 as M1
@@ -51,14 +52,15 @@ def build_all():
     solids.update({name: fn() for name, fn in M1.ALL_PARTS_M1.items()})
     servo = K.servo_reference()
     tools = {name: fn() for name, fn in T.TOOLS.items()}
-    return solids, servo, tools
+    fixtures = {name: fn() for name, fn in J.JIGS.items()}
+    return solids, servo, tools, fixtures
 
 
 def main():
-    solids, servo, tools = build_all()
+    solids, servo, tools, fixtures = build_all()
 
     print("\n=== 导出 ===")
-    for name, s in {**solids, **tools}.items():
+    for name, s in {**solids, **tools, **fixtures}.items():
         step = OUT / f"{name}.step"
         stl = OUT / f"{name}.stl"
         export_step(s, str(step))
@@ -191,6 +193,13 @@ def main():
               f"挖掉 {cut:.0f} / 预期 {want:.0f} mm³（偏差 {err*100:.1f}%）")
         check("校准件槽间筋 ≥ 最小壁厚", T.slot_rib() >= P.MIN_WALL,
               f"{T.slot_rib():.2f} mm（最小 {P.MIN_WALL}）")
+
+    print("\n=== 工装夹具 ===")
+    for name, f in fixtures.items():
+        bb = f.bounding_box()
+        fits = bb.size.X <= bx and bb.size.Y <= by and bb.size.Z <= bz
+        check(f"夹具 {name} 可打印", fits, f"{bb.size.X:.1f}×{bb.size.Y:.1f}×{bb.size.Z:.1f} mm")
+        check(f"夹具 {name} 实体有效", bool(f.is_valid), "")
 
     print("\n=== 紧固件清单（由几何反推，不是抄的）===")
     m3_clamp = P.LID_T + 4.5          # 盖板 + 铜螺母有效啮合

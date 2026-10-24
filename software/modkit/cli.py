@@ -11,10 +11,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import pathlib
 import sys
 import time
 
+from . import backlash as bl
 from . import bench as bench
 from . import calibrate as cal
 from . import odomcal as oc
@@ -270,6 +272,23 @@ def cmd_odomcal(args) -> int:
     return 0
 
 
+def cmd_backlash(args) -> int:
+    link = _make_link(args)
+    bot = Robot(link)
+    if args.action == "measure":
+        jp = bl.measure(bot, args.id, center=args.center, span=args.span,
+                        settle=args.settle, name=args.name)
+        print(f"ID{jp.sid} {jp.name or ''} 回差 {jp.play_deg}°"
+              f"（{jp.play_ticks:.0f} tick）{'  ← 偏大，先查机械' if not jp.ok else ''}")
+        out = pathlib.Path(args.file)
+        data = json.loads(out.read_text(encoding="utf-8")) if out.exists() else {}
+        data[str(jp.sid)] = jp.play_deg
+        out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"已写入 {out}（可直接给 Compensator.load 用）")
+        return 0 if jp.ok else 1
+    raise SystemExit("未知动作")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -352,6 +371,16 @@ def main(argv: list[str] | None = None) -> int:
     od.add_argument("--deg", type=float, default=90.0)
     od.add_argument("--file", default="odomcal.json")
     od.set_defaults(func=cmd_odomcal)
+
+    blp = sub.add_parser("backlash", help="回差测量（换向补偿用）")
+    blp.add_argument("--action", required=True, choices=["measure"])
+    blp.add_argument("--id", type=int, default=1)
+    blp.add_argument("--name", default="")
+    blp.add_argument("--center", type=float, default=180.0)
+    blp.add_argument("--span", type=float, default=10.0)
+    blp.add_argument("--settle", type=float, default=0.35)
+    blp.add_argument("--file", default="backlash.json")
+    blp.set_defaults(func=cmd_backlash)
 
     args = ap.parse_args(argv)
     return args.func(args)

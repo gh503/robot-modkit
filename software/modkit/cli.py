@@ -17,6 +17,7 @@ import time
 
 from . import bench as bench
 from . import calibrate as cal
+from . import odomcal as oc
 from . import qc as qc
 from . import selftest as st
 from . import kinematics as kin
@@ -254,6 +255,21 @@ def cmd_selftest(args) -> int:
     return 0 if rep.ok else 1
 
 
+def cmd_odomcal(args) -> int:
+    cal = oc.OdomCal.load(args.file) if pathlib.Path(args.file).exists() else oc.OdomCal()
+    if args.action == "straight":
+        pred = cal.predicted_distance(args.ticks)
+        sc = cal.apply_straight(args.ticks, args.distance)
+        print(f"直线标定：理论 {pred:.1f}mm，实测 {args.distance:.1f}mm → scale {sc:.4f}")
+    else:
+        sc = cal.apply_turn(args.left_ticks, args.right_ticks, args.deg)
+        print(f"转向标定：scale {sc:.4f}")
+    print(cal.summary())
+    cal.save(args.file)
+    print(f"已写入 {args.file}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -326,6 +342,16 @@ def main(argv: list[str] | None = None) -> int:
     stp.add_argument("--settle", type=float, default=0.25)
     stp.add_argument("--json", default="selftest.json")
     stp.set_defaults(func=cmd_selftest)
+
+    od = sub.add_parser("odomcal", help="里程计标定（轮径/轮距）")
+    od.add_argument("--action", required=True, choices=["straight", "turn"])
+    od.add_argument("--ticks", type=float, default=0.0)
+    od.add_argument("--distance", type=float, default=1000.0)
+    od.add_argument("--left-ticks", type=float, default=0.0)
+    od.add_argument("--right-ticks", type=float, default=0.0)
+    od.add_argument("--deg", type=float, default=90.0)
+    od.add_argument("--file", default="odomcal.json")
+    od.set_defaults(func=cmd_odomcal)
 
     args = ap.parse_args(argv)
     return args.func(args)

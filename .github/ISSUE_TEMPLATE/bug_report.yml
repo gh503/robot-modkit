@@ -1,0 +1,57 @@
+name: Bug 报告
+description: 图纸、固件、上位机、仿真或文档出问题
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: 哪一部分
+      options:
+        - CAD / 打印件
+        - 固件（C++ / ESP32）
+        - 上位机（Python / CLI）
+        - 仿真 / 可视化
+        - 网页查看器
+        - 文档
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 实际发生了什么？贴报错原文，不要只写"报错了"。
+      placeholder: |
+        运行 `make -C firmware test` 后：
+        FAIL test/test_drive.cpp:171  last=210.4 vs 120.0
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. git clone / 哪个 commit
+        2. 跑了什么命令
+        3. 每次都出现吗
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      placeholder: Ubuntu 22.04 / Python 3.10 / 舵机 ST-3215-C018 / 打印机 Ender-3
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前
+      options:
+        - label: 我搜索过现有 issue
+          required: true
+        - label: 我贴的是原始报错，不是转述
+          required: true

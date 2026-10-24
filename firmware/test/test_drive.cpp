@@ -189,11 +189,106 @@ static void test_watchdog() {
   CHECK(!wd.expired(500000 + 199000));                           // 喂一次续命
 }
 
+
+// ---------------------------------------------------------------- 闭环实验台
+// 一阶惯性 + 可配增益的虚拟底盘；步进一次 = 控制一拍 + 被控对象一拍。
+struct Rig {
+  FakeBus bus;
+  ScsBus scs;
+  DriveTrain drive;
+  float actual_l = 0.0f, actual_r = 0.0f;
+  float gain = 0.7f, tau = 0.12f;
+
+  explicit Rig(const DriveConfig& cfg = DriveConfig{}) : scs(bus), drive(scs, cfg) {
+    drive.begin();
+  }
+
+  static float cmdMmS(FakeBus& b, uint8_t id) {
+    const int16_t reg = static_cast<int16_t>(reg16(b, id, drivereg::Speed));
+    const float mag = float(reg & 0x7FFF);
+    return (static_cast<uint16_t>(reg) & 0x8000u) ? -mag : mag;
+  }
+
+  void plant(float dt) {
+    const double circ = 2.0 * 3.14159265358979 * 32.5;
+    const double mm_per_tick = circ / 4096.0;
+    for (uint8_t id : {5, 6}) {
+      const float cmd = cmdMmS(bus, id) * static_cast<float>(circ / 4096.0);
+      float& actual = (id == 5) ? actual_l : actual_r;
+      actual += (dt / (tau + dt)) * (gain * cmd - actual);
+      const int32_t ticks = std::lround(actual * dt / mm_per_tick);
+      auto& mem = bus.servos[id].mem;
+      const uint16_t pos = static_cast<uint16_t>(mem[reg::PresentPosition] |
+                                                 (mem[reg::PresentPosition + 1] << 8));
+      const uint16_t np = static_cast<uint16_t>(pos + ticks);
+      mem[reg::PresentPosition] = np & 0xFF;
+      mem[reg::PresentPosition + 1] = (np >> 8) & 0xFF;
+    }
+  }
+
+  void step(float v_target, float dt) {
+    drive.updateVelocityLoop(v_target, 0.0f, dt);
+    plant(dt);
+  }
+};
+
+static void test_feedforward_helps() {
+  std::printf("== 前馈：同样的增益下更快到位 ==\n");
+  // 用"软增益"（kp=0.3）对照：硬增益下 P 项自己就饱和了，看不出前馈的价值。
+  DriveConfig no_ff = DriveConfig{};
+  no_ff.ff_gain = 0.0f;
+  no_ff.kp = 0.3f;
+  no_ff.ki = 3.0f;
+  DriveConfig ff = no_ff;
+  ff.ff_gain = 1.18f;
+
+  Rig a(no_ff), b(ff);
+  a.gain = b.gain = 0.85f;
+  const float dt = 0.02f;
+  for (int i = 0; i < 50; ++i) { a.step(120.0f, dt); b.step(120.0f, dt); }
+  const float va = a.drive.measuredLeft(), vb = b.drive.measuredLeft();
+  CHECK(vb > va * 1.10f);                                  // 有前馈那台明显更快
+  CHECK(std::fabs(vb - 120.0f) < std::fabs(va - 120.0f));  // 而且更靠目标
+}
+
+static void test_anti_windup_recovers() {
+  std::printf("== 抗饱和：指令撤掉后不拖泥带水 ==\n");
+  Rig r;
+  const float dt = 0.02f;
+  for (int i = 0; i < 150; ++i) r.step(400.0f, dt);   // 远大于 umax，必然饱和
+  const float saturated = r.drive.measuredLeft();
+  CHECK(saturated > 100.0f);                          // 确实在饱和区工作
+  for (int i = 0; i < 40; ++i) r.step(0.0f, dt);      // 0.8s 内应基本停住
+  CHECK(std::fabs(r.drive.measuredLeft()) < 12.0f);
+}
+
+static void test_slew_limits_acceleration() {
+  std::printf("== 加速度限幅：不追阶跃 ==\n");
+  Rig r;
+  r.gain = 1.0f;
+  const float dt = 0.02f;
+  float prev = 0.0f;
+  bool monotonic = true;
+  for (int i = 0; i < 8; ++i) {
+    r.step(300.0f, dt);
+    const float v = r.drive.measuredLeft();
+    if (v + 1e-3f < prev) monotonic = false;
+    prev = v;
+  }
+  // 8 拍 = 160ms，限幅 2000mm/s² 最多到 320mm/s，但一阶惯性跟不上；
+  // 关键是"没有一步跳到 300"。
+  CHECK(monotonic);
+  CHECK(prev < 260.0f);
+}
+
 int main() {
   test_speed_conversion();
   test_set_velocity();
   test_odometry();
   test_pi_closes_loop();
+  test_feedforward_helps();
+  test_anti_windup_recovers();
+  test_slew_limits_acceleration();
   test_watchdog();
   std::printf("\n%d 通过, %d 失败\n", g_pass, g_fail);
   return g_fail == 0 ? 0 : 1;

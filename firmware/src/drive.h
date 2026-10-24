@@ -27,8 +27,12 @@ struct DriveConfig {
   uint16_t ticks_per_rev = 4096;
   float speed_unit = 1.0f;   // 每 LSB 多少 tick/s，必须标定
   float track_mm = 150.0f;
-  float kp = 2.0f;   // 与 sim/drive.py 同步（网格搜索得出）
+  float kp = 2.0f;            // 与 sim/drive.py 同步（网格搜索得出）
   float ki = 12.0f;
+  // 前馈：舵机实际转速大约只有指令的 85%，先补 1/0.85，让积分器不用从零爬
+  float ff_gain = 1.18f;
+  // 加速度限幅（mm/s²）：保护齿轮和电池，避免阶跃指令把电流拉满
+  float slew_mm_s2 = 2000.0f;
 };
 
 class DriveTrain {
@@ -68,6 +72,7 @@ class DriveTrain {
   bool have_last_ = false;
   float v_left_meas_ = 0, v_right_meas_ = 0;
   float integ_l_ = 0, integ_r_ = 0;
+  float u_prev_l_ = 0, u_prev_r_ = 0;
 };
 
 // 心跳看门狗：上位机死机时必须卸力，而不是"保持最后一条指令"

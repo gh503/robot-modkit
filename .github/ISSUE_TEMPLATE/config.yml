@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 先看新手手册
+    url: https://github.com/gh503/robot-modkit/blob/main/docs/07-%E5%B0%8F%E7%99%BD%E6%93%8D%E4%BD%9C%E6%89%8B%E5%86%8C.md
+    about: 从买件到跑通的第一步都在这里
+  - name: 在线 3D 查看器
+    url: https://gh503.github.io/robot-modkit/
+    about: 不用装任何东西，先看它长什么样、怎么动

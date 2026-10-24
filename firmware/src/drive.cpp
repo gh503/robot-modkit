@@ -115,25 +115,35 @@ bool DriveTrain::updateVelocityLoop(float v_target_mm_s, float w_target_deg_s, f
   const float tl = v_target_mm_s - w_rad * cfg_.track_mm / 2.0f;
   const float tr = v_target_mm_s + w_rad * cfg_.track_mm / 2.0f;
 
-  const float el = tl - vl;
-  const float er = tr - vr;
-  integ_l_ += el * dt_s;
-  integ_r_ += er * dt_s;
-  // 积分限幅：防 windup。上限必须大于"稳态所需积分量"（u_max/ki），
-  // 否则闭环会卡在一个恒定的稳态误差上 —— 这个 bug 就是被 test 抓出来的。
+  // 单轮：前馈 + PI + 反算抗饱和 + 加速度限幅
   const float lim = 1000.0f;
-  if (integ_l_ > lim) integ_l_ = lim;
-  if (integ_l_ < -lim) integ_l_ = -lim;
-  if (integ_r_ > lim) integ_r_ = lim;
-  if (integ_r_ < -lim) integ_r_ = -lim;
-
-  float ul = cfg_.kp * el + cfg_.ki * integ_l_;
-  float ur = cfg_.kp * er + cfg_.ki * integ_r_;
   const float umax = 300.0f;
-  if (ul > umax) ul = umax;
-  if (ul < -umax) ul = -umax;
-  if (ur > umax) ur = umax;
-  if (ur < -umax) ur = -umax;
+  auto step = [&](float target, float meas, float& integ, float& u_prev) {
+    const float e = target - meas;
+    float i_new = integ + e * dt_s;
+    const float raw = cfg_.ff_gain * target + cfg_.kp * e + cfg_.ki * i_new;
+    if (raw > umax || raw < -umax) {
+      // 输出饱和时把积分反算到"刚好不饱和"的位置。比单纯限幅更不容易留尾巴。
+      const float sat = raw > umax ? umax : -umax;
+      i_new = (sat - cfg_.ff_gain * target - cfg_.kp * e) / cfg_.ki;
+    }
+    if (i_new > lim) i_new = lim;
+    if (i_new < -lim) i_new = -lim;
+    integ = i_new;
+
+    float u = cfg_.ff_gain * target + cfg_.kp * e + cfg_.ki * integ;
+    if (u > umax) u = umax;
+    if (u < -umax) u = -umax;
+
+    const float du = cfg_.slew_mm_s2 * dt_s;      // 每拍最多变这么多
+    if (u > u_prev + du) u = u_prev + du;
+    if (u < u_prev - du) u = u_prev - du;
+    u_prev = u;
+    return u;
+  };
+
+  const float ul = step(tl, vl, integ_l_, u_prev_l_);
+  const float ur = step(tr, vr, integ_r_, u_prev_r_);
 
   setWheel(cfg_.left_id, cfg_.left_invert ? -ul : ul);
   setWheel(cfg_.right_id, cfg_.right_invert ? -ur : ur);

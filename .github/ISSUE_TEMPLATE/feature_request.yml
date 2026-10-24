@@ -1,0 +1,36 @@
+name: 功能建议
+description: 新零件、新能力、新文档
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题
+      description: 先说场景，再说方案。"我想要 X" 通常不够。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你建议怎么做
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 你考虑过的其他做法，为什么没选
+  - type: dropdown
+    id: cost
+    attributes:
+      label: 成本影响
+      options:
+        - 不增加成本
+        - 增加 < ¥50
+        - 增加 ¥50–200
+        - 增加 > ¥200
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 影响面
+      options:
+        - label: 会让已打印的零件失效
+        - label: 会改接口/协议
+        - label: 需要我改文档

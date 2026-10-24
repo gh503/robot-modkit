@@ -22,11 +22,12 @@
 | 层 | 状态 | 证据 |
 |---|---|---|
 | 机械：关节模块（M0） | ✅ 可用 | 5 个零件、33 项几何自检（干涉/间隙/壁厚/水密） |
-| 机械：底盘 + 夹爪 + 相机架（M1） | ✅ 出图 | 新增 7 个零件，几何自检 **76 项全 PASS** |
-| 固件：总线协议 + 驱动 + 底盘闭环 | ✅ 可用 | **65 项** C++ 测试（协议 41 + 底盘 24） |
+| 机械：底盘 + 夹爪 + 相机架（M1） | ✅ 出图 | 新增 7 个零件，几何自检 **79 项全 PASS**（含校准件） |
+| 固件：总线协议 + 驱动 + 底盘闭环 | ✅ 可用 | **71 项** C++ 测试（协议 41 + 底盘 30） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | 23 项 pytest；无硬件可跑全流程 |
+| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | 26 项 pytest（含 2000 样本随机 IK）；无硬件可跑全流程 |
 | 仿真：整机多视图 + 抓取动画 + 底盘闭环 | ✅ 可用 | 5 张图 + 121 帧 GIF；闭环判据 7mm / 0.1° 全过 |
+| 打印校准件 + 三张拼盘 | ✅ 可用 | `print_gauge`、`plate_A/B/C.stl`，79 项自检 |
 | 自主任务（导航+视觉+抓取） | ⬜ 未开始 | 路线图 M3–M5 |
 | 整机实测 | ⬜ 未开始 | 等你的打印机和舵机 |
 
@@ -40,6 +41,8 @@
 | 生成四视图 / 尺寸图 | `make -C sim views` |
 | 抓取动画 GIF | `make -C sim grasp` |
 | 底盘闭环仿真 | `make -C sim drive` |
+| 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |
+| 拼打印板 | `cd cad && python plate.py` → `plate_A/B/C.stl` |
 
 ## 三分钟上手（不需要任何硬件）
 
@@ -96,6 +99,13 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 - ROS 2 Humble 的 `launch_testing` 会被 pytest 自动加载并因缺 `pyyaml` 报错 → 用 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`。
 - 本机 `~/Documents/infra-dev` 是另一个项目（Jarvis），故本项目独立在 `~/Documents/robot-modkit`，独立 git 仓库。
 - 机械臂逆解的肩角符号写反过一次，被 `test_forward_ik_roundtrip` 抓住 —— 所以那条测试必须保留。
+
+## 参与
+
+- 想改东西：先看 [CONTRIBUTING.md](CONTRIBUTING.md)（五条必跑命令 + 六条硬规则）
+- 想提问题：用 [issue 模板](.github/ISSUE_TEMPLATE/)
+- 想了解"为什么这么做"：[docs/13-业界实践对照](docs/13-业界实践对照.md) 把 SO-ARM100、OSHWA、
+  Diátaxis、REP-103 逐项对照过，并列出还欠什么
 
 ## 版本
 

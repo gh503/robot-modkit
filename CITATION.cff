@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "如果这个项目对你的工作有帮助，请按以下格式引用。"
+title: "modkit：可拆装模块化机器人（差速底盘 + 4 自由度臂 + 夹爪）"
+abstract: >-
+  一套面向新手、可独立完成并持续迭代的模块化机器人设计：参数化 CAD（build123d）、
+  可测试的固件（C++17 + ESP32）、Python 上位机、仿真与浏览器实时查看器。
+  所有几何与协议结论都有断言或测试兜底。
+authors:
+  - alias: gh503
+    name: gh503
+version: 0.3.0
+date-released: 2026-10-25
+license: MIT
+repository-code: "https://github.com/gh503/robot-modkit"
+url: "https://gh503.github.io/robot-modkit/"
+keywords:
+  - modular robot
+  - 3d printing
+  - bus servo
+  - differential drive
+  - robot arm

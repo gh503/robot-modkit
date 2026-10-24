@@ -51,7 +51,7 @@ cd firmware && make test
 ## 目录
 
 ```
-docs/     00 计划 · 01 系统设计 · 02 接口 · 03 配电 · 04 BOM
+docs/     00 计划 · 01 系统设计 · 02 接口 · 03 配电 · 04 BOM · 11 零件清单
           05 装配 · 06 调试测试 · 07 小白手册 · 08 学习路径 · 09 故障排查 · 10 决策
 cad/      params.py（唯一尺寸源）· parts.py（M0）· parts_m1.py（整机）· build.py · render.py
 firmware/ src/（协议+驱动，可脱离硬件测试）· esp32/（平台层）· test/（假总线）

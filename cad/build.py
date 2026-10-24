@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import pathlib
 import sys
 from pathlib import Path
 
@@ -149,6 +150,23 @@ def main():
     check("轮距与 kinematics 一致", abs(2 * P.WHEEL_Y - 150.0) < 1e-6, f"{2*P.WHEEL_Y:.0f} mm")
     check("轮子不超出底盘宽度", P.WHEEL_Y + 10 <= P.CHASSIS_Y / 2 + 10,
           f"轮平面 {P.WHEEL_Y} / 半宽 {P.CHASSIS_Y/2}")
+
+    # 零件清单与材料表必须一一对应（防止加了零件忘写材料/忘进 BOM）
+    all_names = set(K.ALL_PARTS) | set(M1.ALL_PARTS_M1)
+    mats = set(K.MATERIAL) | set(M1.MATERIAL_M1)
+    check("每个零件都有材料说明", all_names == mats,
+          f"零件 {len(all_names)} / 材料 {len(mats)}" +
+          ("" if all_names == mats else f" 缺: {sorted(all_names - mats)}"))
+
+    # 文档不能和 CAD 脱节：零件清单必须覆盖全部零件
+    idx = pathlib.Path(__file__).resolve().parent.parent / "docs" / "11-零件清单.md"
+    if idx.exists():
+        text = idx.read_text(encoding="utf-8")
+        missing = sorted(n for n in all_names if f"`{n}`" not in text)
+        check("零件清单覆盖所有零件", not missing,
+              "全部覆盖" if not missing else f"缺 {missing}，跑 parts_index.py 重新生成")
+    else:
+        check("零件清单存在", False, "缺 docs/11-零件清单.md")
 
     print("\n=== 打印机成形空间 ===")
     bx, by, bz = P.PRINTER_BED

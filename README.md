@@ -10,6 +10,9 @@
 
 ![关节模块装配预览](docs/images/assembly.png)
 
+**在线看：<https://gh503.github.io/robot-modkit/>** —— 浏览器里拖动滑杆改关节角、播放抓取动画、
+也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。
+
 ## 它现在到了哪一步
 
 | 层 | 状态 | 证据 |
@@ -24,6 +27,15 @@
 | 整机实测 | ⬜ 未开始 | 等你的打印机和舵机 |
 
 > 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
+
+## 可视化 / 仿真
+
+| 想做什么 | 怎么做 |
+|---|---|
+| 网页里实时转、实时摆姿态 | 打开 <https://gh503.github.io/robot-modkit/>（或本地 `cd web && python3 -m http.server`） |
+| 生成四视图 / 尺寸图 | `make -C sim views` |
+| 抓取动画 GIF | `make -C sim grasp` |
+| 底盘闭环仿真 | `make -C sim drive` |
 
 ## 三分钟上手（不需要任何硬件）
 

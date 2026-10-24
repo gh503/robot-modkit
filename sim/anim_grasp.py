@@ -19,53 +19,20 @@ from PIL import Image
 
 import model as M
 import draw as R
+import sequence
 from modkit import kinematics as kin
 
 OUT = Path(__file__).resolve().parent / "out"
 
 
-def ik_or_fail(pose: kin.Pose) -> M.RobotState:
-    y, s, e = kin.inverse(M.arm_geometry(), pose, elbow_up=False)
-    return M.RobotState(yaw=y, shoulder=s, elbow=e)
-
-
-def lerp_state(a: M.RobotState, b: M.RobotState, t: float, jaw: float) -> M.RobotState:
-    return M.RobotState(
-        yaw=a.yaw + (b.yaw - a.yaw) * t,
-        shoulder=a.shoulder + (b.shoulder - a.shoulder) * t,
-        elbow=a.elbow + (b.elbow - a.elbow) * t,
-        jaw=jaw,
-    )
-
-
-def build_sequence() -> list[tuple[M.RobotState, float, str]]:
-    """返回 (状态, 持续帧数, 字幕)。所有目标都必须能被逆解，否则直接抛错。"""
-    home = M.RobotState(yaw=0, shoulder=35, elbow=-55, jaw=1.0)
-    above = ik_or_fail(kin.Pose(200, 0, 120))
-    above.jaw = 1.0
-    grasp = ik_or_fail(kin.Pose(200, 0, 62))
-    grasp.jaw = 1.0
-    grasp_closed = M.RobotState(grasp.yaw, grasp.shoulder, grasp.elbow, jaw=0.0)
-    lift = ik_or_fail(kin.Pose(200, 0, 170))
-    lift.jaw = 0.0
-    # 放到 +Y 侧（左前方）的托盘
-    place_hi = ik_or_fail(kin.Pose(150, 110, 150))
-    place_hi.jaw = 0.0
-    place = ik_or_fail(kin.Pose(150, 110, 70))
-    place.jaw = 0.0
-    place_open = M.RobotState(place.yaw, place.shoulder, place.elbow, jaw=1.0)
-
-    return [
-        (home, 10, "① 待机"),
-        (above, 18, "② 移到方块上方 (x=200,z=120)"),
-        (grasp, 16, "③ 下降抓取 (z=62)"),
-        (grasp_closed, 10, "④ 夹爪闭合"),
-        (lift, 18, "⑤ 抬起 (z=170)"),
-        (place_hi, 22, "⑥ 转到托盘上方"),
-        (place, 16, "⑦ 下降到托盘 (z=70)"),
-        (place_open, 10, "⑧ 松开"),
-        (home, 20, "⑨ 回到待机"),
-    ]
+def build_sequence():
+    """从 sequence.keyframes() 取姿态，转成 (状态, 帧数, 字幕)。"""
+    ks = sequence.keyframes()
+    durs = [10, 18, 16, 10, 18, 22, 16, 10, 20]
+    out = []
+    for k, d in zip(ks, durs):
+        out.append((M.RobotState(k["yaw"], k["shoulder"], k["elbow"], k["jaw"]), d, k["label"]))
+    return out
 
 
 def frames() -> list[tuple[M.RobotState, str]]:

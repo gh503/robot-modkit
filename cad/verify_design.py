@@ -152,6 +152,47 @@ def drive_budget(mass: dict[str, float], qty: dict[str, int]) -> dict:
     }
 
 
+def strength_checks(payload_g: float = PAYLOAD) -> list[dict]:
+    """强度：螺钉剪切/孔壁承压/铜螺母拉脱/连杆根部层间弯曲。
+
+    许用值取保守值：钢螺钉剪切 180 MPa，PETG 承压 25 MPa、层间抗拉 27 MPa（XY 的 60%）。
+    """
+    rated = SERVO_TORQUE_KGCM * 0.0980665
+    items = []
+
+    # 1. 输出盘 4×M3 传扭矩（螺栓圆 Ø30）
+    r, n = 0.015, P.DISC_BOLTS
+    f_bolt = rated / (n * r)
+    a_shear = math.pi * (2.5 / 2) ** 2          # M3 螺纹小径约 2.5mm
+    tau = f_bolt / a_shear
+    items.append({"name": "输出盘 M3 剪切", "load_n": f_bolt, "stress_mpa": tau,
+                  "allow_mpa": 180.0, "margin": 180.0 / tau})
+
+    # 2. 孔壁承压（打印件）
+    bearing = f_bolt / (3.0 * P.LINK_T)
+    items.append({"name": "连杆孔壁承压", "load_n": f_bolt, "stress_mpa": bearing,
+                  "allow_mpa": 25.0, "margin": 25.0 / bearing})
+
+    # 3. 热熔螺母拉脱（M3×5×4，有效啮合 4.5mm）
+    f_pull = 50.0                                # 夹爪/碰撞时的轴向估计
+    cap = math.pi * 4.0 * 4.5 * 15.0             # 周长×啮合×PETG 剪切强度
+    items.append({"name": "铜螺母拉脱", "load_n": f_pull, "stress_mpa": f_pull,
+                  "allow_mpa": cap, "margin": cap / f_pull})
+
+    # 4. 连杆根部层间弯曲（最弱方向）
+    moment = payload_g / 1000 * G * 0.110        # N·m
+    z = P.LINK_W * P.LINK_T ** 2 / 6             # mm³
+    sigma = moment * 1000 / z                     # N·mm / mm³ = MPa
+    items.append({"name": "连杆根部层间弯曲", "load_n": payload_g / 1000 * G,
+                  "stress_mpa": sigma, "allow_mpa": 27.0, "margin": 27.0 / sigma})
+
+    for it in items:
+        it["ok"] = it["margin"] >= 1.5
+        it["stress_mpa"] = round(it["stress_mpa"], 2)
+        it["margin"] = round(it["margin"], 1)
+    return items
+
+
 def main() -> int:
     mass = printed_masses()
     qty = parts_count()
@@ -161,6 +202,7 @@ def main() -> int:
     de = link_deflection(payload_n)
     tol = tolerance_stack()
     dr = drive_budget(mass, qty)
+    st = strength_checks()
 
     fails, warns = [], []
     if tq["shoulder_nm"] > tq["allowable_nm"]:
@@ -173,6 +215,9 @@ def main() -> int:
         warns.append(f"公差链零余量：错位 {tol['worst_case_mm']}mm，过孔只让 {tol['allowance_mm']}mm")
     if not dr["ok"]:
         fails.append("牵引力不足（10° 坡）")
+    for it in st:
+        if not it["ok"]:
+            fails.append(f"{it['name']} 余量 {it['margin']}× < 1.5×")
 
     print("=== 静力矩 ===")
     print(f"  舵机额定 {tq['rated_nm']} N·m，安全系数 {SAFETY} → 允许 {tq['allowable_nm']} N·m")
@@ -183,6 +228,14 @@ def main() -> int:
           f"200g {de['delta_at_200g_mm']}mm（限 {de['limit_overload_mm']}）")
     print("=== 公差链 ===")
     print(f"  最坏累积 {tol['worst_case_mm']} mm（限 0.6）")
+    print("=== 强度 ===")
+    for it in st:
+        if it["name"] == "铜螺母拉脱":
+            print(f"  {it['name']}: 轴向 {it['load_n']:.0f} N / 许用 {it['allow_mpa']:.0f} N"
+                  f"（余量 {it['margin']}×）")
+        else:
+            print(f"  {it['name']}: {it['stress_mpa']} MPa / 许用 {it['allow_mpa']:g} MPa"
+                  f"（余量 {it['margin']}×）")
     print("=== 驱动 ===")
     print(f"  整备 {dr['total_mass_g']} g，牵引 {dr['traction_n']} N / 10° 坡需 {dr['slope10_n']} N"
           f"（余量 {dr['margin']}×）")
@@ -238,7 +291,24 @@ def main() -> int:
         f"- 两轮牵引力约 **{dr['traction_n']} N**（μ=0.8）",
         f"- 10° 坡需要 **{dr['slope10_n']} N**，余量 {dr['margin']}×",
         "",
-        "## 5. 优化建议",
+        "## 5. 强度",
+        "",
+        "| 部位 | 载荷 | 应力 | 许用 | 余量 |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for it in st:
+        if it["name"] == "铜螺母拉脱":
+            lines.append(f"| {it['name']} | {it['load_n']:.0f} N | — | {it['allow_mpa']:.0f} N | {it['margin']}× |")
+        else:
+            lines.append(f"| {it['name']} | {it['load_n']:.0f} N | {it['stress_mpa']} MPa | "
+                         f"{it['allow_mpa']:g} MPa | {it['margin']}× |")
+    weakest = min(st, key=lambda x: x["margin"])
+    lines += [
+        "",
+        f"最弱环节是 **{weakest['name']}**（{weakest['margin']}×），仍高于 1.5× 下限。",
+        "",
+        "## 6. 优化建议",
+        "",
         "",
     ]
 
@@ -274,11 +344,13 @@ def main() -> int:
         f"当前选 **{P.LINK_T:g}mm**：100g 下 {de['delta_at_100g_mm']}mm 满足定位精度，"
         "200g 超载仍在弹性范围；再加厚收益递减（8mm 只比 6mm 少 0.34mm，却多 7.7g 且更挡视线）。",
         "",
-        "## 6. 没算的",
+        "## 7. 没算的",
         "",
         "- 动载荷（急停/碰撞）——需要实测加速度或仿真",
         "- 疲劳寿命——PETG 在循环载荷下会蠕变，建议关键件每 200 小时检查",
         "- 热：连续堵转时舵机温升没建模，靠 Q3 的 30 分钟实测兜底",
+        "- 螺钉啮合长度：当前按经验选型（build.py 会打印清单），首台装配时用卡尺量 4–5.5mm 并回填，"
+        "这版**没有**做几何断言（避免用猜的厚度当判据）",
         "",
     ]
     (DOCS / "20-设计校核.md").write_text("\n".join(lines), encoding="utf-8")

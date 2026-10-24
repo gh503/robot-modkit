@@ -48,6 +48,8 @@ jobs:
         run: cd cad && python cost.py
       - name: 工程图（13 页 PDF）
         run: cd cad && python drawings.py
+      - name: 设计校核（力矩/刚度/公差/驱动）
+        run: cd cad && python verify_design.py
       - name: 产物上传
         uses: actions/upload-artifact@v4
         with:
@@ -58,6 +60,7 @@ jobs:
             docs/16-可制造性报告.md
             docs/17-成本模型.md
             docs/drawings/modkit-m1-drawings.pdf
+            docs/20-设计校核.md
 
   sim:
     name: 仿真与可视化

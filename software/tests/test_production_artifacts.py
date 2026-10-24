@@ -67,6 +67,7 @@ def test_cost_breakdown_is_consistent():
     data = load(COST)
     for rows in data.values():
         for r in rows:
-            parts = r["parts_cost"] + r["filament_cost"] + r["machine_cost"] + r["labor_cost"]
+            parts = (r["parts_cost"] + r["filament_cost"] + r["machine_cost"]
+                     + r["labor_cost"] + r.get("tooling_cost", 0.0))
             assert abs(parts + r["scrap"] + r["shipping_packaging"] - r["per_unit"]) < 2.0
             assert abs(r["per_unit"] * r["qty"] - r["total"]) <= r["qty"]

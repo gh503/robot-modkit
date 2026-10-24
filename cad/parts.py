@@ -143,10 +143,10 @@ def output_disc():
 
 # ------------------------------------------------------------------ 4. 连杆
 def link_bar(length: float = P.LINK_L):
-    part = Pos(0, 0, P.PLATE_T / 2) * Box(length, P.LINK_W, P.PLATE_T)
+    part = Pos(0, 0, P.LINK_T / 2) * Box(length, P.LINK_W, P.LINK_T)
     n = int((length / 2 - 8) // P.GRID)
     for i in range(-n, n + 1):
-        part -= _hole(P.M3_CLR, P.PLATE_T, i * P.GRID, 0, 0)
+        part -= _hole(P.M3_CLR, P.LINK_T, i * P.GRID, 0, 0)
     return part
 
 

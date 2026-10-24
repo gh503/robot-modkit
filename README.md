@@ -1,5 +1,8 @@
 # modkit M1 · 可拆装模块化机器人
 
+[![CI](https://github.com/gh503/robot-modkit/actions/workflows/ci.yml/badge.svg)](https://github.com/gh503/robot-modkit/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > 一台"接口先定、形态后长"的机器人：**差速底盘 + 4 自由度臂 + 夹爪**，
 > 目标不是演示视频，而是**能独立完成物理任务**（导航到指定位置 → 识别目标 → 抓取 → 放到另一处）。
 >
@@ -23,7 +26,7 @@
 ## 三分钟上手（不需要任何硬件）
 
 ```bash
-git clone <this-repo> && cd robot-modkit
+git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 ./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点

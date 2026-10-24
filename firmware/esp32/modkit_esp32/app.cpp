@@ -6,6 +6,7 @@
 #include <Arduino.h>
 
 #include "esp32_bus.h"
+#include "src/power.h"
 #include "src/scs_frame.h"
 #include "src/scs_servo.h"
 
@@ -18,6 +19,8 @@ static constexpr int8_t PIN_TX = 17;
 static constexpr uint32_t BAUDRATE = 1000000;
 static constexpr uint8_t ID_FIRST = 0;
 static constexpr uint8_t ID_LAST = 20;
+static constexpr int8_t PIN_VBAT = 5;       // 电池分压采样脚（见 docs/03 §3.4）
+static constexpr float VBAT_RATIO = 6.0f;   // 100k/20k 分压 → 6:1
 
 HardwareSerial& SERVO_PORT = Serial1;
 Esp32Bus g_bus(SERVO_PORT, PIN_DIR, BAUDRATE, PIN_RX, PIN_TX);
@@ -25,6 +28,8 @@ ScsBus g_scs(g_bus);
 
 static uint8_t g_ids[16];
 static uint8_t g_count = 0;
+static PowerMonitor g_power;
+static uint32_t g_last_ms = 0;
 
 // ------------------------------------------------------------ 工具
 static void printFeedback(uint8_t id) {
@@ -57,6 +62,12 @@ static void scanAndReport() {
   for (uint8_t i = 0; i < g_count; ++i) printFeedback(g_ids[i]);
 }
 
+// 读电池电压（V）；分压比与 docs/03 的电阻值必须一致。
+static float readBatteryVolts() {
+  const uint32_t mv = analogReadMilliVolts(PIN_VBAT);
+  return mv * VBAT_RATIO / 1000.0f;
+}
+
 void appSetup() {
   Serial.begin(115200);
   delay(1200);              // 等 USB 串口枚举，否则前几行日志会丢
@@ -68,9 +79,35 @@ void appSetup() {
   // 上电默认卸力：第一次调试绝不能让关节自己动
   for (uint8_t i = 0; i < g_count; ++i) g_scs.setTorque(g_ids[i], 0);
   Serial.println("[init] 全部卸力。把关节摆到中位后按复位键继续。");
+
+  pinMode(PIN_VBAT, INPUT);
+  Serial.printf("[power] 电池 %.1fV（阈值 %.1f/%.1fV）\n",
+                readBatteryVolts(), g_power.config().warn_v, g_power.config().cutoff_v);
+  g_last_ms = millis();
 }
 
 void appLoop() {
+  // 电源监视：每圈更新；Cutoff 时强制卸力并停在这里
+  const uint32_t now = millis();
+  const float dt = (now - g_last_ms) / 1000.0f;
+  g_last_ms = now;
+  const PowerState ps = g_power.update(readBatteryVolts(), dt > 1.0f ? 0.1f : dt);
+  if (ps == PowerState::Cutoff) {
+    for (uint8_t i = 0; i < g_count; ++i) g_scs.setTorque(g_ids[i], 0);
+    Serial.printf("[power] 电池 %.1fV 过低，已卸力；换电池后按复位。\n",
+                  g_power.filtered_v());
+    delay(1000);
+    return;
+  }
+  if (ps == PowerState::Low) {
+    static uint32_t last_warn = 0;
+    if (now - last_warn > 5000) {
+      last_warn = now;
+      Serial.printf("[power] 电池 %.1fV 偏低，速度上限 %.0f%%。\n",
+                    g_power.filtered_v(), g_power.speed_scale() * 100);
+    }
+  }
+
   if (g_count == 0) {
     delay(2000);
     scanAndReport();

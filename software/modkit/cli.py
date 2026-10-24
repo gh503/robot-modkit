@@ -16,6 +16,7 @@ import sys
 import time
 
 from . import calibrate as cal
+from . import qc as qc
 from . import kinematics as kin
 from . import protocol as p
 from .bus import SerialLink, SimLink
@@ -171,6 +172,48 @@ def cmd_calib(args) -> int:
     raise SystemExit(f"未知动作 {args.action}")
 
 
+def cmd_qc(args) -> int:
+    if args.action == "new":
+        serial = args.serial or qc.next_serial(args.dir)
+        q1, q2 = qc.default_checks()
+        rec = qc.Record(serial=serial, operator=args.operator or "未填", q1=q1, q2=q2)
+        path = rec.save(args.dir)
+        print(f"已建记录 {path}")
+        print("下一步：把 q1/q2 的 ok 改成 true，填 grasp_success 等，再 --action validate")
+        return 0
+
+    if args.action == "show":
+        r = qc.Record.load(args.file)
+        print(f"{r.serial}  {r.date}  装配 {r.operator}  结论 {r.conclusion}")
+        for c in r.q1:
+            print(f"  Q1 [{'✓' if c.ok else ' '}] {c.name}")
+        for c in r.q2:
+            print(f"  Q2 [{'✓' if c.ok else ' '}] {c.name}")
+        print(f"  Q3 抓放 {r.grasp_success}/{r.grasp_total}  重复 {r.repeatability_mm}mm  "
+              f"温升 {r.temp_c}℃  续航 {r.runtime_min}min")
+        return 0
+
+    if args.action == "validate":
+        bad = 0
+        for pth in args.file:
+            r = qc.Record.load(pth)
+            errs = r.validate()
+            if errs:
+                bad += 1
+                print(f"✗ {r.serial}")
+                for e in errs:
+                    print(f"    - {e}")
+            else:
+                print(f"✓ {r.serial}")
+        return 1 if bad else 0
+
+    if args.action == "summary":
+        print(qc.summary(args.file))
+        return 0
+
+    raise SystemExit(f"未知动作 {args.action}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -215,6 +258,14 @@ def main(argv: list[str] | None = None) -> int:
     cb.add_argument("--file", default="calibration.json")
     cb.add_argument("--save", default="calibration.json")
     cb.set_defaults(func=cmd_calib)
+
+    q = sub.add_parser("qc", help="生产记录：序列号/质检/汇总")
+    q.add_argument("--action", required=True, choices=["new", "show", "validate", "summary"])
+    q.add_argument("--serial", default="")
+    q.add_argument("--operator", default="")
+    q.add_argument("--dir", default="records")
+    q.add_argument("--file", nargs="+", default=[])
+    q.set_defaults(func=cmd_qc)
 
     args = ap.parse_args(argv)
     return args.func(args)

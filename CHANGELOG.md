@@ -111,6 +111,9 @@ M0 单关节模块：5 个零件、33 项几何自检、FT-SCS 协议与驱动�
 
 ### 新增
 
+- **打印参数卡**：`cad/print_profiles.py` → `docs/31`
+  · 受力件 4 壁/25%、外观件 3 壁/15%；支撑/brim 直接取 manufacture 的判定
+  · 16 件 453g / 18.0h（含工装），brim 6 件、支撑 0 件
 - **工序卡**：`hardware/routing.json` + `cad/routing.py` → `docs/30`
   · 17 道工序 / 420 分钟，与 BOM 人工 7.0h 差异 0%（>10% 则 CI 红）
   · 工位分布、关键工序 7 道、瓶颈与并行建议

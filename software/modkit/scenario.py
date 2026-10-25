@@ -96,9 +96,25 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
     meta: dict = {}
     trace: list[dict] = []
 
+    def arm_side():
+        def joint(sid):
+            return sim.servos[sid].output_deg() - 180.0
+        a = math.radians(joint(2))
+        b = math.radians(joint(3))
+        g = kin.ArmGeometry()
+        d = g.l1 * math.cos(a) + g.l2 * math.cos(a + b)
+        z = g.base_h + g.l1 * math.sin(a) + g.l2 * math.sin(a + b)
+        return [[0.0, g.base_h],
+                [g.l1 * math.cos(a), g.base_h + g.l1 * math.sin(a)],
+                [d, z]]
+
     def advance(h: float):
         sim.step(h)
         if not trace or sim.time - trace[-1]["t"] >= 0.02:
+                arm = arm_side()
+                yaw = math.radians(sim.chassis.yaw)
+                ee = [sim.chassis.x + arm[2][0] * math.cos(yaw),
+                      sim.chassis.y + arm[2][0] * math.sin(yaw), arm[2][1]]
                 trace.append({
                     "t": round(sim.time, 3),
                     "x": round(sim.chassis.x, 2), "y": round(sim.chassis.y, 2),
@@ -106,6 +122,9 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                     "j1": round(sim.joint_deg(1), 1),
                     "j2": round(sim.joint_deg(2), 1),
                     "j3": round(sim.joint_deg(3), 1),
+                    "j4": round(sim.joint_deg(4), 1),
+                    "arm": [[round(p[0], 1), round(p[1], 1)] for p in arm],
+                    "ee": [round(v, 1) for v in ee],
                     "v": round(sim.voltage, 2),
                     "temp": round(sim.servos[2].temp_c, 1),
                 })

@@ -131,6 +131,13 @@
         <input id="mu" type="range" min="0.02" max="0.8" step="0.02" value="0.4">
         <span class="val" id="mu-val">0.40</span></div>
     </div>
+    <div class="group"><h3>场景回放</h3>
+      <div class="row"><select id="scenario" style="flex:1;background:#0f141c;color:#e6edf3;
+        border:1px solid #223041;border-radius:7px;padding:7px"></select></div>
+      <div class="row"><button id="runsc">运行场景</button>
+        <span id="sc-res" class="val" style="width:auto;flex:1;text-align:left"></span></div>
+      <div id="sc-log" class="log"></div>
+    </div>
     <div class="group"><h3>日志</h3><div id="log" class="log"></div></div>
   </aside>
 </main>
@@ -140,7 +147,7 @@
 (function(){
   "use strict";
   const $ = id => document.getElementById(id);
-  const st = {s:null, running:false, busy:false, last:0};
+  const st = {s:null, running:false, busy:false, last:0, replay:null};
   const logEl = $("log");
   function log(msg){
     const t = st.s ? st.s.time.toFixed(1) : "0.0";
@@ -171,14 +178,33 @@
     try{ apply(await api("/api/reset", {})); log("已复位"); }
     catch(e){ log("复位失败："+e.message); }
   }
-  function syncPlay(){ $("play").textContent = st.running ? "⏸ 暂停" : "▶ 运行"; }
+  function syncPlay(){
+    $("play").textContent = st.replay
+      ? (st.replay.playing ? "⏸ 暂停回放" : "▶ 回放")
+      : (st.running ? "⏸ 暂停" : "▶ 运行");
+  }
   function toggle(){
     st.running = !st.running; st.last = performance.now(); syncPlay();
     log(st.running ? "开始运行" : "暂停");
   }
-  $("play").onclick = toggle;
-  $("step").onclick = ()=>step(0.05);
-  $("reset").onclick = reset;
+  function togglePlay(){
+    if(st.replay){
+      if(st.replay.i >= st.replay.trace.length-1) st.replay.i = 0;
+      st.replay.playing = !st.replay.playing; st.replay.last = performance.now();
+      syncPlay();
+    }
+    else toggle();
+  }
+  $("play").onclick = togglePlay;
+  $("step").onclick = ()=>{
+    if(st.replay){ st.replay.playing=false; st.replay.i=Math.min(Math.floor(st.replay.i)+1, st.replay.trace.length-1); renderReplay(); syncPlay(); }
+    else step(0.05);
+  };
+  $("reset").onclick = ()=>{
+    if(st.replay){ st.replay.i=0; st.replay.playing=false; renderReplay(); syncPlay(); }
+    else reset();
+  };
+  $("runsc").onclick = runScenario;
   document.addEventListener("keydown", e=>{
     if(e.code==="Space"){ e.preventDefault(); toggle(); }
     if(e.code==="ArrowRight"){ e.preventDefault(); step(0.05); }
@@ -231,10 +257,13 @@
       tx.stroke();
     }
     // 方块
-    const cb=s.cube, half=20*sc;
-    tx.fillStyle=C.cube; tx.fillRect(px(cb[0])-half,py(cb[1])-half,half*2,half*2);
-    tx.fillStyle="#fff"; tx.font="10px monospace"; tx.textAlign="center";
-    tx.fillText("cube",px(cb[0]),py(cb[1])-half-4);
+    const cb=s.cube;
+    if(cb){
+      const half=20*sc;
+      tx.fillStyle=C.cube; tx.fillRect(px(cb[0])-half,py(cb[1])-half,half*2,half*2);
+      tx.fillStyle="#fff"; tx.font="10px monospace"; tx.textAlign="center";
+      tx.fillText("cube",px(cb[0]),py(cb[1])-half-4);
+    }
     // 机器人
     tx.save(); tx.translate(px(s.pose[0]),py(s.pose[1]));
     tx.rotate(-s.pose[2]*Math.PI/180);
@@ -304,6 +333,49 @@
     cx.fillStyle=C.text; cx.textAlign="right"; cx.fillText(`${t0.toFixed(1)}s → ${t1.toFixed(1)}s`,W-10,14);
   }
 
+  function replayState(i){
+    const r=st.replay, tr=r.trace;
+    const idx=Math.max(0, Math.min(tr.length-1, Math.floor(i)));
+    const f=tr[idx];
+    const hist=tr.slice(0,idx+1).map(p=>({t:p.t,x:p.x,y:p.y,v:p.v,temp:p.temp}));
+    return {time:f.t, pose:[f.x,f.y,f.yaw],
+      joints:{"1":f.j1,"2":f.j2,"3":f.j3,"4":f.j4},
+      ee:f.ee, arm_side:f.arm, voltage:f.v, temp:f.temp, current:0, status:0,
+      cutoff:false, wheels:[0,0], cube:null, held:false, history:hist,
+      controls:{v:0,w:0,gripper:1,torque:true,joints:{"1":f.j1,"2":f.j2,"3":f.j3}},
+      options:{slip:0,battery_ocv:f.v,payload_kg:0,drop_rate:0,bus_latency:0,
+               servo_torque:2.94,mu:0.4,grip_force:4,cube_mass:0.05}};
+  }
+  function renderReplay(){
+    if(!st.replay) return;
+    render(replayState(st.replay.i));
+    const idx=Math.max(0,Math.min(st.replay.trace.length-1,Math.floor(st.replay.i)));
+    $("clock").textContent = `t ${st.replay.trace[idx].t.toFixed(2)}s`;
+  }
+
+  async function loadScenarios(){
+    try{
+      const list = await api("/api/scenarios");
+      const sel = $("scenario");
+      sel.innerHTML = list.map(x=>`<option value="${x.file}">${x.file} · ${x.name}</option>`).join("");
+    }catch(e){ log("场景列表失败："+e.message); }
+  }
+  async function runScenario(){
+    const file = $("scenario").value; if(!file) return;
+    $("sc-res").textContent = "运行中…"; $("sc-res").className = "val";
+    $("sc-log").textContent = "";
+    try{
+      const r = await api("/api/scenario", {file});
+      st.running = false; syncPlay();
+      st.replay = {trace:r.trace, i:0, playing:false, last:0, log:r.log, ok:r.ok};
+      $("sc-res").textContent = r.ok ? "PASS" : "FAIL";
+      $("sc-res").style.color = r.ok ? "var(--green)" : "var(--red)";
+      $("sc-log").textContent = (r.log||[]).slice(-8).join("\n");
+      renderReplay(); log(`载入 ${file}：${r.trace.length} 帧`);
+    }catch(e){ $("sc-res").textContent = "错误"; $("sc-res").style.color="var(--red)";
+      log("场景失败："+e.message); }
+  }
+
   function render(s){
     $("clock").textContent = `t ${s.time.toFixed(2)}s`;
     $("s-v").textContent = s.voltage.toFixed(2);
@@ -330,10 +402,27 @@
         const deg = s.controls.joints[String(i+1)]; $(id).value=deg; $(id+"-val").textContent=`${Math.round(deg)}°`;
       });
       log("已连接仿真后端");
+      await loadScenarios();
+      const q = new URLSearchParams(location.search);
+      const pick = q.get("scenario");
+      if(pick){
+        $("scenario").value = pick;
+        await runScenario();
+        const fr = Number(q.get("frame") || 0);
+        if(st.replay && fr > 0){ st.replay.i = Math.min(fr, st.replay.trace.length-1); renderReplay(); }
+        if(st.replay && q.get("play") === "1"){ st.replay.playing = true; st.replay.last = performance.now(); syncPlay(); }
+      }
     }catch(e){ log("后端不可用："+e.message); }
   }
 
   function loop(now){
+    if(st.replay && st.replay.playing){
+      const dt=(now-st.replay.last)/1000; st.replay.last=now;
+      st.replay.i += dt/0.02;
+      const max=st.replay.trace.length-1;
+      if(st.replay.i>=max){ st.replay.i=max; st.replay.playing=false; syncPlay(); }
+      renderReplay();
+    }
     if(st.running && !st.busy){
       const dt = Math.min(0.1, (now - st.last)/1000);
       st.last = now;

@@ -12,10 +12,12 @@ import threading
 import webbrowser
 from dataclasses import asdict, dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 from pathlib import Path
 
 from . import contact as ct
 from . import kinematics as kin
+from . import scenario as sn
 from .hwsim import BatterySpec, HardwareSim, ServoSpec
 from .robot import Robot
 
@@ -209,6 +211,27 @@ class SimSession:
 
 # ---------------------------------------------------------------- HTTP
 _HTML = Path(__file__).with_name("simui.html")
+_SCEN = Path(__file__).resolve().parents[2] / "sim" / "scenarios"
+
+
+def list_scenarios() -> list[dict]:
+    out = []
+    for f in sorted(_SCEN.glob("*.json")):
+        try:
+            name = json.loads(f.read_text(encoding="utf-8")).get("name", f.stem)
+        except Exception:
+            name = f.stem
+        out.append({"file": f.name, "name": name})
+    return out
+
+
+def run_scenario_file(name: str) -> dict:
+    path = (_SCEN / name).resolve()
+    if path.parent != _SCEN.resolve() or path.suffix != ".json" or not path.exists():
+        raise FileNotFoundError(name)
+    result = sn.run_scenario(sn.load(path))
+    result["file"] = name
+    return result
 
 
 def make_handler(session: SimSession):
@@ -228,16 +251,20 @@ def make_handler(session: SimSession):
                        "application/json; charset=utf-8")
 
         def do_GET(self):
-            if self.path in ("/", "/index.html"):
+            path = urlsplit(self.path).path
+            if path in ("/", "/index.html"):
                 self._send(200, _HTML.read_bytes(), "text/html; charset=utf-8")
-            elif self.path.startswith("/api/state"):
+            elif path.startswith("/api/state"):
                 self._json(session.state())
-            elif self.path.startswith("/api/options"):
+            elif path.startswith("/api/options"):
                 self._json(session.options.as_dict())
+            elif path.startswith("/api/scenarios"):
+                self._json(list_scenarios())
             else:
                 self._send(404, b"not found", "text/plain")
 
         def do_POST(self):
+            path = urlsplit(self.path).path
             n = int(self.headers.get("Content-Length", 0))
             try:
                 data = json.loads(self.rfile.read(n) or b"{}")
@@ -245,14 +272,17 @@ def make_handler(session: SimSession):
                 self._json({"error": "bad json"}, 400)
                 return
             try:
-                if self.path == "/api/step":
+                if path == "/api/step":
                     session.step(data.get("dt", 0.05))
-                elif self.path == "/api/control":
+                elif path == "/api/control":
                     session.control(data)
-                elif self.path == "/api/reset":
+                elif path == "/api/reset":
                     session.reset(SimOptions(**data) if data else None)
-                elif self.path == "/api/goto":
+                elif path == "/api/goto":
                     session.control({"joints": data.get("joints", {})})
+                elif path == "/api/scenario":
+                    self._json(run_scenario_file(data.get("file", "")))
+                    return
                 else:
                     self._json({"error": "not found"}, 404)
                     return

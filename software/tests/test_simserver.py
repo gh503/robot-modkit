@@ -82,3 +82,29 @@ def test_grasp_sets_held(server):
 def test_bad_options_rejected():
     with pytest.raises(TypeError):
         SimOptions(nope=1)
+
+
+def test_scenarios_list(server):
+    base, _ = server
+    items = json.loads(get(base + "/api/scenarios"))
+    files = {x["file"] for x in items}
+    assert "mission_pick.json" in files and len(items) >= 10
+    assert all(x["name"] for x in items)
+
+
+def test_run_scenario(server):
+    base, _ = server
+    r = post(base + "/api/scenario", {"file": "low_battery.json"})
+    assert r["ok"] and r["trace"]
+    assert "arm" in r["trace"][-1] and len(r["trace"][-1]["arm"]) == 3
+
+
+def test_scenario_path_traversal(server):
+    base, _ = server
+    with pytest.raises(Exception):
+        post(base + "/api/scenario", {"file": "../../etc/passwd"})
+
+
+def test_query_string_serves_index(server):
+    base, _ = server
+    assert b"modkit" in get(base + "/?scenario=low_battery.json")

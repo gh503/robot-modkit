@@ -30,7 +30,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.16.0";
+  var STUDIO_VERSION = "1.17.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -452,6 +452,21 @@
       window.prompt("复制分享链接：", url);
       toast("无法自动复制，已弹出链接：" + (e.message || e), "");
     });
+  }
+  function viewerURL() {
+    if (!state.assembly) return "";
+    var u = new URL("view.html", location.href);
+    u.hash = "#d=" + b64encode(JSON.stringify(state.assembly));
+    return u.href;
+  }
+  function openViewer() {
+    var url = viewerURL();
+    if (!url) return;
+    if (url.length > 60000) { toast("装配太大，查看器链接超过 60000 字符；请导出 JSON", "err"); return; }
+    var w = window.open(url, "_blank");
+    if (!w) { location.href = url; return; }
+    try { w.opener = null; } catch (e) { /* 跨域/隐私模式 */ }
+    toast("已在新标签页打开结构查看器", "ok");
   }
   function loadShared() {
     var m = /^#d=(.+)$/.exec(location.hash || "");
@@ -1347,6 +1362,7 @@
     $("redo").addEventListener("click", redo);
     $("import-design").addEventListener("click", function () { $("import-file").click(); });
     $("share-design").addEventListener("click", shareDesign);
+    $("viewer-design").addEventListener("click", openViewer);
     window.addEventListener("hashchange", function () {
       if (/^#d=/.test(location.hash || "")) loadShared();
     });
@@ -1428,6 +1444,6 @@
     optimize: runOptimizer, applyOptimization: applyOptimizer,
     planBudget: runPlan, applyPlan: applyPlan,
     exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo,
-    shareDesign: shareDesign, loadShared: loadShared
+    shareDesign: shareDesign, loadShared: loadShared, openViewer: openViewer, viewerURL: viewerURL
   };
 })();

@@ -117,6 +117,25 @@ def test_budget_optimizer_finds_two_joint_variant():
     assert "gripper" in out["new_names"]
 
 
+def test_free_design_viewer_assets_and_hooks():
+    view = (WEB / "view.html").read_text(encoding="utf-8")
+    assert 'id="view"' in view
+    assert 'src="assembly-view.js"' in view
+    assert 'src="assembly-core.js"' in view and 'src="data/components.js"' in view
+    assert 'id="view-edit"' in view and 'href="design.html"' in view
+    js = (WEB / "assembly-view.js").read_text(encoding="utf-8")
+    assert "A.check" in js and "A.validate" in js
+    assert "MODKIT_VIEW" in js and "hashchange" in js
+    design = (WEB / "design.html").read_text(encoding="utf-8")
+    assert 'id="viewer-design"' in design
+    designer = (WEB / "designer.js").read_text(encoding="utf-8")
+    assert "function openViewer" in designer and "function viewerURL" in designer
+    index = (WEB / "index.html").read_text(encoding="utf-8")
+    assert 'href="view.html"' in index and "location.replace" in index
+    sw = (WEB / "sw.js").read_text(encoding="utf-8")
+    assert "view.html" in sw and "assembly-view.js" in sw
+
+
 def test_pwa_shell_is_complete_and_versioned():
     manifest = json.loads((WEB / "manifest.webmanifest").read_text(encoding="utf-8"))
     assert manifest["start_url"] == "./design.html"

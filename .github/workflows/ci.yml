@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: arduino/setup-arduino-cli@v1
+      - uses: arduino/setup-arduino-cli@v2
         with:
           version: "1.5.1"
       - uses: actions/cache@v4

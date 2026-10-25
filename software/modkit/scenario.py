@@ -9,7 +9,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import camsim as cs
+from . import kinematics as kin
+from . import mission as ms
 from . import nav as nv
+from . import vision as vis
 from .hwsim import BatterySpec, HardwareSim, ServoSpec
 from .robot import Robot
 
@@ -18,7 +22,8 @@ class ScenarioError(RuntimeError):
     pass
 
 
-def _resolve(sim: HardwareSim, path: str):
+def _resolve(sim: HardwareSim, path: str, meta: dict | None = None):
+    meta = meta or {}
     if path == "voltage":
         return sim.voltage
     if path == "time":
@@ -41,11 +46,22 @@ def _resolve(sim: HardwareSim, path: str):
         raise ScenarioError(f"未知属性：{path}")
     if path.startswith("chassis."):
         return getattr(sim.chassis, path.split(".")[1])
+    if path.startswith("mission."):
+        return meta.get("mission", {}).get(path.split(".", 1)[1])
+    if path.startswith("arm."):
+        t = [sim.servos[i].ticks for i in (1, 2, 3)]
+        pose = kin.forward(kin.ArmGeometry(), *kin.ticks_to_joints(*t))
+        return {"x": pose.x, "y": pose.y, "z": pose.z}[path.split(".")[1]]
+    if path.startswith("det."):
+        d = meta.get("det")
+        if d is None:
+            raise ScenarioError("还没有检测结果")
+        return {"cx": d.cx, "cy": d.cy, "area": d.area}[path.split(".")[1]]
     raise ScenarioError(f"未知路径：{path}")
 
 
-def _check(sim, a: dict) -> tuple[bool, str]:
-    got = _resolve(sim, a["path"])
+def _check(sim, a: dict, meta: dict | None = None) -> tuple[bool, str]:
+    got = _resolve(sim, a["path"], meta)
     op = a.get("op", "near")
     want = a.get("value")
     tol = a.get("tol", 1e-6)
@@ -73,6 +89,7 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
     bot = Robot(sim)
     log = []
     failures = []
+    meta: dict = {}
 
     def step(seconds: float):
         for _ in range(max(1, int(round(seconds / dt)))):
@@ -89,6 +106,54 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
             bot.drive_speed(act["v"], act.get("w", 0.0))
         elif cmd == "stop":
             bot.stop_wheels()
+        elif cmd == "mission":
+            cube = act.get("cube", [200.0, 0.0, 40.0])
+            cam = cs.Camera(z=act.get("camera_z", 800.0),
+                            fx=act.get("fx", 600.0))
+            cubes = [cs.Cube(cube[0], cube[1], cube[2],
+                             tuple(act.get("color", [200, 60, 40])))]
+            color = tuple(act.get("color", [200, 60, 40]))
+
+            def look():
+                img = cs.render(cam, cubes, seed=act.get("seed", 0))
+                det = vis.detect_color(img, color, tol=act.get("tol", 40))
+                meta["det"] = det
+                return det
+
+            def drive(x, y, th):
+                sim.step(act.get("drive_seconds", 2.0))
+                return True
+
+            def pick(det):
+                if det is None:
+                    return False
+                cal = cam.table_calib(cube[2])
+                plan = vis.plan_pick(cal, det, kin.ArmGeometry(),
+                                     grasp_z=act.get("grasp_z", 25.0),
+                                     clearance=act.get("clearance", 60.0))
+                bot.move_pose(plan.x, plan.y, plan.above_z)
+                sim.step(1.5)
+                bot.move_pose(plan.x, plan.y, plan.grasp_z)
+                sim.step(1.5)
+                bot.gripper(act.get("close", 0.15))
+                sim.step(0.5)
+                bot.move_pose(plan.x, plan.y, plan.above_z)   # 抬起
+                sim.step(1.5)
+                return True
+
+            def drop():
+                bot.gripper(1.0)
+                sim.step(0.8)
+                return True
+
+            r = ms.Mission(drive, look, pick, drop,
+                           cfg=ms.MissionConfig(pick_xy=tuple(act["pick"]),
+                                                drop_xy=tuple(act["drop"])),
+                           now=lambda: sim.time).run()
+            meta["mission"] = r.as_dict()
+            log.append(f"[{i}] mission {r.success} {r.seconds:.1f}s {r.reason}")
+            if not r.success:
+                failures.append(log[-1])
         elif cmd in ("nav", "nav_square"):
             def read_pose():
                 o = bot.update_odom()
@@ -118,7 +183,7 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
             else:
                 raise ScenarioError(f"未知 set 路径：{act['path']}")
         elif cmd == "assert":
-            ok, msg = _check(sim, act)
+            ok, msg = _check(sim, act, meta)
             log.append(f"[{i}] {msg}")
             if not ok:
                 failures.append(msg)
@@ -126,7 +191,7 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
             raise ScenarioError(f"未知动作：{cmd}")
 
     for a in scene.get("assert", []):
-        ok, msg = _check(sim, a)
+        ok, msg = _check(sim, a, meta)
         log.append(f"[end] {msg}")
         if not ok:
             failures.append(msg)

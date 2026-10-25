@@ -42,3 +42,9 @@ def test_set_slip():
         {"cmd": "stop"},
     ], "assert": [{"path": "chassis.slip", "value": 1.0}]}
     assert scenario.run_scenario(scene)["ok"]
+
+
+def test_mission_pick_full_stack():
+    r = scenario.run_scenario(scenario.load(SCEN / "mission_pick.json"))
+    assert r["ok"], r["failures"]
+    assert r["time"] < 20

@@ -22,6 +22,7 @@ from . import calibrate as cal
 from . import odomcal as oc
 from . import qc as qc
 from . import selftest as st
+from . import camsim as cs
 from . import scenario as sn
 from . import speedcal as sc
 from . import kinematics as kin
@@ -293,6 +294,31 @@ def cmd_backlash(args) -> int:
         print(f"已写入 {out}（可直接给 Compensator.load 用）")
         return 0 if jp.ok else 1
     raise SystemExit("未知动作")
+
+
+def cmd_camsim(args) -> int:
+    cam = cs.Camera(width=args.width, height=args.height,
+                    z=args.height_mm, fx=args.fx, fy=args.fx)
+    cubes = []
+    for spec in args.cube:
+        v = [float(x) for x in spec.split(",")]
+        cubes.append(cs.Cube(v[0], v[1], v[2] if len(v) > 2 else 40.0,
+                             tuple(int(x) for x in args.color.split(","))))
+    img = cs.render(cam, cubes, seed=args.seed)
+    from PIL import Image
+    Image.fromarray(img.astype("uint8")).save(args.out)
+    print(f"已写出 {args.out}（{args.width}×{args.height}，{len(cubes)} 个方块）")
+    if args.detect:
+        det = vis.detect_color(img, tuple(int(x) for x in args.color.split(",")),
+                               tol=args.tol)
+        if det is None:
+            print("没检出")
+            return 1
+        for c in cubes:
+            x, y = cam.table_calib(c.size).apply(det.cx, det.cy)
+            print(f"检测中心 ({det.cx:.1f},{det.cy:.1f})px → 桌面 "
+                  f"({x:.1f},{y:.1f})mm（真值 {c.x},{c.y}）")
+    return 0
 
 
 def cmd_simrun(args) -> int:
@@ -694,6 +720,20 @@ def main(argv: list[str] | None = None) -> int:
     nvp.add_argument("--closed-loop", action="store_true",
                      help="用里程计反馈闭环（目前仅 --sim）")
     nvp.set_defaults(func=cmd_nav)
+
+    csp = sub.add_parser("camsim", help="生成俯视相机仿真图")
+    csp.add_argument("--out", default="camsim.png")
+    csp.add_argument("--cube", action="append", default=[],
+                     help="x,y[,size]，可重复")
+    csp.add_argument("--color", default="200,60,40")
+    csp.add_argument("--width", type=int, default=640)
+    csp.add_argument("--height", type=int, default=480)
+    csp.add_argument("--height-mm", type=float, default=800.0)
+    csp.add_argument("--fx", type=float, default=600.0)
+    csp.add_argument("--tol", type=int, default=40)
+    csp.add_argument("--seed", type=int, default=0)
+    csp.add_argument("--detect", action="store_true")
+    csp.set_defaults(func=cmd_camsim)
 
     sr = sub.add_parser("simrun", help="跑硬件仿真场景（确定性）")
     sr.add_argument("--scenario", help="单个场景 JSON")

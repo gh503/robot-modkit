@@ -1,0 +1,12 @@
+{
+  "name": "相机→检测→抓取（全仿真）",
+  "actions": [
+    {"cmd": "mission", "pick": [200, 0], "drop": [-150, 0],
+     "cube": [200, 0, 40], "close": 0.15}
+  ],
+  "assert": [
+    {"path": "mission.success", "op": "eq", "value": true},
+    {"path": "det.area", "op": "gt", "value": 500},
+    {"path": "arm.z", "op": "gt", "value": 40}
+  ]
+}

@@ -263,6 +263,59 @@ def apply_candidate(data: dict[str, Any], candidate: dict[str, Any]) -> dict[str
     return _clone(candidate["assembly"])
 
 
+def plan(data: dict[str, Any], target_budget: float, max_steps: int = 4) -> dict[str, Any]:
+    """按“最大节省”逐步应用候选，直到达到目标预算或没有候选。"""
+    import copy
+
+    target = float(target_budget)
+    max_steps = max(1, min(8, int(max_steps or 4)))
+    cur = copy.deepcopy(data)
+    rep = _validate(cur)
+    if rep is None:
+        return {"reached": False, "error": "当前装配未通过校验", "target": target,
+                "base_cost": 0.0, "cost": 0.0, "remaining": 0.0, "steps": [], "assembly": cur}
+    base_cost = rep.total_cost_cny
+    steps = []
+    while rep.total_cost_cny > target and len(steps) < max_steps:
+        cands = suggest(cur, max_candidates=8)
+        if not cands:
+            break
+        pick = cands[0]
+        cur = pick["assembly"]
+        rep = _validate(cur)
+        if rep is None:
+            break
+        steps.append({"id": pick["id"], "title": pick["title"],
+                      "saving": pick["saving"], "cost": rep.total_cost_cny,
+                      "risk": pick["risk"], "tradeoff": pick["tradeoff"]})
+    final = _validate(cur)
+    cost = final.total_cost_cny if final else base_cost
+    return {"reached": cost <= target + 0.01, "target": target,
+            "base_cost": base_cost, "cost": cost,
+            "remaining": max(0.0, cost - target), "steps": steps, "assembly": cur}
+
+
+def plan_markdown(plan_result: dict[str, Any], title: str = "装配") -> str:
+    lines = [f"# 预算规划：{title}", "",
+             f"目标：¥{plan_result['target']:.1f}　当前：¥{plan_result['base_cost']:.1f}", ""]
+    if plan_result.get("error"):
+        lines += [plan_result["error"], ""]
+    elif not plan_result["steps"]:
+        lines += ["当前装配已经在预算内，不需要规划。", ""]
+    else:
+        lines += ["| 步 | 候选 | 省 ¥ | 应用后 ¥ | 风险 |", "|---:|---|---:|---:|---|"]
+        for i, s in enumerate(plan_result["steps"], 1):
+            lines.append(f"| {i} | {s['title']} | {s['saving']:.1f} | {s['cost']:.1f} | {s['risk']} |")
+        lines.append("")
+        if plan_result["reached"]:
+            lines.append(f"**可达**：¥{plan_result['cost']:.1f}，预算 ¥{plan_result['target']:.1f}。")
+        else:
+            lines.append(f"**未达标**：最多到 ¥{plan_result['cost']:.1f}，仍差 ¥{plan_result['remaining']:.1f}；"
+                         "需要更大幅度的结构改动。")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def to_markdown(candidates: list[dict[str, Any]], base_cost: float, title: str = "装配") -> str:
     lines = [f"# 预算优化：{title}", "",
              f"当前 BOM：¥{base_cost:.1f}", ""]

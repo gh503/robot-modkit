@@ -49,3 +49,42 @@ def test_cli_suggest_and_apply(tmp_path):
     assert rep.ok
     assert len(rep.instances) == 15
     assert abs(rep.total_cost_cny - 968.0) < 0.2
+
+
+def test_plan_reaches_and_reports_unreachable():
+    data = json.loads(M1.read_text(encoding="utf-8"))
+    hit = opt.plan(data, 1000)
+    assert hit["reached"] is True
+    assert len(hit["steps"]) == 1 and hit["steps"][0]["id"] == "drop-elbow"
+    assert abs(hit["cost"] - 968.0) < 0.2
+    assert len(hit["assembly"]["components"]) == 15
+    assert "预算规划" in opt.plan_markdown(hit, "m1")
+
+    miss = opt.plan(data, 900)
+    assert miss["reached"] is False
+    assert [s["id"] for s in miss["steps"]] == ["drop-elbow", "swap-link.beam_100-link.beam_60"]
+    assert abs(miss["cost"] - 964.4) < 0.2
+    assert abs(miss["remaining"] - 64.4) < 0.2
+    assert "未达标" in opt.plan_markdown(miss, "m1")
+
+
+def test_cli_plan_and_apply(tmp_path):
+    cmd = [sys.executable, "-m", "modkit.cli", "assemble", "suggest", str(M1),
+           "--goal", "1000", "--json"]
+    p = subprocess.run(cmd, cwd=ROOT / "software", text=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    assert p.returncode == 0, p.stderr
+    plan = json.loads(p.stdout)
+    assert plan["reached"] is True and plan["cost"] == 968.0
+    assert plan["steps"][0]["id"] == "drop-elbow"
+
+    out = tmp_path / "m1-plan.json"
+    cmd = [sys.executable, "-m", "modkit.cli", "assemble", "suggest", str(M1),
+           "--goal", "1000", "--apply-plan", "--out", str(out)]
+    p = subprocess.run(cmd, cwd=ROOT / "software", text=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    assert p.returncode == 0, p.stderr
+    rep = asm.load_and_validate(out)
+    assert rep.ok and len(rep.instances) == 15
+    assert abs(rep.total_cost_cny - 968.0) < 0.2
+    assert out.read_text(encoding="utf-8").find("-plan") >= 0

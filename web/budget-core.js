@@ -196,6 +196,46 @@
       return clone(cand.assembly);
     }
 
+    function plan(assembly, targetBudget, maxSteps) {
+      var target = Number(targetBudget);
+      maxSteps = Math.max(1, Math.min(8, Number(maxSteps) || 4));
+      var current = clone(assembly);
+      var baseReport = report(current);
+      if (!isFinite(target)) {
+        return { reached: false, error: "目标预算无效", target: target,
+                 baseCost: baseReport ? baseReport.totalCost : 0,
+                 cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0 };
+      }
+      if (!baseReport || !baseReport.ok) {
+        return { reached: false, error: "当前装配未通过校验", target: target,
+                 baseCost: baseReport ? baseReport.totalCost : 0,
+                 cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0 };
+      }
+      var baseCost = baseReport.totalCost;
+      var steps = [];
+      for (var n = 0; n < maxSteps && baseReport.totalCost > target; n++) {
+        var cands = suggest(current, { max: 8 });
+        if (!cands.length) break;
+        var pick = cands[0];
+        current = clone(pick.assembly);
+        baseReport = report(current);
+        if (!baseReport) break;
+        steps.push({ id: pick.id, title: pick.title, saving: pick.saving,
+                     cost: baseReport.totalCost, risk: pick.risk, tradeoff: pick.tradeoff });
+        if (baseReport.totalCost <= target) break;
+      }
+      var finalReport = report(current) || baseReport;
+      return {
+        reached: finalReport.totalCost <= target,
+        target: target,
+        baseCost: baseCost,
+        cost: finalReport.totalCost,
+        remaining: Math.max(0, finalReport.totalCost - target),
+        steps: steps,
+        assembly: current
+      };
+    }
+
     function reportMarkdown(cands, baseCost, title) {
       function md(v) { return String(v == null ? "" : v).replace(/\|/g, "\\|").replace(/\n/g, " "); }
       var lines = ["# 预算优化：" + md(title || "装配"), "",
@@ -218,7 +258,7 @@
       return lines.join("\n") + "\n";
     }
 
-    return { SUBSTITUTIONS: SUBSTITUTIONS, suggest: suggest, apply: apply,
+    return { SUBSTITUTIONS: SUBSTITUTIONS, suggest: suggest, apply: apply, plan: plan,
              reportMarkdown: reportMarkdown, clampAt: clampAt };
   }
 

@@ -22,7 +22,7 @@
   var state = {
     assembly: null, report: null, selected: null, replaceMode: false,
     angles: {}, playing: false, playStart: 0, speed: 1, dirty: false, optimizer: null,
-    history: [], historyIndex: -1, historyLimit: 40
+    plan: null, history: [], historyIndex: -1, historyLimit: 40
   };
   var view = {
     scene: null, camera: null, renderer: null, controls: null, root: null,
@@ -30,7 +30,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.10.0";
+  var STUDIO_VERSION = "1.11.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -611,7 +611,7 @@
   function revalidate() {
     if (!state.assembly) return;
     if (state.assembly.budget_cny == null) state.assembly.budget_cny = 1000;
-    state.optimizer = null;
+    state.optimizer = null; state.plan = null;
     // 保持选择有效
     if (state.selected && !rawById(state.selected)) state.selected = state.assembly.components[0] ? state.assembly.components[0].id : null;
     try {
@@ -800,6 +800,7 @@
     renderMetrics();
     renderIssues();
     renderBOM();
+    renderPlan();
     renderOptimizer();
     renderJoints();
     renderExportState();
@@ -891,6 +892,70 @@
     $("bom-note").innerHTML = '合计 <b>¥' + Math.round(r.totalCost) + '</b>、约 <b>' + Math.round(r.totalMass) + 'g</b>；预算 <b>¥' + Math.round(budget) + '</b>，' +
       (over ? '<b style="color:var(--bad)">超 ¥' + Math.round(r.totalCost - budget) + '</b>' : '<b style="color:var(--ok)">余 ¥' + Math.round(budget - r.totalCost) + '</b>') +
       '。这是组件库保守估算，不是供应商报价；打印件/线材/紧固件按 BOM 行计。';
+  }
+
+  function renderPlan() {
+    var host = $("plan");
+    if (!host) return;
+    var p = state.plan;
+    if (!p) { host.innerHTML = ""; return; }
+    if (p.error) { host.innerHTML = '<div class="opt-empty">' + esc(p.error) + '</div>'; return; }
+    var cls = p.reached ? "ok" : "bad";
+    var head = p.reached
+      ? ("目标 ¥" + Math.round(p.target) + " · " + p.steps.length + " 步可达 ¥" + Math.round(p.cost))
+      : ("目标 ¥" + Math.round(p.target) + " · 最多到 ¥" + Math.round(p.cost) + "，仍差 ¥" + Math.round(p.remaining));
+    var html = '<div class="plan-card ' + cls + '"><div class="plan-head"><b>' + head + '</b>' +
+      '<span class="plan-base">当前 ¥' + Math.round(p.baseCost) + '</span></div>';
+    if (!p.steps.length) {
+      html += '<p class="opt-empty">当前装配已经在预算内，不需要规划。</p>';
+    } else {
+      html += '<ol class="plan-steps">' + p.steps.map(function (s) {
+        return '<li><span>' + esc(s.title) + '</span><em>¥' + Math.round(s.cost) +
+          ' · 省 ¥' + Math.round(s.saving) + '</em></li>';
+      }).join("") + '</ol>';
+    }
+    if (p.steps.length && p.reached) {
+      html += '<div class="plan-actions"><button class="btn primary" id="apply-plan">应用全部</button>' +
+        '<span class="note">会记一步撤销；可再导出报告/JSON</span></div>';
+    } else if (p.steps.length) {
+      html += '<p class="opt-empty">规划 ' + p.steps.length + ' 步后仍差 ¥' + Math.round(p.remaining) +
+        '；需要更大幅度的结构改动，或先接受一个候选再继续规划。</p>';
+    }
+    html += '</div>';
+    host.innerHTML = html;
+    var b = $("apply-plan");
+    if (b) b.addEventListener("click", applyPlan);
+  }
+
+  function runPlan() {
+    if (!state.assembly || !state.report) return;
+    if (!window.MODKIT_BUDGET) { toast("预算优化器未加载", "err"); return; }
+    var target = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
+    try {
+      state.plan = window.MODKIT_BUDGET.plan(state.assembly, target, 4);
+    } catch (e) {
+      state.plan = { error: "规划失败：" + e.message };
+    }
+    renderPlan();
+    if (state.plan.error) toast(state.plan.error, "err");
+    else if (state.plan.reached) toast("规划可达：¥" + Math.round(state.plan.cost), "ok");
+    else toast("单步候选最多到 ¥" + Math.round(state.plan.cost) + "，仍差 ¥" + Math.round(state.plan.remaining), "err");
+  }
+
+  function applyPlan() {
+    var p = state.plan;
+    if (!p || !p.reached || !p.steps.length) return;
+    var next = clone(p.assembly);
+    next.name = (next.name || "design").replace(/-opt$/, "") + "-opt";
+    next.description = "预算规划：" + p.steps.map(function (s) { return s.title; }).join(" → ") + "。" +
+      (next.description || "");
+    state.assembly = next;
+    pushHistory("预算规划 " + p.steps.length + " 步");
+    state.plan = null; state.optimizer = null;
+    state.angles = {}; state.playing = false; state.fitPending = true;
+    state.selected = next.components.length ? next.components[0].id : null;
+    revalidate();
+    toast("已应用预算规划：" + p.steps.length + " 步，¥" + Math.round(p.cost), "ok");
   }
 
   function renderOptimizer() {
@@ -1234,6 +1299,7 @@
       $("tab-btn-" + k).addEventListener("click", function () { showTab(k); });
     });
     $("optimize").addEventListener("click", runOptimizer);
+    $("plan-budget").addEventListener("click", runPlan);
     $("export-optimizer").addEventListener("click", exportOptimizerReport);
     $("export-json").addEventListener("click", exportJSON);
     $("export-csv").addEventListener("click", exportCSV);
@@ -1271,6 +1337,7 @@
     applyMotion: applyMotion, exportSTL: exportSTL, exportJSON: exportJSON,
     exportStepZip: exportStepZip, fitCamera: fitCamera,
     optimize: runOptimizer, applyOptimization: applyOptimizer,
+    planBudget: runPlan, applyPlan: applyPlan,
     exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo
   };
 })();

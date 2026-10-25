@@ -116,6 +116,27 @@ def test_budget_optimizer_finds_two_joint_variant():
     assert "gripper" in out["new_names"]
 
 
+def test_budget_plan_reaches_and_reports_shortfall():
+    out = run_core("""
+      const hit = B.plan(window.MODKIT_ASSEMBLIES.m1, 1000, 4);
+      const miss = B.plan(window.MODKIT_ASSEMBLIES.m1, 900, 4);
+      return {
+        hit: { reached: hit.reached, cost: hit.cost, steps: hit.steps.map(s => s.id),
+               components: hit.assembly.components.length },
+        miss: { reached: miss.reached, cost: miss.cost, remaining: miss.remaining,
+                steps: miss.steps.map(s => s.id) }
+      };
+    """)
+    assert out["hit"]["reached"] is True
+    assert out["hit"]["cost"] == 968.0
+    assert out["hit"]["steps"] == ["drop-elbow"]
+    assert out["hit"]["components"] == 15
+    assert out["miss"]["reached"] is False
+    assert out["miss"]["steps"] == ["drop-elbow", "swap-link.beam_100-link.beam_60"]
+    assert abs(out["miss"]["cost"] - 964.4) < 0.2
+    assert abs(out["miss"]["remaining"] - 64.4) < 0.2
+
+
 def test_optimizer_markdown_report():
     out = run_core("""
       const cs = B.suggest(window.MODKIT_ASSEMBLIES.m1);
@@ -174,4 +195,5 @@ def test_design_html_hooks():
     assert 'value="m1_budget"' in html
     assert 'id="optimize"' in html and 'id="export-optimizer"' in html
     assert 'id="undo"' in html and 'id="redo"' in html
+    assert 'id="plan-budget"' in html
     assert "assembly-core.js" in html and "designer.js" in html

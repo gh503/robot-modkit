@@ -349,6 +349,42 @@ def cmd_assemble(args) -> int:
         data["payload_g"] = payload
         data["max_accel_m_s2"] = accel
         data["strict"] = strict
+        if args.goal is not None:
+            p = opt.plan(data, args.goal, max_steps=args.max_candidates)
+            if args.apply_plan:
+                if not p.get("reached") or not p.get("steps"):
+                    print(f"规划未达标，不能写出：最多 ¥{p.get('cost', 0):.1f}，"
+                          f"仍差 ¥{p.get('remaining', 0):.1f}")
+                    return 2
+                out = pathlib.Path(args.out or (pathlib.Path(args.file).stem + "-plan.json"))
+                out.parent.mkdir(parents=True, exist_ok=True)
+                asm_data = p["assembly"]
+                base_name = str(asm_data.get("name") or name).removesuffix("-plan")
+                asm_data["name"] = base_name + "-plan"
+                asm_data["description"] = "预算规划：" + " → ".join(x["title"] for x in p["steps"]) + "。" + str(asm_data.get("description") or "")
+                out.write_text(json.dumps(asm_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                print(f"已写出规划：{out}  ¥{p['cost']:.1f}")
+                return 0
+            if args.out:
+                out = pathlib.Path(args.out)
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(opt.plan_markdown(p, name), encoding="utf-8")
+                print(f"预算规划报告：{out}")
+            if args.json:
+                print(json.dumps({k: v for k, v in p.items() if k != "assembly"},
+                                 ensure_ascii=False, indent=2))
+                return 0
+            print(f"预算规划：{name}  目标 ¥{p['target']:.1f}  当前 ¥{p['base_cost']:.1f}")
+            if not p["steps"]:
+                print("  当前装配已经在预算内，不需要规划。")
+            for i, step in enumerate(p["steps"], 1):
+                print(f"  [{i}] {step['id']:<42} 省 ¥{step['saving']:.1f}  → ¥{step['cost']:.1f}  {step['risk']}")
+            if p["reached"]:
+                print(f"  可达：¥{p['cost']:.1f}，预算 ¥{p['target']:.1f}")
+            else:
+                print(f"  未达标：最多 ¥{p['cost']:.1f}，仍差 ¥{p['remaining']:.1f}；需要更大幅度改动")
+            return 0
+
         cands = opt.suggest(data, max_candidates=args.max_candidates)
         if args.apply:
             chosen = next((c for c in cands if c["id"] == args.apply), None)
@@ -1107,8 +1143,11 @@ def main(argv: list[str] | None = None) -> int:
     ab.add_argument("--max-accel", type=float, help="设计加速度 m/s²，用于稳定性余量")
     ab.add_argument("--strict", action="store_true", help="把包围盒重叠升级为错误")
     ab.add_argument("--apply", help="suggest：应用候选 id，写到 --out 或 <file>-opt.json")
+    ab.add_argument("--goal", type=float, help="suggest：目标预算，逐步规划到预算内")
+    ab.add_argument("--apply-plan", action="store_true",
+                    help="suggest --goal：规划达标后写出最终 JSON（<file>-plan.json）")
     ab.add_argument("--max", dest="max_candidates", type=int, default=8,
-                    help="suggest：最多列出几个候选（默认 8）")
+                    help="suggest：候选数/规划步数上限（默认 8，规划最多 8 步）")
     ab.add_argument("--json", action="store_true")
     ab.set_defaults(func=cmd_assemble)
 

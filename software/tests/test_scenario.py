@@ -48,3 +48,9 @@ def test_mission_pick_full_stack():
     r = scenario.run_scenario(scenario.load(SCEN / "mission_pick.json"))
     assert r["ok"], r["failures"]
     assert r["time"] < 20
+
+
+def test_mission_nav_full_stack():
+    r = scenario.run_scenario(scenario.load(SCEN / "mission_nav.json"))
+    assert r["ok"], r["failures"]
+    assert r["time"] < 25

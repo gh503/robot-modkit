@@ -1,0 +1,13 @@
+{
+  "name": "导航到方块 → 相机 → 抓取 → 搬运",
+  "actions": [
+    {"cmd": "mission", "nav": true, "pick": [100, 0], "drop": [-150, 0],
+     "cube": [300, 0, 40], "close": 0.15}
+  ],
+  "assert": [
+    {"path": "mission.success", "op": "eq", "value": true},
+    {"path": "arm.z", "op": "gt", "value": 40},
+    {"path": "pose.x", "value": -150, "tol": 25},
+    {"path": "det.area", "op": "gt", "value": 300}
+  ]
+}

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from . import camsim as cs
@@ -135,17 +136,43 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                 meta["det"] = det
                 return det
 
+            use_nav = bool(act.get("nav"))
+
             def drive(x, y, th):
-                step(act.get("drive_seconds", 2.0))
-                return True
+                if not use_nav:
+                    step(act.get("drive_seconds", 2.0))
+                    return True
+
+                def read_pose():
+                    o = bot.update_odom()
+                    return nv.Pose(o.x, o.y, o.yaw)
+
+                def set_speed(v, w):
+                    bot.drive_speed(v, w)
+
+                r = nv.navigate(read_pose, set_speed, nv.Pose(x, y, th),
+                                dt=0.02, sleep=advance)
+                log.append(f"[{i}] drive({x:.0f},{y:.0f}) {r.error_mm:.1f}mm "
+                           f"{'OK' if r.ok else 'FAIL'}")
+                return r.ok
 
             def pick(det):
                 if det is None:
                     return False
                 cal = cam.table_calib(cube[2])
-                plan = vis.plan_pick(cal, det, kin.ArmGeometry(),
-                                     grasp_z=act.get("grasp_z", 25.0),
-                                     clearance=act.get("clearance", 60.0))
+                wx, wy = cal.apply(det.cx, det.cy)
+                if use_nav:
+                    # 世界 → 臂基座：先平移再按偏航旋转
+                    dx, dy = wx - sim.chassis.x, wy - sim.chassis.y
+                    a = math.radians(-sim.chassis.yaw)
+                    bx, by = dx * math.cos(a) - dy * math.sin(a), dx * math.sin(a) + dy * math.cos(a)
+                else:
+                    bx, by = wx, wy
+                clearance = act.get("clearance", 60.0)
+                grasp_z = act.get("grasp_z", 25.0)
+                above = kin.inverse(kin.ArmGeometry(), kin.Pose(bx, by, clearance))
+                grasp = kin.inverse(kin.ArmGeometry(), kin.Pose(bx, by, grasp_z))
+                plan = vis.PickPlan(bx, by, 0.0, clearance, grasp_z, above, grasp)
                 bot.move_pose(plan.x, plan.y, plan.above_z)
                 step(1.5)
                 bot.move_pose(plan.x, plan.y, plan.grasp_z)

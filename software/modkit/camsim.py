@@ -24,20 +24,28 @@ class Camera:
     x: float = 0.0          # 相机光心（mm）
     y: float = 0.0
     z: float = 800.0        # 离桌面高度
+    yaw_deg: float = 0.0    # 相机绕 z 的朝向（随机身转）
 
     def project(self, X: float, Y: float, Z: float) -> tuple[float, float] | None:
         """世界点（桌面 z=0）→ 像素；在相机背后返回 None。"""
         dz = self.z - Z
         if dz <= 1e-6:
             return None
-        u = self.cx + self.fx * (X - self.x) / dz
-        v = self.cy + self.fy * (Y - self.y) / dz
+        a = math.radians(-self.yaw_deg)
+        dx, dy = X - self.x, Y - self.y
+        lx = dx * math.cos(a) - dy * math.sin(a)
+        ly = dx * math.sin(a) + dy * math.cos(a)
+        u = self.cx + self.fx * lx / dz
+        v = self.cy + self.fy * ly / dz
         return u, v
 
     def unproject(self, u: float, v: float, Z: float = 0.0) -> tuple[float, float]:
         dz = self.z - Z
-        return (self.x + (u - self.cx) * dz / self.fx,
-                self.y + (v - self.cy) * dz / self.fy)
+        lx = (u - self.cx) * dz / self.fx
+        ly = (v - self.cy) * dz / self.fy
+        a = math.radians(self.yaw_deg)
+        return (self.x + lx * math.cos(a) - ly * math.sin(a),
+                self.y + lx * math.sin(a) + ly * math.cos(a))
 
     def table_calib(self, z_obj: float = 0.0):
         """像素 → 桌面 mm 的仿射。
@@ -47,8 +55,12 @@ class Camera:
         """
         from .vision import TableCalib
         sx, sy = (self.z - z_obj) / self.fx, (self.z - z_obj) / self.fy
-        return TableCalib(a=sx, b=0.0, c=self.x - self.cx * sx,
-                          d=0.0, e=sy, f=self.y - self.cy * sy)
+        a = math.radians(self.yaw_deg)
+        ca, sa = math.cos(a), math.sin(a)
+        aa, bb = ca * sx, -sa * sy
+        dd, ee = sa * sx, ca * sy
+        return TableCalib(a=aa, b=bb, c=self.x - aa * self.cx - bb * self.cy,
+                          d=dd, e=ee, f=self.y - dd * self.cx - ee * self.cy)
 
 
 @dataclass

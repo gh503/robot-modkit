@@ -33,8 +33,8 @@
 | 生产：检验/追溯/包装 | ✅ 可用 | 27 件逐件检验表；20 条需求追溯（16 已验证）；箱规与跌落判据 |
 | 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 单测 + **5 个在环场景**（119 断言） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **173 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
-| 仿真：三维视图 + **数字孪生** | ✅ 可用 | 10 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
+| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **176 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
+| 仿真：三维视图 + **数字孪生** | ✅ 可用 | 11 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
 | 打印校准件 + 三张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_A/B/C.stl`、jigs 三件套 |
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
 | 整机实测 | ⬜ 硬件阻塞 | 0/5 个物理闸门；顺序见 [docs/42](docs/42-完成度审计.md) |
@@ -54,6 +54,7 @@
 | **交互式仿真工作台** | `modkit simui --open`，浏览器里拖滑杆/注故障 |
 | **抓取摩擦锥** | `modkit simrun --scenario sim/scenarios/slippery_cube.json` |
 | **蒙特卡洛 / 参数辨识** | `modkit simsweep ...` / `modkit identify --log telemetry.csv` |
+| **车载相机手眼** | `modkit simrun --scenario sim/scenarios/mission_onboard.json` |
 | 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
 | 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
 | 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |

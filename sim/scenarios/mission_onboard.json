@@ -1,0 +1,45 @@
+{
+  "name": "车载俯视相机：导航→看→抓→搬（随机身转）",
+  "actions": [
+    {
+      "cmd": "mission",
+      "pick": [
+        200,
+        0
+      ],
+      "drop": [
+        -150,
+        0
+      ],
+      "cube": [
+        200,
+        0,
+        40
+      ],
+      "nav": true,
+      "camera": "onboard",
+      "camera_z": 500,
+      "fx": 250,
+      "cam_w": 320,
+      "cam_h": 240,
+      "standoff": 150
+    }
+  ],
+  "assert": [
+    {
+      "path": "mission.success",
+      "value": true,
+      "op": "eq"
+    },
+    {
+      "path": "det.area",
+      "value": 80,
+      "op": "gt"
+    },
+    {
+      "path": "pose.x",
+      "value": -150,
+      "tol": 25
+    }
+  ]
+}

@@ -68,3 +68,25 @@ def test_marker_localization():
         assert p[0] == pytest.approx(x, abs=2.5)
         assert p[1] == pytest.approx(y, abs=2.5)
         assert p[2] == pytest.approx(yaw, abs=3.0)
+
+
+def test_camera_yaw_roundtrip():
+    cam = camsim.Camera(yaw_deg=35, width=320, height=240, cx=160, cy=120,
+                        fx=250, z=500)
+    for p in [(0, 0), (150, 40), (-90, 120)]:
+        u, v = cam.project(p[0], p[1], 0)
+        q = cam.unproject(u, v, 0)
+        assert q[0] == pytest.approx(p[0], abs=0.01)
+        assert q[1] == pytest.approx(p[1], abs=0.01)
+
+
+def test_rotated_camera_detect_maps_back():
+    cam = camsim.Camera(yaw_deg=40, width=320, height=240, cx=160, cy=120,
+                        fx=250, z=500)
+    cube = camsim.Cube(140, 30)
+    img = camsim.render(cam, [cube], seed=2)
+    det = vision.detect_color(img, cube.color, tol=40)
+    assert det is not None
+    x, y = cam.table_calib(40).apply(det.cx, det.cy)
+    assert x == pytest.approx(140, abs=8)
+    assert y == pytest.approx(30, abs=8)

@@ -146,13 +146,21 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
             bot.stop_wheels()
         elif cmd == "mission":
             cube = act.get("cube", [200.0, 0.0, 40.0])
-            cam = cs.Camera(z=act.get("camera_z", 800.0),
-                            fx=act.get("fx", 600.0))
+            onboard = act.get("camera") == "onboard"
+            cam = cs.Camera(width=act.get("cam_w", 320 if onboard else 640),
+                            height=act.get("cam_h", 240 if onboard else 480),
+                            cx=act.get("cam_w", 320 if onboard else 640) / 2,
+                            cy=act.get("cam_h", 240 if onboard else 480) / 2,
+                            z=act.get("camera_z", 500.0 if onboard else 800.0),
+                            fx=act.get("fx", 250.0 if onboard else 600.0))
             cubes = [cs.Cube(cube[0], cube[1], cube[2],
                              tuple(act.get("color", [200, 60, 40])))]
             color = tuple(act.get("color", [200, 60, 40]))
 
             def look():
+                if onboard:
+                    cam.x, cam.y = sim.chassis.x, sim.chassis.y
+                    cam.yaw_deg = sim.chassis.yaw
                 img = cs.render(cam, cubes, seed=act.get("seed", 0))
                 det = vis.detect_color(img, color, tol=act.get("tol", 40))
                 meta["det"] = det
@@ -224,8 +232,10 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                 step(0.8)
                 return True
 
+            standoff = float(act.get("standoff", 0.0))
+            nav_pick = (act["pick"][0] - standoff, act["pick"][1])
             r = ms.Mission(drive, look, pick, drop,
-                           cfg=ms.MissionConfig(pick_xy=tuple(act["pick"]),
+                           cfg=ms.MissionConfig(pick_xy=nav_pick,
                                                 drop_xy=tuple(act["drop"])),
                            now=lambda: sim.time).run()
             meta["mission"] = r.as_dict()

@@ -309,6 +309,22 @@
       "category": "电源",
       "essential": false,
       "note": "续航从 ≈55min 降到 ≈38min"
+    },
+    {
+      "id": "charger",
+      "name": "3S 锂电池平衡充电器",
+      "spec": "12.6V 1A，带 3S 平衡头",
+      "qty": 1,
+      "price": [
+        55,
+        50,
+        45
+      ],
+      "supplier": "模型电池店",
+      "url": "",
+      "lead_days": 5,
+      "category": "电源",
+      "essential": true
     }
   ],
   "tiers": {
@@ -338,7 +354,8 @@
       "inserts",
       "wire",
       "camera",
-      "cable_tie"
+      "cable_tie",
+      "charger"
     ],
     "C 批量 5 台（仅电子与耗材）": [
       "servo",
@@ -354,7 +371,8 @@
       "inserts",
       "wire",
       "camera",
-      "cable_tie"
+      "cable_tie",
+      "charger"
     ],
     "D 省钱优先（物料 ≈¥650）": [
       "servo_budget",
@@ -367,6 +385,23 @@
       "inserts",
       "wire",
       "battery_budget"
+    ],
+    "E 预算整机（降配舵机 + 树莓派，下单 ≈¥994）": [
+      "servo_budget",
+      "esp32_mini",
+      "pi",
+      "sd",
+      "psu",
+      "battery_budget",
+      "buck",
+      "estop",
+      "fuse",
+      "screws",
+      "inserts",
+      "wire",
+      "camera",
+      "cable_tie",
+      "charger"
     ]
   },
   "labor": {

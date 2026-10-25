@@ -39,6 +39,7 @@
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
 | 整机实测 | ⬜ 硬件阻塞 | 0/5 个物理闸门；顺序见 [docs/42](docs/42-完成度审计.md) |
 | 数字孪生验收 | ✅ 采购前目标达成 | 15 条逐项对照见 [docs/45](docs/45-数字孪生验收.md) |
+| **v1.0 ready-to-build** | ✅ 软件/设计侧完成 | 声明与边界见 [docs/52](docs/52-v1.0完成声明.md) |
 
 > 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
 
@@ -66,6 +67,8 @@
 ```bash
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
+make doctor                                          # 环境自检
+make check-fast                                      # 180 项测试 + 12 场景
 ./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点
 ./.venv/bin/python -m modkit.cli --sim demo          # 逐关节摆动
@@ -126,7 +129,8 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 - **要评估风险/改版**：[FMEA](docs/22-FMEA与风险.md) · [版本与兼容矩阵](docs/23-版本与兼容.md)
 - **要开工前自查**：[28-生产就绪检查](docs/28-生产就绪检查.md)（G0–G8 放行清单）
 - **要小批量做**：[docs/21-批量生产](docs/21-批量生产.md)（序列号/烧录/抽检/包装）
-- **要算成本/排产**：[docs/17-成本模型](docs/17-成本模型.md)（三档 × 1/5/20 台）
+- **要算成本/排产**：[docs/17-成本模型](docs/17-成本模型.md)（五档 × 1/5/20 台）
+- **要下单**：[docs/51-下单清单](docs/51-下单清单.md)（含预算差额/货期/链接）
 - **要打件**：[docs/16-可制造性报告](docs/16-可制造性报告.md)（方向/悬垂/壁厚/时长）
 - 文档怎么找：[docs/README.md](docs/README.md)（按角色 + 按类型两张表）
 - 想了解"为什么这么做"：[docs/13-业界实践对照](docs/13-业界实践对照.md) 把 SO-ARM100、OSHWA、
@@ -134,8 +138,9 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 ## 版本
 
-当前 **v0.3.0**（整机图纸 + 仿真 + 在线查看器）。完整变更见 [CHANGELOG.md](CHANGELOG.md)，
-可下载的图纸打包在 [Releases](https://github.com/gh503/robot-modkit/releases)。
+当前 **v1.0.0** ready-to-build：软件、仿真、固件、图纸、采购/装配/测试文档冻结；
+实物未装配，物理闸门 0/5。边界见 [docs/52](docs/52-v1.0完成声明.md)，
+完整变更见 [CHANGELOG.md](CHANGELOG.md)，打包在 [Releases](https://github.com/gh503/robot-modkit/releases)。
 
 ## 许可
 

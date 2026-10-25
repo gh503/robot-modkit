@@ -8,7 +8,7 @@ abstract: >-
 authors:
   - alias: gh503
     name: gh503
-version: 0.8.7
+version: 1.0.0
 date-released: 2026-10-25
 license: MIT
 repository-code: "https://github.com/gh503/robot-modkit"

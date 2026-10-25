@@ -96,6 +96,10 @@ jobs:
           pip install -e software matplotlib numpy pillow pyserial
       - name: 底盘闭环判据
         run: make -C sim drive
+      - name: 硬件场景回归（12 个）
+        run: cd software && python -m modkit.cli simrun --all ../sim/scenarios
+      - name: 蒙特卡洛冒烟（同种子）
+        run: cd software && python -m modkit.cli simsweep --scenario ../sim/scenarios/nav_square.json -n 5 --profile clean --min-pass 1
       - name: 整机多视图
         run: make -C sim views
       - name: 上传图

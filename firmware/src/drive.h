@@ -4,7 +4,7 @@
 // 于是不需要额外电机驱动板、不需要编码器、不需要第二种零件。
 //
 // 单位约定：内部 mm、mm/s、度。速度寄存器单位需要**实测标定**（见 docs/06 §G7）：
-//   LSB 的含义各型号不同，所以这里用 speed_unit（每 LSB 对应多少 tick/s）暴露出来，
+//   LSB 的含义各型号不同，所以这里用 speed_unit（每 LSB 对应多少 deg/s）暴露出来，
 //   默认 1.0 只是占位，必须用"命令 1000 → 量轮子转速"反推。
 #pragma once
 #include <cstdint>
@@ -25,7 +25,7 @@ struct DriveConfig {
   bool right_invert = false;
   float wheel_r_mm = 32.5f;
   uint16_t ticks_per_rev = 4096;
-  float speed_unit = 1.0f;   // 每 LSB 多少 tick/s，必须标定
+  float speed_unit = 1.0f;   // 每 LSB 多少 deg/s，必须标定（与上位机 speedcal 同口径）
   float track_mm = 150.0f;
   float kp = 2.0f;            // 与 sim/drive.py 同步（网格搜索得出）
   float ki = 12.0f;

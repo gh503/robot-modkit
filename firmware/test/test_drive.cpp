@@ -68,13 +68,13 @@ static uint16_t reg16(const FakeBus& bus, uint8_t id, uint8_t addr) {
 static void test_speed_conversion() {
   std::printf("== 速度换算 ==\n");
   DriveConfig cfg;
-  // 轮周长 204.2mm，4096 tick/圈 → 100mm/s = 2006 tick/s
-  CHECK_EQ(DriveTrain::mmToRegister(100.0f, cfg), 2006);
+  // 轮周长 204.2mm，360°/圈 → 100mm/s = 176.3°/s（speed_unit=1 时即 176 LSB）
+  CHECK_EQ(DriveTrain::mmToRegister(100.0f, cfg), 176);
   CHECK_EQ(DriveTrain::mmToRegister(0.0f, cfg), 0);
 
   const int16_t neg = DriveTrain::mmToRegister(-100.0f, cfg);
   CHECK((static_cast<uint16_t>(neg) & 0x8000u) != 0);            // 方向位
-  CHECK_EQ(static_cast<uint16_t>(neg) & 0x7FFFu, 2006);          // 幅值不变
+  CHECK_EQ(static_cast<uint16_t>(neg) & 0x7FFFu, 176);          // 幅值不变
 
   // 超量程必须饱和，不能回绕成"反转"
   const int16_t big = DriveTrain::mmToRegister(100000.0f, cfg);
@@ -149,8 +149,8 @@ static void test_pi_closes_loop() {
       const int16_t reg = static_cast<int16_t>(reg16(bus, id, drivereg::Speed));
       float cmd = (static_cast<uint16_t>(reg) & 0x8000u) ? -float(reg & 0x7FFFu)
                                                          : float(reg & 0x7FFFu);
-      // LSB → mm/s（与 mmToRegister 的逆）
-      const float mm_s = cmd * static_cast<float>(circ / 4096.0);
+      // LSB → mm/s（与 mmToRegister 的逆：1 LSB = 1 deg/s）
+      const float mm_s = cmd * static_cast<float>(circ / 360.0);
       float& actual = (id == 5) ? actual_l : actual_r;
       const float target = gain * mm_s;
       actual += (dt / (tau + dt)) * (target - actual);
@@ -213,7 +213,7 @@ struct Rig {
     const double circ = 2.0 * 3.14159265358979 * 32.5;
     const double mm_per_tick = circ / 4096.0;
     for (uint8_t id : {5, 6}) {
-      const float cmd = cmdMmS(bus, id) * static_cast<float>(circ / 4096.0);
+      const float cmd = cmdMmS(bus, id) * static_cast<float>(circ / 360.0);
       float& actual = (id == 5) ? actual_l : actual_r;
       actual += (dt / (tau + dt)) * (gain * cmd - actual);
       const int32_t ticks = std::lround(actual * dt / mm_per_tick);

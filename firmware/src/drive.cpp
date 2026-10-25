@@ -7,13 +7,22 @@
 namespace modkit {
 namespace {
 constexpr float kPi = 3.14159265358979f;
+
+// 0..4095 回绕下的最短路径增量。直接 (int16_t)(now-prev) 在跨 0 时会给出
+// 约 -4095 的假倒退，速度环会瞬间反向、里程计会跳 200mm。
+int32_t tickDelta(uint16_t now, uint16_t prev) {
+  int32_t d = (static_cast<int32_t>(now) - static_cast<int32_t>(prev)) & 0xFFF;
+  if (d > 2048) d -= 4096;
+  return d;
 }
+}  // namespace
 
 int16_t DriveTrain::mmToRegister(float mm_s, const DriveConfig& cfg) {
   const float circ = 2.0f * kPi * cfg.wheel_r_mm;
-  const float ticks_per_s = mm_s * static_cast<float>(cfg.ticks_per_rev) / circ;
+  // 与上位机 speedcal 同口径：1 LSB = speed_unit deg/s
+  const float deg_per_s = mm_s * 360.0f / circ;
   const float unit = (cfg.speed_unit != 0.0f) ? cfg.speed_unit : 1.0f;
-  float lsb = ticks_per_s / unit;
+  float lsb = deg_per_s / unit;
   if (lsb > 32767.0f) lsb = 32767.0f;
   if (lsb < -32767.0f) lsb = -32767.0f;
   const int16_t mag = static_cast<int16_t>(std::lround(std::fabs(lsb)));
@@ -63,8 +72,8 @@ void DriveTrain::updateOdom(uint16_t left_ticks, uint16_t right_ticks) {
     have_last_ = true;
     return;
   }
-  const int16_t dl = static_cast<int16_t>(left_ticks - last_l_);
-  const int16_t dr = static_cast<int16_t>(right_ticks - last_r_);
+  const int32_t dl = tickDelta(left_ticks, last_l_);
+  const int32_t dr = tickDelta(right_ticks, last_r_);
   last_l_ = left_ticks;
   last_r_ = right_ticks;
 
@@ -99,8 +108,8 @@ bool DriveTrain::updateVelocityLoop(float v_target_mm_s, float w_target_deg_s, f
     have_last_ = true;
     return true;
   }
-  const int16_t dl = static_cast<int16_t>(l - last_l_);
-  const int16_t dr = static_cast<int16_t>(r - last_r_);
+  const int32_t dl = tickDelta(l, last_l_);
+  const int32_t dr = tickDelta(r, last_r_);
   last_l_ = l;
   last_r_ = r;
 

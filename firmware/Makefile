@@ -5,7 +5,7 @@ CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined
 SRC      := src/scs_frame.cpp src/scs_servo.cpp src/drive.cpp src/power.cpp
 TESTS    := test/test_scs.cpp test/test_drive.cpp test/test_power.cpp
-BINS     := build/test_scs build/test_drive build/test_power
+BINS     := build/test_scs build/test_drive build/test_power build/sim_firmware
 
 .PHONY: all test clean
 all: test
@@ -22,10 +22,15 @@ build/test_power: $(SRC) test/test_power.cpp src/*.h
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ $(SRC) test/test_power.cpp
 
+build/sim_firmware: $(SRC) test/sim_firmware.cpp src/*.h test/fake_bus.h
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -o $@ $(SRC) test/sim_firmware.cpp
+
 test: $(BINS)
 	@./build/test_scs
 	@./build/test_drive
 	@./build/test_power
+	@./build/sim_firmware
 
 clean:
 	rm -rf build

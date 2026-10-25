@@ -1,0 +1,14 @@
+{
+  "name": "MODKIT Studio",
+  "short_name": "MODKIT",
+  "description": "模块化机器人数字孪生：装配、校验、运动学、预算优化",
+  "start_url": "./design.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

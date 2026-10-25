@@ -1,5 +1,26 @@
 # 更新日志
 
+## v1.13.0 — 2026-10-25
+
+### 分享、离线与导入校验
+
+- **分享链接**：顶部“分享”把装配 JSON 编码进 URL hash；打开链接自动载入。
+  超过 60000 字符时拒绝，提示改用 JSON 导出。
+- **PWA 离线壳**：新增 `manifest.webmanifest`、`pwa.js`、`sw.js`；
+  缓存 Studio 壳和组件数据，导航 network-first、静态资源 stale-while-revalidate；
+  断网刷新实测仍能打开并求解。
+- **导入形状校验**：`MODKIT_ASSEMBLY.check()` 在 validate 前检查对象、非空
+  components、id 唯一、type 存在、parent 引用、at/rot/spin 数值、根组件数量；
+  导入/本地草稿都使用，错误显示前几条。
+- **本地草稿元数据**：localStorage 改为 `{schema, savedAt, assembly}`，兼容旧格式。
+- 测试 276 → **278**（PWA 文件 + 形状校验）。
+
+### 边界
+
+- 分享链接是快照；后续编辑不会自动改写已复制的链接。
+- 首次离线访问仍需在线；Service Worker 只缓存同源 GET，不缓存 POST/跨域。
+- 仍是软件装配验证；没有采购/打印/装配/上电/标定；**物理闸门 0/5**。
+
 ## v1.12.0 — 2026-10-25
 
 ### 精确预算规划

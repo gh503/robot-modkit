@@ -30,7 +30,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.12.0";
+  var STUDIO_VERSION = "1.13.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -421,13 +421,66 @@
     revalidate();
     toast("已加载预设：" + (state.assembly.name || name), "ok");
   }
+  function b64encode(text) {
+    return btoa(unescape(encodeURIComponent(text))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function b64decode(text) {
+    var s = String(text).replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    return decodeURIComponent(escape(atob(s)));
+  }
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand("copy");
+        ta.remove();
+        ok ? resolve() : reject(new Error("浏览器不允许复制"));
+      } catch (e) { reject(e); }
+    });
+  }
+  function shareDesign() {
+    if (!state.assembly) return;
+    var url = location.origin + location.pathname + "#d=" + b64encode(JSON.stringify(state.assembly));
+    if (url.length > 60000) { toast("装配太大，链接超过 60000 字符；请导出 JSON", "err"); return; }
+    copyText(url).then(function () {
+      toast("分享链接已复制；打开时会自动载入这份装配", "ok");
+    }).catch(function (e) {
+      window.prompt("复制分享链接：", url);
+      toast("无法自动复制，已弹出链接：" + (e.message || e), "");
+    });
+  }
+  function loadShared() {
+    var m = /^#d=(.+)$/.exec(location.hash || "");
+    if (!m) return false;
+    try {
+      var data = JSON.parse(b64decode(m[1]));
+      var shape = A.check(data);
+      if (!shape.ok) throw new Error(shape.errors.slice(0, 3).join("；"));
+      state.assembly = data;
+      state.selected = data.components.length ? data.components[0].id : null;
+      state.angles = {}; state.playing = false; state.fitPending = true;
+      $("preset").value = "";
+      pushHistory("打开分享链接");
+      revalidate();
+      toast("已从分享链接载入：" + (data.name || "未命名"), "ok");
+      return true;
+    } catch (e) {
+      toast("分享链接无效：" + e.message, "err");
+      return false;
+    }
+  }
   function importDesign(file) {
     if (!file) return;
     var rd = new FileReader();
     rd.onload = function () {
       try {
         var data = JSON.parse(String(rd.result));
-        if (!data || !Array.isArray(data.components) || !data.components.length) throw new Error("缺少 components 数组");
+        var shape = A.check(data);
+        if (!shape.ok) throw new Error(shape.errors.slice(0, 3).join("；"));
         state.assembly = data;
         state.selected = data.components[0].id;
         state.angles = {}; state.playing = false; state.fitPending = true;
@@ -548,12 +601,18 @@
 
   var LOCAL_KEY = "modkit.design.v1";
   function saveLocal() {
-    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state.assembly)); } catch (e) { /* 隐私模式/配额满 */ }
+    try {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify({
+        schema: 1, savedAt: new Date().toISOString(), assembly: state.assembly
+      }));
+    } catch (e) { /* 隐私模式/配额满 */ }
   }
   function restoreLocal() {
     try {
-      var data = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
-      if (!data || !Array.isArray(data.components) || !data.components.length) { toast("没有本地草稿", "err"); return; }
+      var raw = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
+      var data = raw && raw.assembly ? raw.assembly : raw;
+      var shape = A.check(data);
+      if (!shape.ok) { toast("本地草稿无效：" + shape.errors.slice(0, 2).join("；"), "err"); return; }
       state.assembly = data;
       state.selected = data.components[0].id;
       state.angles = {}; state.playing = false; state.fitPending = true;
@@ -1274,6 +1333,10 @@
     $("undo").addEventListener("click", undo);
     $("redo").addEventListener("click", redo);
     $("import-design").addEventListener("click", function () { $("import-file").click(); });
+    $("share-design").addEventListener("click", shareDesign);
+    window.addEventListener("hashchange", function () {
+      if (/^#d=/.test(location.hash || "")) loadShared();
+    });
     $("import-file").addEventListener("change", function () { importDesign($("import-file").files[0]); $("import-file").value = ""; });
     $("restore-design").addEventListener("click", restoreLocal);
     $("validate").addEventListener("click", function () { revalidate(); toast("已重新校验", "ok"); });
@@ -1321,7 +1384,7 @@
     var preset = q.get("preset");
     if (!preset || !P[preset]) preset = "m1";
     state.suppressSave = true;
-    loadPreset(preset);
+    if (!loadShared()) loadPreset(preset);
     state.suppressSave = false;
     try { $("restore-design").disabled = !localStorage.getItem(LOCAL_KEY); } catch (e) {}
     requestAnimationFrame(animateLoop);
@@ -1338,6 +1401,7 @@
     exportStepZip: exportStepZip, fitCamera: fitCamera,
     optimize: runOptimizer, applyOptimization: applyOptimizer,
     planBudget: runPlan, applyPlan: applyPlan,
-    exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo
+    exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo,
+    shareDesign: shareDesign, loadShared: loadShared
   };
 })();

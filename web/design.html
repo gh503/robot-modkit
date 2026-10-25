@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#f4f7fb">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="description" content="modkit Studio：在浏览器里从 36 个端口化组件自由装配机器人，校验、3D 运动仿真、参数调整，导出 STL/STEP/JSON/BOM。">
 <title>modkit Studio · 自由设计与仿真</title>
 <link rel="stylesheet" href="design.css">
@@ -59,6 +60,7 @@
       <button class="btn" id="redo" disabled aria-label="重做" title="重做 (Ctrl+Shift+Z)">↷</button>
       <button class="btn" id="import-design">导入</button>
       <button class="btn" id="restore-design">恢复</button>
+      <button class="btn" id="share-design">分享</button>
       <input id="import-file" type="file" accept=".json,application/json" hidden>
       <button class="btn" id="validate">校验</button>
       <span class="grow"></span>
@@ -175,5 +177,6 @@
 <script src="assembly-core.js"></script>
 <script src="budget-core.js"></script>
 <script src="designer.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>

@@ -116,6 +116,35 @@ def test_budget_optimizer_finds_two_joint_variant():
     assert "gripper" in out["new_names"]
 
 
+def test_pwa_shell_is_complete_and_versioned():
+    manifest = json.loads((WEB / "manifest.webmanifest").read_text(encoding="utf-8"))
+    assert manifest["start_url"] == "./design.html"
+    assert manifest["display"] == "standalone"
+    sw = (WEB / "sw.js").read_text(encoding="utf-8")
+    for name in ("design.html", "designer.js", "assembly-core.js", "budget-core.js"):
+        assert name in sw
+    assert "CACHE" in sw and "skipWaiting" in sw
+    for page in ("index.html", "design.html"):
+        html = (WEB / page).read_text(encoding="utf-8")
+        assert 'rel="manifest"' in html and 'src="pwa.js"' in html
+
+
+def test_shape_check_rejects_bad_import_before_validate():
+    out = run_core("""
+      const good = A.check(window.MODKIT_ASSEMBLIES.m1);
+      const noType = A.check({ components: [{ id: 'x' }] });
+      const dup = A.check({ components: [
+        { id: 'a', type: 'frame.chassis_160', parent: null },
+        { id: 'a', type: 'frame.chassis_160', parent: null }
+      ] });
+      return { good: good.ok, noType: noType.ok, noTypeErr: noType.errors[0],
+               dup: dup.ok, dupErr: dup.errors[0] };
+    """)
+    assert out["good"] is True
+    assert out["noType"] is False and "type" in out["noTypeErr"]
+    assert out["dup"] is False and "重复" in out["dupErr"]
+
+
 def test_budget_plan_reaches_and_reports_shortfall():
     out = run_core("""
       const hit = B.plan(window.MODKIT_ASSEMBLIES.m1, 1000, 4);
@@ -201,4 +230,5 @@ def test_design_html_hooks():
     assert 'id="optimize"' in html and 'id="export-optimizer"' in html
     assert 'id="undo"' in html and 'id="redo"' in html
     assert 'id="plan-budget"' in html
+    assert 'id="share-design"' in html
     assert "assembly-core.js" in html and "designer.js" in html

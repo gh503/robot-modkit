@@ -518,13 +518,57 @@
     return out.join("\n");
   }
 
+  // 导入/分享链接/本地草稿的轻量形状检查：在 validate 之前尽早给出可读错误。
+  // 只检查结构，不替代 validate 的父子链/碰撞/稳定性校验。
+  function check(data) {
+    var errors = [];
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return { ok: false, errors: ["装配必须是 JSON 对象"], warnings: [] };
+    }
+    if (data.name != null && typeof data.name !== "string") errors.push("name 必须是字符串");
+    if (data.budget_cny != null && (!isFinite(Number(data.budget_cny)) || Number(data.budget_cny) < 0)) {
+      errors.push("budget_cny 必须是非负数");
+    }
+    if (data.strict != null && typeof data.strict !== "boolean") errors.push("strict 必须是布尔值");
+    if (!Array.isArray(data.components) || !data.components.length) {
+      errors.push("components 必须是非空数组");
+      return { ok: false, errors: errors, warnings: [] };
+    }
+    var ids = {}, roots = 0;
+    data.components.forEach(function (c, i) {
+      var at = "components[" + i + "]";
+      if (!c || typeof c !== "object" || Array.isArray(c)) { errors.push(at + " 必须是对象"); return; }
+      if (typeof c.id !== "string" || !c.id.trim()) errors.push(at + ".id 必须是非空字符串");
+      else if (ids[c.id]) errors.push("组件 id 重复：" + c.id);
+      else ids[c.id] = true;
+      if (typeof c.type !== "string" || !components()[c.type]) errors.push(at + ".type 未知：" + c.type);
+      if (c.parent == null) roots += 1;
+      else if (typeof c.parent !== "string" || !c.parent.trim()) errors.push(at + ".parent 必须是字符串或 null");
+      if (c.at != null && (!Array.isArray(c.at) || c.at.length !== 2 ||
+          !isFinite(Number(c.at[0])) || !isFinite(Number(c.at[1])))) {
+        errors.push(at + ".at 必须是两个数字");
+      }
+      if (c.spin != null && !isFinite(Number(c.spin))) errors.push(at + ".spin 必须是数字");
+      if (c.rot != null && (!Array.isArray(c.rot) || c.rot.length !== 3 ||
+          c.rot.some(function (v) { return !isFinite(Number(v)); }))) {
+        errors.push(at + ".rot 必须是三个数字");
+      }
+      if (c.servo_id != null && !Number.isInteger(Number(c.servo_id))) errors.push(at + ".servo_id 必须是整数或 null");
+    });
+    data.components.forEach(function (c) {
+      if (c && c.parent != null && !ids[c.parent]) errors.push(c.id + ": parent 不存在 " + c.parent);
+    });
+    if (roots !== 1) errors.push("根组件必须恰好 1 个，当前 " + roots + " 个");
+    return { ok: errors.length === 0, errors: errors, warnings: [] };
+  }
+
   return {
     ERROR: ERROR, WARN: WARN, INFO: INFO, GRID: GRID,
     identity: identity, multiply: multiply, translation: translation,
     rotX: rotX, rotY: rotY, rotZ: rotZ, fromPose: fromPose,
     invertRigid: invertRigid, apply: apply, aabb: aabb,
     compatible: compatible, getComp: getComp, components: components,
-    validate: validate, svgReport: svgReport, convexHull: convexHull,
+    check: check, validate: validate, svgReport: svgReport, convexHull: convexHull,
     pointInPoly: pointInPoly, minEdge: minEdge
   };
 });

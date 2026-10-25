@@ -24,6 +24,7 @@ from . import qc as qc
 from . import selftest as st
 from . import kinematics as kin
 from . import nav as nv
+from . import vision as vis
 from . import protocol as p
 from .bus import SerialLink, SimLink
 from .robot import Robot
@@ -290,6 +291,64 @@ def cmd_backlash(args) -> int:
     raise SystemExit("未知动作")
 
 
+def cmd_pick(args) -> int:
+    if not args.sim:
+        sys.exit("抓取会真动，先 --sim 验证点位；真机请手动示教确认后再放开")
+    det = vis.detect_color(vis.load_rgb(args.image),
+                           tuple(int(v) for v in args.target.split(",")),
+                           tol=args.tol, min_area=args.min_area)
+    if det is None:
+        print("没找到目标")
+        return 1
+    cal = vis.load_calib(args.calib)
+    try:
+        plan = vis.plan_pick(cal, det, kin.ArmGeometry(),
+                             z_table=args.z_table, clearance=args.clearance,
+                             grasp_z=args.grasp_z)
+    except kin.UnreachableError as e:
+        print(f"够不到：{e}")
+        return 1
+    print(f"目标 ({plan.x:.1f}, {plan.y:.1f})mm，"
+          f"上方 z={plan.above_z:.0f}，抓取 z={plan.grasp_z:.0f}")
+    link = _make_link(args)
+    bot = Robot(link)
+    bot.move_pose(plan.x, plan.y, plan.above_z)
+    bot.move_pose(plan.x, plan.y, plan.grasp_z)
+    bot.gripper(args.close)
+    bot.move_pose(plan.x, plan.y, plan.above_z)
+    print("序列完成：上方 → 下降 → 闭合 → 抬起")
+    return 0
+
+
+def cmd_vision(args) -> int:
+    try:
+        img = vis.load_rgb(args.image)
+    except Exception as e:
+        sys.exit(f"读图失败：{e}")
+    target = tuple(int(v) for v in args.target.split(","))
+    det = vis.detect_color(img, target, tol=args.tol, min_area=args.min_area)
+    if det is None:
+        print(f"没找到颜色 {target}（tol={args.tol}, min_area={args.min_area}）")
+        return 1
+    print(f"色块：中心 ({det.cx:.1f}, {det.cy:.1f})px，面积 {det.area}px，"
+          f"尺寸 {det.size[0]}×{det.size[1]}px")
+    if not args.calib:
+        return 0
+    cal = vis.load_calib(args.calib)
+    x, y = cal.apply(det.cx, det.cy)
+    print(f"桌面：({x:.1f}, {y:.1f})mm")
+    if args.plan:
+        try:
+            plan = vis.plan_pick(cal, det, kin.ArmGeometry(),
+                                 z_table=args.z_table, clearance=args.clearance,
+                                 grasp_z=args.grasp_z)
+        except kin.UnreachableError as e:
+            print(f"够不到：{e}")
+            return 1
+        print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_drive(args) -> int:
     link = _make_link(args)
     bot = Robot(link)
@@ -481,6 +540,30 @@ def main(argv: list[str] | None = None) -> int:
     nvp.add_argument("--closed-loop", action="store_true",
                      help="用里程计反馈闭环（目前仅 --sim）")
     nvp.set_defaults(func=cmd_nav)
+
+    pk = sub.add_parser("pick", help="识图 → 抓取序列（目前仅 --sim）")
+    pk.add_argument("--image", required=True)
+    pk.add_argument("--target", required=True)
+    pk.add_argument("--calib", required=True)
+    pk.add_argument("--tol", type=int, default=50)
+    pk.add_argument("--min-area", type=int, default=200)
+    pk.add_argument("--z-table", type=float, default=0.0)
+    pk.add_argument("--clearance", type=float, default=60.0)
+    pk.add_argument("--grasp-z", type=float, default=25.0)
+    pk.add_argument("--close", type=float, default=0.15, help="夹爪闭合量 0..1")
+    pk.set_defaults(func=cmd_pick)
+
+    vp = sub.add_parser("vision", help="色块检测 → 桌面坐标 → 抓取逆解")
+    vp.add_argument("--image", required=True)
+    vp.add_argument("--target", required=True, help="R,G,B，如 200,60,40")
+    vp.add_argument("--tol", type=int, default=50)
+    vp.add_argument("--min-area", type=int, default=200)
+    vp.add_argument("--calib", help="四点标定 JSON")
+    vp.add_argument("--plan", action="store_true", help="输出抓取位姿与关节角")
+    vp.add_argument("--z-table", type=float, default=0.0)
+    vp.add_argument("--clearance", type=float, default=60.0)
+    vp.add_argument("--grasp-z", type=float, default=25.0)
+    vp.set_defaults(func=cmd_vision)
 
     dv = sub.add_parser("drive", help="轮子恒速（真机/仿真）")
     dv.add_argument("--v", type=float, default=100.0, help="mm/s")

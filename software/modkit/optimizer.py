@@ -122,7 +122,7 @@ def _validate(data: dict[str, Any]) -> asm.Report:
 
 def _candidate(base: dict[str, Any], base_report: asm.Report, new: dict[str, Any],
                cid: str, title: str, tradeoff: str, risk: str,
-               changes: list[str] | None = None) -> dict[str, Any] | None:
+               changes: list[str] | None = None, include_mass: bool = False) -> dict[str, Any] | None:
     try:
         report = _validate(new)
     except (asm.AssemblyError, KeyError, ValueError):
@@ -130,7 +130,8 @@ def _candidate(base: dict[str, Any], base_report: asm.Report, new: dict[str, Any
     if not report.ok:
         return None
     saving = base_report.total_cost_cny - report.total_cost_cny
-    if saving <= 0.01:
+    mass_saving = base_report.total_mass_g - report.total_mass_g
+    if saving <= 0.01 and not (include_mass and mass_saving > 0.01 and saving >= -0.01):
         return None
     return {
         "id": cid,
@@ -139,6 +140,7 @@ def _candidate(base: dict[str, Any], base_report: asm.Report, new: dict[str, Any
         "risk": risk,
         "changes": changes or [],
         "saving": round(saving, 2),
+        "mass_saving": round(mass_saving, 1),
         "cost": round(report.total_cost_cny, 2),
         "mass": round(report.total_mass_g, 1),
         "components": len(report.instances),
@@ -148,7 +150,8 @@ def _candidate(base: dict[str, Any], base_report: asm.Report, new: dict[str, Any
     }
 
 
-def _drop_elbow(base: dict[str, Any], base_report: asm.Report) -> list[dict[str, Any]]:
+def _drop_elbow(base: dict[str, Any], base_report: asm.Report,
+                include_mass: bool = False) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for elbow in list(_rows(base)):
         if elbow.get("type") != "joint.elbow" or not elbow.get("parent"):
@@ -198,13 +201,15 @@ def _drop_elbow(base: dict[str, Any], base_report: asm.Report) -> list[dict[str,
             tradeoff = "除了肘关节，还会移除下游关节；末端姿态能力进一步下降，只剩偏航/肩"
         cand = _candidate(base, base_report, new, "drop-elbow", title, tradeoff, "high",
                           [f"移除 {'、'.join(removed_names)}",
-                           f"把 {tool['id']} 直接装到 {parent['id']}/{elbow.get('port')}"])
+                           f"把 {tool['id']} 直接装到 {parent['id']}/{elbow.get('port')}"],
+                          include_mass=include_mass)
         if cand:
             out.append(cand)
     return out
 
 
-def _swap(base: dict[str, Any], base_report: asm.Report, sub: dict[str, str]) -> dict[str, Any] | None:
+def _swap(base: dict[str, Any], base_report: asm.Report, sub: dict[str, str],
+          include_mass: bool = False) -> dict[str, Any] | None:
     hits = [row for row in _rows(base) if row.get("type") == sub["from"]]
     if not hits:
         return None
@@ -230,11 +235,15 @@ def _swap(base: dict[str, Any], base_report: asm.Report, sub: dict[str, str]) ->
         changes.append(f"{row['id']}: {sub['from']} → {sub['to']}")
     cid = f"swap-{sub['from']}-{sub['to']}"
     return _candidate(base, base_report, new, cid, sub["title"], sub["tradeoff"],
-                      sub["risk"], changes)
+                      sub["risk"], changes, include_mass=include_mass)
 
 
-def suggest(data: dict[str, Any], max_candidates: int = 8) -> list[dict[str, Any]]:
-    """返回按 BOM 节省降序的候选；每个 ``assembly`` 都是完整 JSON。"""
+def suggest(data: dict[str, Any], max_candidates: int = 8,
+            include_mass: bool = False) -> list[dict[str, Any]]:
+    """返回按 BOM 节省降序的候选；每个 ``assembly`` 都是完整 JSON。
+
+    include_mass=True 时额外保留“成本不升、重量下降”的候选（同价减重）。
+    """
     base = _clone(data)
     try:
         base_report = _validate(base)
@@ -242,9 +251,9 @@ def suggest(data: dict[str, Any], max_candidates: int = 8) -> list[dict[str, Any
         return []
     if not base_report.ok:
         return []
-    out = _drop_elbow(base, base_report)
+    out = _drop_elbow(base, base_report, include_mass=include_mass)
     for sub in SUBSTITUTIONS:
-        cand = _swap(base, base_report, sub)
+        cand = _swap(base, base_report, sub, include_mass=include_mass)
         if cand:
             out.append(cand)
     seen: set[str] = set()
@@ -254,7 +263,7 @@ def suggest(data: dict[str, Any], max_candidates: int = 8) -> list[dict[str, Any
             continue
         seen.add(cand["id"])
         uniq.append(cand)
-    uniq.sort(key=lambda c: c["saving"], reverse=True)
+    uniq.sort(key=lambda c: (c["saving"], c.get("mass_saving", 0)), reverse=True)
     return uniq[:max_candidates]
 
 
@@ -372,14 +381,14 @@ def to_markdown(candidates: list[dict[str, Any]], base_cost: float, title: str =
     if not candidates:
         lines.append("没有找到既省钱又能通过校验的单步候选。")
         return "\n".join(lines) + "\n"
-    lines += ["| # | 候选 | 省 ¥ | 应用后 ¥ | 组件/关节 | 代价 |",
-              "|---:|---|---:|---:|---|---|"]
+    lines += ["| # | 候选 | 省 ¥ | 省重 g | 应用后 ¥ | 组件/关节 | 代价 |",
+              "|---:|---|---:|---:|---:|---|---|"]
     for n, c in enumerate(candidates, 1):
         lines.append(
-            f"| {n} | {c['title']} | {c['saving']:.1f} | {c['cost']:.1f} | "
-            f"{c['components']}/{c['joints']} | {c['tradeoff']} |"
+            f"| {n} | {c['title']} | {c['saving']:.1f} | {c.get('mass_saving', 0):.1f} | "
+            f"{c['cost']:.1f} | {c['components']}/{c['joints']} | {c['tradeoff']} |"
         )
         if c.get("changes"):
-            lines.append(f"| | {'<br>'.join(c['changes'])} | | | | |")
+            lines.append(f"| | {'<br>'.join(c['changes'])} | | | | | |")
     lines += ["", "> 单步候选，不是全局最优；候选都重新通过装配校验。", ""]
     return "\n".join(lines)

@@ -38,6 +38,15 @@ def test_cli_suggest_and_apply(tmp_path):
     drop = next(row for row in rows if row["id"] == "drop-elbow")
     assert drop["cost"] == 968.0 and drop["saving"] == 159.4
 
+    cmd = [sys.executable, "-m", "modkit.cli", "assemble", "suggest", str(M1),
+           "--mass", "--json"]
+    p = subprocess.run(cmd, cwd=ROOT / "software", text=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    assert p.returncode == 0, p.stderr
+    mass = next(row for row in json.loads(p.stdout)
+                if row["id"] == "swap-frame.chassis_240-frame.chassis_160")
+    assert abs(mass["mass_saving"] - 80.0) < 0.2 and abs(mass["saving"]) < 0.01
+
     out = tmp_path / "m1-opt.json"
     cmd = [sys.executable, "-m", "modkit.cli", "assemble", "suggest", str(M1),
            "--apply", "drop-elbow", "--out", str(out)]
@@ -97,3 +106,17 @@ def test_plan_node_cap_reports_truncation():
     assert p["steps"] == []
     assert abs(p["cost"] - 1127.4) < 0.2
     assert "节点上限" in opt.plan_markdown(p, "m1")
+
+
+def test_mass_only_candidate_is_opt_in():
+    data = json.loads(M1.read_text(encoding="utf-8"))
+    assert not any(c["id"] == "swap-frame.chassis_240-frame.chassis_160"
+                   for c in opt.suggest(data))
+    cs = opt.suggest(data, include_mass=True)
+    c = next(c for c in cs if c["id"] == "swap-frame.chassis_240-frame.chassis_160")
+    assert abs(c["saving"]) < 0.01
+    assert abs(c["mass_saving"] - 80.0) < 0.2
+    assert abs(c["cost"] - 1127.4) < 0.2
+    name, inst, payload, accel, strict, raw = asm.parse(c["assembly"])
+    rep = asm.validate(name, inst, payload, accel, strict, raw)
+    assert rep.ok and abs(rep.total_mass_g - 1773.8) < 0.2

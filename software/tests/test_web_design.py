@@ -175,6 +175,21 @@ def test_budget_plan_reaches_and_reports_shortfall():
     assert abs(out["cut"]["cost"] - 1127.4) < 0.2
 
 
+def test_optimizer_mass_only_candidate_is_opt_in():
+    out = run_core("""
+      const normal = B.suggest(window.MODKIT_ASSEMBLIES.m1);
+      const mass = B.suggest(window.MODKIT_ASSEMBLIES.m1, { includeMass: true });
+      const c = mass.find(x => x.id === 'swap-frame.chassis_240-frame.chassis_160');
+      return { normal: normal.map(x => x.id), cost: c.cost, saving: c.saving,
+               massSaving: c.massSaving, components: c.components };
+    """)
+    assert "swap-frame.chassis_240-frame.chassis_160" not in out["normal"]
+    assert abs(out["saving"]) < 0.01
+    assert abs(out["massSaving"] - 80.0) < 0.2
+    assert abs(out["cost"] - 1127.4) < 0.2
+    assert out["components"] == 18
+
+
 def test_optimizer_markdown_report():
     out = run_core("""
       const cs = B.suggest(window.MODKIT_ASSEMBLIES.m1);

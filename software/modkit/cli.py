@@ -387,7 +387,7 @@ def cmd_assemble(args) -> int:
                 print(f"  ! 搜索达到 {p.get('nodes', 0)} 节点上限，结果可能不是全局最优")
             return 0
 
-        cands = opt.suggest(data, max_candidates=args.max_candidates)
+        cands = opt.suggest(data, max_candidates=args.max_candidates, include_mass=args.mass)
         if args.apply:
             chosen = next((c for c in cands if c["id"] == args.apply), None)
             if chosen is None:
@@ -418,8 +418,10 @@ def cmd_assemble(args) -> int:
             print("  没有找到既省钱又能通过校验的单步候选。")
             return 0
         for n, c in enumerate(cands, 1):
-            print(f"  [{n}] {c['id']:<42} 省 ¥{c['saving']:.1f}  → ¥{c['cost']:.1f}  "
-                  f"{c['components']} 组件 / {c['joints']} 关节  {c['risk']}")
+            mass = c.get("mass_saving", 0)
+            print(f"  [{n}] {c['id']:<42} 省 ¥{c['saving']:.1f}"
+                  + (f" / 省重 {mass:.1f}g" if mass > 0.01 else "")
+                  + f"  → ¥{c['cost']:.1f}  {c['components']} 组件 / {c['joints']} 关节  {c['risk']}")
             print(f"      {c['title']}：{c['tradeoff']}")
         return 0
 
@@ -1144,6 +1146,8 @@ def main(argv: list[str] | None = None) -> int:
     ab.add_argument("--payload", type=float, help="工具端载荷 g（默认用装配文件）")
     ab.add_argument("--max-accel", type=float, help="设计加速度 m/s²，用于稳定性余量")
     ab.add_argument("--strict", action="store_true", help="把包围盒重叠升级为错误")
+    ab.add_argument("--mass", action="store_true",
+                    help="suggest：同时列出成本不升、重量下降的候选")
     ab.add_argument("--apply", help="suggest：应用候选 id，写到 --out 或 <file>-opt.json")
     ab.add_argument("--goal", type=float, help="suggest：目标预算，逐步规划到预算内")
     ab.add_argument("--apply-plan", action="store_true",

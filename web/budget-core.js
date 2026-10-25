@@ -64,11 +64,12 @@
       try { return A.validate(asm); }
       catch (e) { return null; }
     }
-    function candidate(base, baseReport, asm, id, title, tradeoff, risk, changes) {
+    function candidate(base, baseReport, asm, id, title, tradeoff, risk, changes, includeMass) {
       var r = report(asm);
       if (!r || !r.ok) return null;
       var saving = baseReport.totalCost - r.totalCost;
-      if (!(saving > 0.01)) return null;
+      var massSaving = baseReport.totalMass - r.totalMass;
+      if (!(saving > 0.01) && !(includeMass && massSaving > 0.01 && saving >= -0.01)) return null;
       return {
         id: id,
         title: title,
@@ -76,6 +77,7 @@
         risk: risk,
         changes: changes || [],
         saving: saving,
+        massSaving: massSaving,
         cost: r.totalCost,
         mass: r.totalMass,
         components: r.instances.length,
@@ -86,7 +88,7 @@
 
     // 去掉肘关节及其下游转接/前臂，把末端工具直接装回父件。
     // 这是 m1 → m1_budget 的结构，不是"少一个滑杆"。
-    function dropElbow(base, baseReport) {
+    function dropElbow(base, baseReport, includeMass) {
       var out = [];
       var elbows = base.components.filter(function (c) { return c.type === "joint.elbow"; });
       elbows.forEach(function (elbow) {
@@ -129,7 +131,7 @@
           tradeoff = "除了肘关节，还会移除下游关节；末端姿态能力进一步下降，只剩偏航/肩";
         }
         var c = candidate(base, baseReport, asm, "drop-elbow", title, tradeoff,
-          "high", ["移除 " + removedNames.join("、"), "把 " + tool.id + " 直接装到 " + parent.id + "/" + elbow.port]);
+          "high", ["移除 " + removedNames.join("、"), "把 " + tool.id + " 直接装到 " + parent.id + "/" + elbow.port], includeMass);
         if (c) out.push(c);
       });
       return out;
@@ -147,7 +149,7 @@
       return [clamp(at[0], lx), clamp(at[1], ly)];
     }
 
-    function swap(base, baseReport, sub) {
+    function swap(base, baseReport, sub, includeMass) {
       var hits = base.components.filter(function (c) { return c.type === sub.from; });
       if (!hits.length) return null;
       var asm = clone(base);
@@ -167,7 +169,7 @@
         changes.push(c.id + ": " + sub.from + " → " + sub.to);
       }
       var id = "swap-" + sub.from + "-" + sub.to;
-      return candidate(base, baseReport, asm, id, sub.title, sub.tradeoff, sub.risk, changes);
+      return candidate(base, baseReport, asm, id, sub.title, sub.tradeoff, sub.risk, changes, includeMass);
     }
 
     function suggest(assembly, opts) {
@@ -175,9 +177,9 @@
       var base = clone(assembly);
       var baseReport = report(base);
       if (!baseReport || !baseReport.ok) return [];
-      var out = dropElbow(base, baseReport);
+      var out = dropElbow(base, baseReport, !!opts.includeMass);
       SUBSTITUTIONS.forEach(function (s) {
-        var c = swap(base, baseReport, s);
+        var c = swap(base, baseReport, s, !!opts.includeMass);
         if (c) out.push(c);
       });
       // 去重：同一 id 只留一个；按省钱从多到少。
@@ -187,7 +189,7 @@
         seen[c.id] = true;
         return true;
       });
-      out.sort(function (a, b) { return b.saving - a.saving; });
+      out.sort(function (a, b) { return (b.saving - a.saving) || (b.massSaving - a.massSaving); });
       return out.slice(0, opts.max || 8);
     }
 
@@ -284,14 +286,14 @@
         lines.push("没有找到既省钱又能通过校验的单步候选。");
         return lines.join("\n") + "\n";
       }
-      lines.push("| # | 候选 | 省 ¥ | 应用后 ¥ | 组件/关节 | 风险 | 代价 |");
-      lines.push("|---:|---|---:|---:|---|---|---|");
+      lines.push("| # | 候选 | 省 ¥ | 省重 g | 应用后 ¥ | 组件/关节 | 风险 | 代价 |");
+      lines.push("|---:|---|---:|---:|---:|---|---|---|");
       cands.forEach(function (c, i) {
         lines.push("| " + (i + 1) + " | " + md(c.title) + " | " + Number(c.saving).toFixed(1) +
-          " | " + Number(c.cost).toFixed(1) + " | " + c.components + "/" + c.joints +
-          " | " + md(c.risk) + " | " + md(c.tradeoff) + " |");
+          " | " + Number(c.massSaving || 0).toFixed(1) + " | " + Number(c.cost).toFixed(1) +
+          " | " + c.components + "/" + c.joints + " | " + md(c.risk) + " | " + md(c.tradeoff) + " |");
         if (c.changes && c.changes.length) {
-          lines.push("| | " + c.changes.map(md).join("<br>") + " | | | | | |");
+          lines.push("| | " + c.changes.map(md).join("<br>") + " | | | | | | |");
         }
       });
       lines.push("", "> 单步候选，不是全局最优；候选都重新通过装配校验。", "");

@@ -30,7 +30,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.14.0";
+  var STUDIO_VERSION = "1.15.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -1030,7 +1030,7 @@
     var over = r.totalCost > budget;
     if (note) note.textContent = over
       ? "当前超预算 ¥" + Math.round(r.totalCost - budget) + "；优先看高节省候选。"
-      : "当前在预算内；候选用于进一步减重/降本。";
+      : "当前在预算内；可勾选“同价减重”看成本不升、重量下降的候选。";
     if (!state.optimizer) {
       host.innerHTML = '<div class="opt-empty">点“生成降本候选”，会基于当前装配逐个试算并重新校验。</div>';
       return;
@@ -1042,7 +1042,9 @@
     host.innerHTML = state.optimizer.map(function (c) {
       var risk = c.risk || "medium";
       return '<div class="opt-card ' + esc(risk) + '">' +
-        '<div class="opt-top"><b>' + esc(c.title) + '</b><span class="opt-save">省 ¥' + Math.round(c.saving) + '</span></div>' +
+        '<div class="opt-top"><b>' + esc(c.title) + '</b><span class="opt-save">' +
+        (c.saving > 0.01 ? '省 ¥' + Math.round(c.saving) : '成本不升') +
+        (c.massSaving > 0.01 ? ' · 省重 ' + Math.round(c.massSaving) + 'g' : '') + '</span></div>' +
         '<p>' + esc(c.tradeoff) + '</p>' +
         '<div class="opt-meta"><span>¥' + Math.round(c.cost) + ' · ' + c.components + ' 组件 · ' + c.joints + ' 关节</span>' +
         '<button class="btn" data-opt="' + esc(c.id) + '">应用</button></div></div>';
@@ -1056,13 +1058,14 @@
     if (!state.assembly || !state.report) return;
     if (!window.MODKIT_BUDGET) { toast("预算优化器未加载", "err"); return; }
     try {
-      state.optimizer = window.MODKIT_BUDGET.suggest(state.assembly, { max: 8 });
+      state.optimizer = window.MODKIT_BUDGET.suggest(state.assembly,
+        { max: 8, includeMass: !!($("mass-mode") && $("mass-mode").checked) });
     } catch (e) {
       state.optimizer = [];
       toast("优化计算失败：" + e.message, "err");
     }
     renderOptimizer();
-    toast(state.optimizer.length ? ("生成 " + state.optimizer.length + " 个可验证候选") : "没有可验证的降本候选", state.optimizer.length ? "ok" : "");
+    toast(state.optimizer.length ? ("生成 " + state.optimizer.length + " 个可验证候选") : "没有可验证的降本/减重候选", state.optimizer.length ? "ok" : "");
   }
 
   function exportOptimizerReport() {

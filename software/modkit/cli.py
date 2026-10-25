@@ -18,6 +18,7 @@ import time
 
 from . import backlash as bl
 from . import bench as bench
+from . import bringup as bu
 from . import calibrate as cal
 from . import odomcal as oc
 from . import qc as qc
@@ -420,6 +421,72 @@ def cmd_simrun(args) -> int:
                 encoding="utf-8")
     print(f"{len(files) - bad}/{len(files)} 通过")
     return 0 if bad == 0 else 1
+
+
+def cmd_bringup(args) -> int:
+    path = pathlib.Path(args.file)
+    if args.action == "list":
+        print(bu.format_steps(None))
+        print("\n说明：pass 必须带证据文件；simulate 只演示，不计入物理闸门。")
+        return 0
+    if args.action == "init":
+        if path.exists() and not args.force:
+            sys.exit(f"记录已存在：{path}（要重建加 --force，不要覆盖真实记录）")
+        if not args.operator:
+            sys.exit("init 需要 --operator（谁做的调试）")
+        serial = args.serial or f"M1-{time.localtime().tm_year}-0001"
+        rec = bu.Commission(serial=serial, operator=args.operator)
+        rec.save(path)
+        print(f"已建 bring-up 记录 {path}（{serial} / {args.operator}）")
+        print("下一步：按 docs/42 §3 做第 1 步，再 record。")
+        print(bu.format_steps(rec))
+        return 0
+    if args.action == "simulate":
+        rec = bu.Commission.simulated(args.serial or "DEMO-0000", args.operator or "sim")
+        rec.save(path)
+        print("已写入 simulated 记录。**这不是物理通过**，只用于演示状态机。")
+        print(bu.format_status(rec))
+        return 0
+
+    if not path.exists():
+        sys.exit(f"没有记录：{path}；先 --action init")
+    rec = bu.Commission.load(path)
+
+    if args.action == "record":
+        if not args.step:
+            sys.exit("record 需要 --step N")
+        if not args.result:
+            sys.exit("record 需要 --result pass|fail（不默认通过）")
+        try:
+            r = rec.record(args.step, args.result, args.evidence or "", args.note or "")
+        except bu.BringupError as e:
+            sys.exit(str(e))
+        rec.save(path)
+        print(f"第 {args.step} 步 → {r.status}；证据 {r.evidence or '无'}")
+        print(bu.format_status(rec))
+        return 0 if r.status != "fail" else 1
+
+    if args.action == "verify":
+        errs = rec.validate()
+        if errs:
+            print("FAIL")
+            for e in errs:
+                print(f"  - {e}")
+            return 1
+        print(f"PASS：{rec.pass_count()}/{len(bu.STEPS)} 步实测证据完整；"
+              f"物理闸门 {rec.physical_passed()}/5")
+        return 0
+
+    # status
+    print(bu.format_status(rec))
+    if args.json:
+        d = {**rec.__dict__, "steps": {k: r.__dict__ for k, r in rec.steps.items()},
+             "pass_count": rec.pass_count(), "physical_passed": rec.physical_passed(),
+             "milestones": {k: rec.milestone(k) for k in bu.MILESTONES}}
+        pathlib.Path(args.json).write_text(json.dumps(d, ensure_ascii=False, indent=2),
+                                           encoding="utf-8")
+        print(f"已写入 {args.json}")
+    return 0
 
 
 def cmd_simdiff(args) -> int:
@@ -852,6 +919,20 @@ def main(argv: list[str] | None = None) -> int:
     sr.add_argument("--all", help="目录下所有场景，如 sim/scenarios")
     sr.add_argument("--out", help="把每个场景的指标写到目录（基线用）")
     sr.set_defaults(func=cmd_simrun)
+
+    bup = sub.add_parser("bringup", help="硬件 bring-up 11 步证据（不代替实测）")
+    bup.add_argument("--action", default="status",
+                     choices=["list", "init", "record", "status", "simulate", "verify"])
+    bup.add_argument("--file", default="records/bringup.json")
+    bup.add_argument("--serial")
+    bup.add_argument("--operator")
+    bup.add_argument("--step", type=int)
+    bup.add_argument("--result", choices=["pass", "fail"])
+    bup.add_argument("--evidence")
+    bup.add_argument("--note")
+    bup.add_argument("--json")
+    bup.add_argument("--force", action="store_true")
+    bup.set_defaults(func=cmd_bringup)
 
     df = sub.add_parser("simdiff", help="比较两次场景运行的回归基线")
     df.add_argument("--baseline", required=True)

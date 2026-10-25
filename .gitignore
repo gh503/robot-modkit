@@ -16,3 +16,8 @@ tools/ac.tar.gz
 # 测试缓存
 .pytest_cache/
 *.egg-info/
+
+# 发布包与本机记录
+dist/
+records/
+sim/out/

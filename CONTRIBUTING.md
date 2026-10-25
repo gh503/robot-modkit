@@ -19,7 +19,7 @@ python3 -m venv .venv
 
 ```bash
 cd cad && ../.venv/bin/python build.py      # 期望 85/85
-make -C firmware test                        # 期望 41 + 30
+make -C firmware test                        # 期望 77
 cd software && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 ../.venv/bin/python -m pytest
 make -C sim drive                            # 期望"仿真判据全部通过"
 cd web && node --check viewer.js             # 改了查看器才需要
@@ -63,7 +63,13 @@ CI 会跑前四条 + Pages 部署。**任何一条红了就不算完成**，别�
 - 涉及取舍的地方写清"为什么不选另一个"
 - 引用外部资料必须给链接（见 `docs/13-业界实践对照.md` 的写法）
 
-## 7. 安全
+## 7. 硬件记录
+
+真机调试不要只写"调好了"：按 `docs/59` 用 `modkit bringup` 逐步登记证据文件。
+`pass` 必须带扫描日志/视频/CSV；仿真只能标 `simulated`，不算物理通过。
+不要提交真实 `records/`（只留本地/随交付归档）。
+
+## 8. 安全
 
 涉及 12V 主回路、舵机堵转、夹爪夹持的改动，请在 PR 里显式说明
 "断电测试 / 限流测试 / 急停是否仍有效"。**不要在没有物理急停的情况下测堵转。**

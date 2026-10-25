@@ -91,6 +91,10 @@ jobs:
         run: python tools/traceability.py
       - name: 来料检验表
         run: python tools/incoming.py
+      - name: 发布包工具自检（SHA256）
+        run: |
+          python tools/release.py --version 0.0.0 --out /tmp/dist
+          python tools/release.py --check --out /tmp/dist
       - name: 产物上传
         uses: actions/upload-artifact@v4
         with:
@@ -117,7 +121,7 @@ jobs:
           pip install -e software matplotlib numpy pillow pyserial
       - name: 底盘闭环判据
         run: make -C sim drive
-      - name: 硬件场景回归（12 个）
+      - name: 硬件场景回归（16 个）
         run: cd software && python -m modkit.cli simrun --all ../sim/scenarios
       - name: 蒙特卡洛冒烟（同种子）
         run: cd software && python -m modkit.cli simsweep --scenario ../sim/scenarios/nav_square.json -n 5 --profile clean --min-pass 1

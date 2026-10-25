@@ -125,6 +125,7 @@ def test_pwa_shell_is_complete_and_versioned():
     for name in ("design.html", "designer.js", "assembly-core.js", "budget-core.js"):
         assert name in sw
     assert "CACHE" in sw and "skipWaiting" in sw
+    assert 'req.destination === "script"' in sw and 'cache: "no-cache"' in sw
     version = re.search(r'__version__\s*=\s*"([^"]+)"',
                         (ROOT / "software" / "modkit" / "__init__.py").read_text(encoding="utf-8")).group(1)
     assert 'CACHE = "modkit-shell-v' + version + '"' in sw

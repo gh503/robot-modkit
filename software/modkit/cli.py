@@ -24,6 +24,7 @@ from . import qc as qc
 from . import selftest as st
 from . import camsim as cs
 from . import scenario as sn
+from . import simdiff as sd
 from . import simserver as ss
 from . import identify as ident
 from . import simsweep as sw
@@ -313,7 +314,8 @@ def cmd_simplot(args) -> int:
 
 def cmd_camsim(args) -> int:
     cam = cs.Camera(width=args.width, height=args.height,
-                    z=args.height_mm, fx=args.fx, fy=args.fx)
+                    z=args.height_mm, fx=args.fx, fy=args.fx,
+                    k1=args.k1, k2=args.k2, p1=args.p1, p2=args.p2)
     cubes = []
     for spec in args.cube:
         v = [float(x) for x in spec.split(",")]
@@ -330,7 +332,7 @@ def cmd_camsim(args) -> int:
             print("没检出")
             return 1
         for c in cubes:
-            x, y = cam.table_calib(c.size).apply(det.cx, det.cy)
+            x, y = cam.unproject(det.cx, det.cy, c.size)
             print(f"检测中心 ({det.cx:.1f},{det.cy:.1f})px → 桌面 "
                   f"({x:.1f},{y:.1f})mm（真值 {c.x},{c.y}）")
     return 0
@@ -410,8 +412,25 @@ def cmd_simrun(args) -> int:
         for msg in r["failures"]:
             print(f"    ! {msg}")
         bad += 0 if r["ok"] else 1
+        if getattr(args, "out", None):
+            outdir = pathlib.Path(args.out)
+            outdir.mkdir(parents=True, exist_ok=True)
+            (outdir / f"{f.stem}.json").write_text(
+                json.dumps(sd.metrics(r, f.stem), ensure_ascii=False, indent=2),
+                encoding="utf-8")
     print(f"{len(files) - bad}/{len(files)} 通过")
     return 0 if bad == 0 else 1
+
+
+def cmd_simdiff(args) -> int:
+    base = sd.load(args.baseline)
+    cur = sd.load(args.current)
+    r = sd.compare(base, cur, args.time_tol, args.volt_tol, args.pos_tol, args.yaw_tol)
+    print(sd.format_report(r))
+    if args.json:
+        pathlib.Path(args.json).write_text(json.dumps(r, ensure_ascii=False, indent=2),
+                                          encoding="utf-8")
+    return 0 if r["ok"] else 1
 
 
 def cmd_speedcal(args) -> int:
@@ -798,6 +817,10 @@ def main(argv: list[str] | None = None) -> int:
     csp.add_argument("--tol", type=int, default=40)
     csp.add_argument("--seed", type=int, default=0)
     csp.add_argument("--detect", action="store_true")
+    csp.add_argument("--k1", type=float, default=0.0)
+    csp.add_argument("--k2", type=float, default=0.0)
+    csp.add_argument("--p1", type=float, default=0.0)
+    csp.add_argument("--p2", type=float, default=0.0)
     csp.set_defaults(func=cmd_camsim)
 
     ident_p = sub.add_parser("identify", help="从遥测 CSV 反推编码器/电池参数")
@@ -827,7 +850,18 @@ def main(argv: list[str] | None = None) -> int:
     sr = sub.add_parser("simrun", help="跑硬件仿真场景（确定性）")
     sr.add_argument("--scenario", help="单个场景 JSON")
     sr.add_argument("--all", help="目录下所有场景，如 sim/scenarios")
+    sr.add_argument("--out", help="把每个场景的指标写到目录（基线用）")
     sr.set_defaults(func=cmd_simrun)
+
+    df = sub.add_parser("simdiff", help="比较两次场景运行的回归基线")
+    df.add_argument("--baseline", required=True)
+    df.add_argument("--current", required=True)
+    df.add_argument("--time-tol", type=float, default=0.05)
+    df.add_argument("--volt-tol", type=float, default=0.05)
+    df.add_argument("--pos-tol", type=float, default=5.0)
+    df.add_argument("--yaw-tol", type=float, default=2.0)
+    df.add_argument("--json")
+    df.set_defaults(func=cmd_simdiff)
 
     spc = sub.add_parser("speedcal", help="标定速度寄存器 1 LSB = ? deg/s")
     spc.add_argument("--sid", type=int, default=5)

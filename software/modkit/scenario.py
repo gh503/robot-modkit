@@ -10,6 +10,7 @@ import json
 import math
 from pathlib import Path
 
+from . import calib as cb
 from . import camsim as cs
 from . import kinematics as kin
 from . import mission as ms
@@ -60,6 +61,16 @@ def _resolve(sim: HardwareSim, path: str, meta: dict | None = None):
         if d is None:
             raise ScenarioError("还没有检测结果")
         return {"cx": d.cx, "cy": d.cy, "area": d.area}[path.split(".")[1]]
+    if path.startswith("grasp."):
+        return {"error_mm": meta.get("grasp_error_mm", 0.0),
+                "holds": meta.get("grasp", {}).get("holds", False)}[path.split(".")[1]]
+    if path.startswith("contact."):
+        c = meta.get("contact", {})
+        key = path.split(".", 1)[1]
+        if key.startswith("wrench."):
+            return c.get("wrench", {}).get(key.split(".", 1)[1], 0.0)
+        return {"state": c.get("state", "hold"), "slip_mm": c.get("slip_mm", 0.0),
+                "dropped": c.get("dropped", False)}[key]
     raise ScenarioError(f"未知路径：{path}")
 
 
@@ -152,7 +163,9 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                             cx=act.get("cam_w", 320 if onboard else 640) / 2,
                             cy=act.get("cam_h", 240 if onboard else 480) / 2,
                             z=act.get("camera_z", 500.0 if onboard else 800.0),
-                            fx=act.get("fx", 250.0 if onboard else 600.0))
+                            fx=act.get("fx", 250.0 if onboard else 600.0),
+                            k1=act.get("cam_k1", 0.0), k2=act.get("cam_k2", 0.0),
+                            p1=act.get("cam_p1", 0.0), p2=act.get("cam_p2", 0.0))
             cubes = [cs.Cube(cube[0], cube[1], cube[2],
                              tuple(act.get("color", [200, 60, 40])))]
             color = tuple(act.get("color", [200, 60, 40]))
@@ -189,20 +202,40 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
             def pick(det):
                 if det is None:
                     return False
-                cal = cam.table_calib(cube[2])
-                wx, wy = cal.apply(det.cx, det.cy)
+                # 用反投影而不是仿射：镜头畸变下仿射只在中心近似
+                wx, wy = cam.unproject(det.cx, det.cy, cube[2])
                 if use_nav:
                     # 世界 → 臂基座：先平移再按偏航旋转
                     dx, dy = wx - sim.chassis.x, wy - sim.chassis.y
                     a = math.radians(-sim.chassis.yaw)
-                    bx, by = dx * math.cos(a) - dy * math.sin(a), dx * math.sin(a) + dy * math.cos(a)
+                    true_bx = dx * math.cos(a) - dy * math.sin(a)
+                    true_by = dx * math.sin(a) + dy * math.cos(a)
                 else:
-                    bx, by = wx, wy
+                    true_bx, true_by = wx, wy
+
+                # 手眼误差：nominal = 真实变换的逆；标定后估计出正向变换
+                he = cb.HandEye(*act.get("handeye", [0.0, 0.0, 0.0]))
+                if act.get("calibrate"):
+                    truth = cb.calibration_grid(0.0, 0.0, 80.0)
+                    measured = [he.inverse().apply(*p) for p in truth]
+                    est = cb.HandEye.fit(measured, truth)
+                    bx, by = est.apply(*he.inverse().apply(true_bx, true_by))
+                    meta["handeye"] = est.to_json()
+                    log.append(f"[{i}] 手眼标定残余 {est.residual_mm(measured, truth):.2f}mm")
+                else:
+                    bx, by = he.inverse().apply(true_bx, true_by)
+                    meta["handeye"] = he.to_json()
+                err_mm = math.hypot(bx - true_bx, by - true_by)
+                meta["grasp_error_mm"] = round(err_mm, 2)
                 clearance = act.get("clearance", 60.0)
                 grasp_z = act.get("grasp_z", 25.0)
                 above = kin.inverse(kin.ArmGeometry(), kin.Pose(bx, by, clearance))
                 grasp = kin.inverse(kin.ArmGeometry(), kin.Pose(bx, by, grasp_z))
                 plan = vis.PickPlan(bx, by, 0.0, clearance, grasp_z, above, grasp)
+                if err_mm > act.get("grasp_tol", 15.0):
+                    log.append(f"[{i}] 抓空：手眼偏移 {err_mm:.1f}mm "
+                               f"> {act.get('grasp_tol', 15.0):.0f}mm")
+                    return False
                 bot.move_pose(plan.x, plan.y, plan.above_z)
                 step(1.5)
                 bot.move_pose(plan.x, plan.y, plan.grasp_z)
@@ -232,6 +265,19 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                     return False
                 bot.move_pose(plan.x, plan.y, plan.above_z)   # 抬起
                 step(1.5)
+
+                # 运输加速度：超过摩擦锥就滑动/掉落，而不是"抓着飞"
+                if act.get("transport_accel"):
+                    gd = ct.GraspDynamics(gs, slip_limit_mm=act.get("slip_limit", 18.0))
+                    for _ in range(max(1, int(act.get("transport_seconds", 1.0) / 0.01))):
+                        gd.update(0.01, ay=float(act["transport_accel"]))
+                    meta["contact"] = gd.to_dict()
+                    log.append(f"[{i}] 接触 {gd.state} 滑移 {gd.slip_mm:.1f}mm "
+                               f"Fz={gd.wrench.fz:.2f}N")
+                    if gd.dropped:
+                        log.append(f"[{i}] 运输滑落（a={act['transport_accel']}m/s²）")
+                        meta["grasp_slip"] = True
+                        return False
                 return True
 
             def drop():

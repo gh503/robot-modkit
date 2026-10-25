@@ -1,0 +1,12 @@
+{
+  "name": "镜头畸变 k1=0.25/k2=-0.08，反投影仍能抓",
+  "actions": [
+    {"cmd": "mission", "pick": [200, 0], "drop": [-150, 0],
+     "cube": [200, 0, 40], "drive_seconds": 1.0,
+     "cam_k1": 0.25, "cam_k2": -0.08}
+  ],
+  "assert": [
+    {"path": "mission.success", "value": true, "op": "eq"},
+    {"path": "grasp.error_mm", "value": 2.0, "op": "lt"}
+  ]
+}

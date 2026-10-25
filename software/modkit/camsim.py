@@ -25,6 +25,29 @@ class Camera:
     y: float = 0.0
     z: float = 800.0        # 离桌面高度
     yaw_deg: float = 0.0    # 相机绕 z 的朝向（随机身转）
+    k1: float = 0.0         # 径向畸变
+    k2: float = 0.0
+    p1: float = 0.0         # 切向畸变
+    p2: float = 0.0
+
+    def _distort(self, x: float, y: float) -> tuple[float, float]:
+        r2 = x * x + y * y
+        radial = 1.0 + self.k1 * r2 + self.k2 * r2 * r2
+        xd = x * radial + 2.0 * self.p1 * x * y + self.p2 * (r2 + 2.0 * x * x)
+        yd = y * radial + self.p1 * (r2 + 2.0 * y * y) + 2.0 * self.p2 * x * y
+        return xd, yd
+
+    def _undistort(self, xd: float, yd: float, iters: int = 12) -> tuple[float, float]:
+        x, y = xd, yd
+        for _ in range(iters):
+            r2 = x * x + y * y
+            radial = 1.0 + self.k1 * r2 + self.k2 * r2 * r2
+            if abs(radial) < 1e-9:
+                break
+            dx = 2.0 * self.p1 * x * y + self.p2 * (r2 + 2.0 * x * x)
+            dy = self.p1 * (r2 + 2.0 * y * y) + 2.0 * self.p2 * x * y
+            x, y = (xd - dx) / radial, (yd - dy) / radial
+        return x, y
 
     def project(self, X: float, Y: float, Z: float) -> tuple[float, float] | None:
         """世界点（桌面 z=0）→ 像素；在相机背后返回 None。"""
@@ -35,14 +58,13 @@ class Camera:
         dx, dy = X - self.x, Y - self.y
         lx = dx * math.cos(a) - dy * math.sin(a)
         ly = dx * math.sin(a) + dy * math.cos(a)
-        u = self.cx + self.fx * lx / dz
-        v = self.cy + self.fy * ly / dz
-        return u, v
+        xd, yd = self._distort(lx / dz, ly / dz)
+        return self.cx + self.fx * xd, self.cy + self.fy * yd
 
     def unproject(self, u: float, v: float, Z: float = 0.0) -> tuple[float, float]:
         dz = self.z - Z
-        lx = (u - self.cx) * dz / self.fx
-        ly = (v - self.cy) * dz / self.fy
+        x, y = self._undistort((u - self.cx) / self.fx, (v - self.cy) / self.fy)
+        lx, ly = x * dz, y * dz
         a = math.radians(self.yaw_deg)
         return (self.x + lx * math.cos(a) - ly * math.sin(a),
                 self.y + lx * math.sin(a) + ly * math.cos(a))
@@ -54,6 +76,19 @@ class Camera:
         （40mm 方块在 800mm 高、200mm 偏置下大约偏 10mm）。
         """
         from .vision import TableCalib
+        if self.k1 or self.k2 or self.p1 or self.p2:
+            # 有畸变时像素→桌面不是严格仿射；在视野中心做局部拟合，
+            # 给四点标定/旧接口用，精确反投影请用 unproject。
+            pts, world = [], []
+            for gx in (-150.0, 0.0, 150.0):
+                for gy in (-150.0, 0.0, 150.0):
+                    X, Y = self.x + gx, self.y + gy
+                    p = self.project(X, Y, z_obj)
+                    if p is not None:
+                        pts.append(p)
+                        world.append((X, Y))
+            if len(pts) >= 3:
+                return TableCalib.from_points(pts, world)
         sx, sy = (self.z - z_obj) / self.fx, (self.z - z_obj) / self.fy
         a = math.radians(self.yaw_deg)
         ca, sa = math.cos(a), math.sin(a)
@@ -104,8 +139,8 @@ def localize_marker(img, cam: Camera, m: Marker, tol: int = 45):
     dot = _centroid(img, m.dot_color, tol)
     if body is None or dot is None:
         return None
-    x, y = cam.table_calib(0.0).apply(*body)
-    dx, dy = cam.table_calib(0.0).apply(*dot)
+    x, y = cam.unproject(*body, Z=0.0)
+    dx, dy = cam.unproject(*dot, Z=0.0)
     yaw = math.degrees(math.atan2(dy - y, dx - x))
     return x, y, yaw
 

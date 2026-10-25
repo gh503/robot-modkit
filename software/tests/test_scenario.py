@@ -91,3 +91,23 @@ def test_onboard_camera_mission():
 def test_big_cube_expected_failure():
     r = scenario.run_scenario(scenario.load(SCEN / "big_cube.json"))
     assert r["ok"], r["failures"]
+
+
+def test_handeye_calibrated_mission():
+    r = scenario.run_scenario(scenario.load(SCEN / "mission_handeye_calibrated.json"))
+    assert r["ok"], r["failures"]
+
+
+def test_handeye_offset_expected_failure():
+    r = scenario.run_scenario(scenario.load(SCEN / "handeye_offset.json"))
+    assert r["ok"], r["failures"]
+
+
+def test_distortion_mission():
+    r = scenario.run_scenario(scenario.load(SCEN / "mission_distortion.json"))
+    assert r["ok"], r["failures"]
+
+
+def test_fast_transport_expected_failure():
+    r = scenario.run_scenario(scenario.load(SCEN / "fast_transport.json"))
+    assert r["ok"], r["failures"]

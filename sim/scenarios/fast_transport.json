@@ -1,0 +1,15 @@
+{
+  "name": "运输加速度 80m/s²，摩擦锥扛不住，滑落（期望失败）",
+  "expect_fail": true,
+  "actions": [
+    {"cmd": "mission", "pick": [200, 0], "drop": [-150, 0],
+     "cube": [200, 0, 40], "drive_seconds": 1.0,
+     "mu": 0.4, "transport_accel": 80, "transport_seconds": 0.5}
+  ],
+  "assert": [
+    {"path": "mission.success", "value": false, "op": "eq"},
+    {"path": "contact.dropped", "value": true, "op": "eq"},
+    {"path": "contact.slip_mm", "value": 15.0, "op": "gt"},
+    {"path": "contact.wrench.fz", "value": 0.4, "op": "gt"}
+  ]
+}

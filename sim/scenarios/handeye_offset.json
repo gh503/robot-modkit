@@ -1,0 +1,13 @@
+{
+  "name": "手眼偏移 45mm 未标定，抓空（期望失败）",
+  "expect_fail": true,
+  "actions": [
+    {"cmd": "mission", "pick": [200, 0], "drop": [-150, 0],
+     "cube": [200, 0, 40], "drive_seconds": 1.0,
+     "handeye": [45, -20, 2.5]}
+  ],
+  "assert": [
+    {"path": "mission.success", "value": false, "op": "eq"},
+    {"path": "grasp.error_mm", "value": 15.0, "op": "gt"}
+  ]
+}

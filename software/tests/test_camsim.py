@@ -90,3 +90,23 @@ def test_rotated_camera_detect_maps_back():
     x, y = cam.table_calib(40).apply(det.cx, det.cy)
     assert x == pytest.approx(140, abs=8)
     assert y == pytest.approx(30, abs=8)
+
+
+@pytest.mark.parametrize("k1", [0.15, -0.12, 0.25])
+def test_distortion_roundtrip(k1):
+    cam = camsim.Camera(k1=k1, k2=-0.05, p1=0.0005, p2=-0.0003)
+    for X, Y in [(0, 0), (200, 40), (-150, 120), (80, -160)]:
+        u, v = cam.project(X, Y, 40)
+        x, y = cam.unproject(u, v, 40)
+        assert x == pytest.approx(X, abs=1e-6)
+        assert y == pytest.approx(Y, abs=1e-6)
+
+
+def test_distortion_table_calib_local_accuracy():
+    cam = camsim.Camera(k1=0.15, k2=-0.05)
+    cal = cam.table_calib(40)
+    for X, Y in [(-80, -80), (80, -80), (80, 80), (-80, 80)]:
+        u, v = cam.project(X, Y, 40)
+        x, y = cal.apply(u, v)
+        assert abs(x - X) < 8.0
+        assert abs(y - Y) < 8.0

@@ -1,0 +1,12 @@
+{
+  "name": "手眼有 45mm/2.5° 误差，标定后仍能抓",
+  "actions": [
+    {"cmd": "mission", "pick": [200, 0], "drop": [-150, 0],
+     "cube": [200, 0, 40], "drive_seconds": 1.0,
+     "handeye": [45, -20, 2.5], "calibrate": true}
+  ],
+  "assert": [
+    {"path": "mission.success", "value": true, "op": "eq"},
+    {"path": "grasp.error_mm", "value": 1.0, "op": "lt"}
+  ]
+}

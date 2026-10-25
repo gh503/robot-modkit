@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f4f7fb">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content="modkit Studio：在浏览器里从 36 个端口化组件自由装配机器人，校验、3D 运动仿真、参数调整，导出 STL/STEP/JSON/BOM。">
+<title>modkit Studio · 自由设计与仿真</title>
+<link rel="stylesheet" href="design.css">
+</head>
+<body>
+<a class="skip" href="#studio">跳到设计器</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="./" aria-label="modkit 首页">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5v-7Z" stroke="#cfeaff" stroke-width="1.4"/><path d="M8 10.5 12 8l4 2.5v3L12 16l-4-2.5v-3Z" fill="#7cc4ff"/></svg>
+      </span>
+      <span><span class="brand-name">modkit Studio</span><span class="brand-sub">自由装配 · 仿真 · 导出</span></span>
+    </a>
+    <nav class="topnav" aria-label="项目链接">
+      <a href="index.html">3D 查看器</a>
+      <a href="design.html" class="on" aria-current="page">自由设计</a>
+      <a href="https://github.com/gh503/robot-modkit/blob/main/docs/65-组件库与自由组装.md">组件文档</a>
+      <a href="https://github.com/gh503/robot-modkit">GitHub</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="status-pill" id="top-state"><span class="dot" aria-hidden="true"></span><span id="top-state-text">装配初始化中</span></span>
+  </div>
+</header>
+
+<main class="studio" id="studio">
+  <aside class="palette panel" aria-label="组件库">
+    <div class="palette-head">
+      <h1>组件库</h1>
+      <p>36 个端口化组件 · 点选添加到当前父件</p>
+      <input class="search" id="search" type="search" placeholder="搜 ID / 名称 / 类别" aria-label="搜索组件">
+    </div>
+    <div class="palette-body" id="palette-list"></div>
+    <div class="palette-foot">选中父件后点击组件。<b>替换</b>模式见右侧装配面板。</div>
+  </aside>
+
+  <section class="stagewrap" aria-label="三维设计与仿真">
+    <div class="stagebar">
+      <label for="preset">预设</label>
+      <select id="preset" aria-label="加载预设装配">
+        <option value="m1">M1 塔式</option>
+        <option value="mini_rover">迷你轮式</option>
+        <option value="pan_tilt">云台</option>
+        <option value="arm_4dof">四轴臂</option>
+        <option value="wide_gripper">宽夹爪</option>
+        <option value="sensor_tower">传感器塔</option>
+      </select>
+      <button class="btn" id="new-design">新建</button>
+      <button class="btn" id="import-design">导入</button>
+      <button class="btn" id="restore-design">恢复</button>
+      <input id="import-file" type="file" accept=".json,application/json" hidden>
+      <button class="btn" id="validate">校验</button>
+      <span class="grow"></span>
+      <span class="validate-pill" id="validate-pill">未校验</span>
+    </div>
+
+    <div class="viewport" id="viewport">
+      <div class="loading" id="loading">正在建立 3D 场景…</div>
+      <div class="hud" id="hud">—</div>
+      <div class="hint">左键旋转 · 右键平移 · 滚轮缩放 · 点击选择</div>
+      <div class="fallback" id="fallback">
+        <div><h2 style="margin:0 0 6px;font-size:15px">这个浏览器没有启用 3D</h2>
+        <p style="margin:0;color:var(--muted);font-size:12px">仍可使用组件树、校验、BOM 和导出；换 Chrome/Edge 或开启硬件加速恢复 3D。</p></div>
+      </div>
+    </div>
+
+    <div class="motionbar" role="group" aria-label="运动仿真">
+      <button class="btn primary" id="play" aria-pressed="false">▶ 播放运动</button>
+      <button class="btn" id="reset-motion">复位关节</button>
+      <label for="speed" style="color:var(--faint);font-size:10.5px">速度</label>
+      <input id="speed" type="range" min="0.2" max="2" step="0.1" value="1" aria-label="仿真速度">
+      <span class="sim-state" id="sim-state">待机 · 只做运动学示意</span>
+      <button class="btn" id="fit-view" style="margin-left:auto">适配视角</button>
+    </div>
+    <div class="joints" id="joints" aria-label="关节滑杆"></div>
+  </section>
+
+  <aside class="inspector panel" aria-label="装配参数与导出">
+    <div class="tabs" role="tablist" aria-label="面板">
+      <button id="tab-btn-build" role="tab" aria-selected="true" aria-controls="tab-build">装配</button>
+      <button id="tab-btn-check" role="tab" aria-selected="false" aria-controls="tab-check">校验</button>
+      <button id="tab-btn-bom" role="tab" aria-selected="false" aria-controls="tab-bom">BOM</button>
+      <button id="tab-btn-export" role="tab" aria-selected="false" aria-controls="tab-export">导出</button>
+    </div>
+
+    <section class="tabpanel" id="tab-build" role="tabpanel" aria-labelledby="tab-btn-build">
+      <div class="sect">
+        <h2>方案</h2>
+        <div class="form"><div class="full"><label>方案名（导出文件名）</label>
+          <input id="design-name" maxlength="60" placeholder="未命名装配"></div></div>
+      </div>
+      <div class="sect">
+        <h2>装配树</h2>
+        <div id="tree"></div>
+      </div>
+      <div class="sect">
+        <h2>选中组件</h2>
+        <div id="selected"></div>
+      </div>
+    </section>
+
+    <section class="tabpanel" id="tab-check" role="tabpanel" aria-labelledby="tab-btn-check" hidden>
+      <div class="sect">
+        <h2>总体</h2>
+        <div id="metrics"></div>
+      </div>
+      <div class="sect">
+        <h2>校验问题</h2>
+        <label style="display:flex;gap:6px;align-items:center;font-size:10.5px;color:var(--muted);margin-bottom:5px">
+          <input id="strict" type="checkbox"> 把 AABB 重叠当错误（默认只警告）
+        </label>
+        <ul class="issues" id="issues"></ul>
+      </div>
+      <div class="note" id="safety-note"></div>
+    </section>
+
+    <section class="tabpanel" id="tab-bom" role="tabpanel" aria-labelledby="tab-btn-bom" hidden>
+      <div class="sect">
+        <h2>BOM 估算</h2>
+        <div class="tablewrap"><table class="bom" id="bom"></table></div>
+        <div class="note" id="bom-note"></div>
+      </div>
+    </section>
+
+    <section class="tabpanel" id="tab-export" role="tabpanel" aria-labelledby="tab-btn-export" hidden>
+      <div class="sect">
+        <h2>导出</h2>
+        <div class="exportgrid">
+          <button class="btn" id="export-json">装配 JSON</button>
+          <button class="btn" id="export-csv">BOM CSV</button>
+          <button class="btn" id="export-stl">装配 STL</button>
+          <button class="btn" id="export-svg">2D 预览 SVG</button>
+          <button class="btn wide" id="export-step">下载选中零件 STEP</button>
+          <button class="btn wide" id="export-step-zip">导出全部零件 STEP（ZIP）</button>
+          <button class="btn wide" id="copy-command">复制 CLI 复现命令</button>
+        </div>
+        <div class="note" id="export-note"></div>
+      </div>
+      <div class="sect">
+        <h2>CAD 说明</h2>
+        <p style="font-size:10.5px;color:var(--muted);margin:0">浏览器导出的是<b>装配网格 STL</b>（可进 CAD 做参考/干涉检查）和<b>单件 STEP</b>（36 个参数化零件已预生成）。若要在 CAD 里改参数并重建，导出 JSON 后运行 <code>modkit assemble plan</code>，再跑 <code>make components-cad</code>。</p>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="data/components.js"></script>
+<script src="data/assemblies.js"></script>
+<script src="assembly-core.js"></script>
+<script src="designer.js"></script>
+</body>
+</html>

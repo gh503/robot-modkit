@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/gh503/robot-modkit)](https://github.com/gh503/robot-modkit/releases)
 [![Live](https://img.shields.io/badge/live-3D%20viewer-4c78a8)](https://gh503.github.io/robot-modkit/)
+[![Studio](https://img.shields.io/badge/live-Studio-2f80c9)](https://gh503.github.io/robot-modkit/design.html)
 
 > 一台"接口先定、形态后长"的机器人：**差速底盘 + 4 自由度臂 + 夹爪**，
 > 目标不是演示视频，而是**能独立完成物理任务**（导航到指定位置 → 识别目标 → 抓取 → 放到另一处）。
@@ -12,11 +13,16 @@
 > 用 JSON 拼装后生成 BOM、功率、重心和 `safety.json`。见
 > [docs/65-组件库与自由组装.md](docs/65-组件库与自由组装.md)。
 >
+> v1.6 新增 [网页设计器](https://gh503.github.io/robot-modkit/design.html)：
+> 在浏览器里加件/换件/删件、拖关节、播放运动学、导出 JSON/BOM/STL/SVG/STEP。
+> 见 [docs/67-网页设计器.md](docs/67-网页设计器.md)。
+>
 > 面向新手：从零基础到能自己改图纸、改固件、加传感器，手册在 [docs/07-小白操作手册.md](docs/07-小白操作手册.md)。
 
 ![关节模块装配预览](docs/images/assembly.png)
 
-**在线看：<https://gh503.github.io/robot-modkit/>** —— 浏览器里拖动滑杆改关节角、播放抓取动画，
+**在线看：<https://gh503.github.io/robot-modkit/>**；**自由设计：<https://gh503.github.io/robot-modkit/design.html>**。
+查看器里拖动滑杆改关节角、播放抓取动画，
 也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。v1.4 在界面上加了**运动预检与
 fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不过，拒绝下发；标定文件可覆盖
 零位/方向/限位。物理闸门仍是 0/5，界面通过不等于实物通过。
@@ -39,18 +45,19 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 | 生产：检验/追溯/包装 | ✅ 可用 | 27 件逐件检验表；20 条需求追溯（16 已验证）；箱规与跌落判据 |
 | 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 单测 + **5 个在环场景**（119 断言） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **261 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架/安全预检/组件装配）；无硬件可跑全流程 |
+| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **267 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架/安全预检/组件装配/网页设计器）；无硬件可跑全流程 |
 | 仿真：三维视图 + **数字孪生** | ✅ 可用 | 16 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
 | 打印校准件 + 四张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_01..04.stl`（27 件）、jigs 三件套 |
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
 | 整机实测 | ⬜ 硬件阻塞 | 0/5 个物理闸门；顺序见 [docs/42](docs/42-完成度审计.md) |
-| 数字孪生验收 | ✅ 采购前目标达成 | 15 条逐项对照见 [docs/45](docs/45-数字孪生验收.md) |
+| 数字孪生验收 | ✅ 采购前目标达成 | 17 条逐项对照见 [docs/45](docs/45-数字孪生验收.md) |
 | **v1.0 ready-to-build** | ✅ 软件/设计侧完成 | 声明与边界见 [docs/52](docs/52-v1.0完成声明.md) |
 | **v1.1 五项增强** | ✅ 已验收 | 畸变/手眼、接触动态、3D、排板、编辑器；见 [docs/58](docs/58-v1.1验收.md) |
 | **v1.2 交付硬化** | ✅ 已验收 | bring-up 证据、协议异常流、发布校验和；见 [docs/60](docs/60-v1.2验收.md) |
 | **v1.3 产品级 UI** | ✅ 已验收 | 工作台/查看器重做、键盘与安全确认、移动端；见 [docs/61](docs/61-v1.3-UI优化.md) |
 | **v1.4 预硬件安全** | ✅ 离线验收 | 软限位/单步/温度/电压/故障联锁、几何+路径包络、`preflight`、到货执行单；物理仍 0/5；见 [docs/64](docs/64-v1.4-预硬件验收.md) |
 | **v1.5 组件库** | ✅ 离线验收 | 36 个组件 + 6 个装配示例；BOM/功率/重心/静载/安全配置；`components`/`assemble`；物理仍 0/5；见 [docs/66](docs/66-v1.5验收.md) |
+| **v1.6 网页设计器** | ✅ 离线验收 | 浏览器加/换/删件、关节滑杆/运动学播放、参数编辑、JSON/BOM/STL/SVG/STEP 导出；物理仍 0/5；见 [docs/67](docs/67-网页设计器.md) |
 
 > 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
 
@@ -59,6 +66,7 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 | 想做什么 | 怎么做 |
 |---|---|
 | 网页里实时转、实时摆姿态 | 打开 <https://gh503.github.io/robot-modkit/>（或本地 `cd web && python3 -m http.server`） |
+| **网页里自由装配/换件/仿真** | 打开 <https://gh503.github.io/robot-modkit/design.html>；见 [docs/67](docs/67-网页设计器.md) |
 | 生成高质量四视图 / 爆炸图 | `make -C sim shots`（需本机有 Chrome） |
 | 抓取动画 GIF | `make -C sim grasp` 或 `make -C sim shots` |
 | 底盘闭环仿真 | `make -C sim drive` |
@@ -76,7 +84,8 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 | **运动预检/联锁** | `modkit --sim preflight` 或 `modkit --port ... preflight --write-limits`；见 [docs/63](docs/63-硬件到货执行单.md) |
 | **离线姿态包络** | `modkit envelope --x 100 --y 0 --z 120`；桌面/底座/折叠越界返回 2 |
 | **物理约束台账** | 逐项覆盖与缺口见 [docs/62](docs/62-物理约束台账.md) |
-| **自由拼机器人** | `modkit components` 看库；`modkit assemble plan assemblies/m1.json --out out/`；见 [docs/65](docs/65-组件库与自由组装.md) |
+| **自由拼机器人（网页）** | 打开 [Studio](https://gh503.github.io/robot-modkit/design.html)；左侧点组件、右侧改参数、导出 JSON/STL/STEP；见 [docs/67](docs/67-网页设计器.md) |
+| **自由拼机器人（CLI）** | `modkit components` 看库；`modkit assemble plan assemblies/m1.json --out out/`；见 [docs/65](docs/65-组件库与自由组装.md) |
 | **组件 CAD 批导出** | `make components-cad` → `cad/out/components/`（36 个 STEP/STL + manifest） |
 | 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
 | 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
@@ -89,7 +98,7 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor                                          # 环境自检
-make check-fast                                      # 261 项测试 + 16 场景 + 6 个装配示例
+make check-fast                                      # 267 项测试 + 16 场景 + 6 个装配示例
 ./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点
 ./.venv/bin/python -m modkit.cli --sim demo          # 逐关节摆动
@@ -159,12 +168,12 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 ## 版本
 
-当前 **v1.5.0**：组件库与自由组装——36 个有端口/质量/功率/关节数据的模块，
-6 个装配示例，`components`/`assemble` 命令，BOM/功率/重心/静载/`safety.json` 生成，
-以及 36 个组件的参数化 CAD 导出。实物未采购/未装配，物理闸门 **0/5**。边界见
+当前 **v1.6.0**：在 v1.5 组件库之上增加**网页设计器**——浏览器里自由加/换/删件、
+关节滑杆与运动学播放、载荷/限位/孔位编辑，导出设计 JSON、BOM、装配 STL、2D SVG、
+单件 STEP/STEP ZIP。实物未采购/未装配，物理闸门 **0/5**。边界见
 [docs/52](docs/52-v1.0完成声明.md)、[58](docs/58-v1.1验收.md)、[60](docs/60-v1.2验收.md)、
 [61](docs/61-v1.3-UI优化.md)、[64](docs/64-v1.4-预硬件验收.md)、
-[66](docs/66-v1.5验收.md)，逐项约束见 [docs/62](docs/62-物理约束台账.md)，
+[66](docs/66-v1.5验收.md)、[67](docs/67-网页设计器.md)，逐项约束见 [docs/62](docs/62-物理约束台账.md)，
 完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可

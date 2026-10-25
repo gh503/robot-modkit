@@ -1,7 +1,7 @@
 # robot-modkit：一条命令跑完所有"不依赖实物"的验证
 PY ?= .venv/bin/python
 
-.PHONY: check check-fast doctor cad firmware firmware-target software sim docs components components-cad workbench demo preflight clean-out
+.PHONY: check check-fast doctor cad firmware firmware-target software sim docs components components-cad web-design workbench demo preflight clean-out
 
 check: cad firmware software sim docs components
 
@@ -56,6 +56,10 @@ components:
 # 参数化组件 CAD（36 个，含参考包围盒）；比 make cad 轻，可按需跑
 components-cad:
 	cd cad && ../$(PY) component_cad.py
+
+# 重新生成网页设计器的组件数据/预设/STEP（需要先跑 components-cad）
+web-design:
+	$(PY) tools/export_web_design.py
 
 
 preflight:

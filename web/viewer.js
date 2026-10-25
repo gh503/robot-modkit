@@ -342,7 +342,20 @@
   });
 
   // ------------------------------------------------------------------ Web Serial
+  // 寄存器：0x28 扭矩使能、0x2A 目标位置(2)+时间(2)+速度(2)、0x38 反馈 8 字节
+  // 0x41 状态位（故障）。读 0x38 拿不到故障位，必须单独读。
+  var REG_TORQUE = 0x28, REG_GOAL = 0x2A, REG_FB = 0x38, REG_STATUS = 0x41;
+  var JOINTS = [
+    ["yaw", "偏航"], ["shoulder", "肩"], ["elbow", "肘"], ["gripper", "夹爪"]
+  ];
   var port = null, writer = null, reader = null, reading = false, pollTimer = null;
+  var torqueOn = false, demo = false, demoTimer = null;
+  var csv = [], recording = false;
+  var fb = {};                    // name -> {pos, speed, load, volts, temp, status, seen}
+
+  JOINTS.forEach(function (j) {
+    fb[j[0]] = { pos: null, speed: 0, load: 0, volts: null, temp: null, status: 0, seen: false };
+  });
 
   function frame(id, instr, params) {
     var len = params.length + 2;
@@ -363,19 +376,34 @@
     line.className = "logline " + (kind || "");
     line.textContent = new Date().toLocaleTimeString() + "  " + msg;
     $("log").prepend(line);
-    while ($("log").children.length > 40) $("log").lastChild.remove();
+    while ($("log").children.length > 30) $("log").lastChild.remove();
   }
 
-  async function send(bytes, label) {
-    if (!writer) { log("未连接", "err"); return; }
-    try {
-      await writer.write(bytes);
-      log(label + "  →  " + Array.from(bytes).map(function (b) {
-        return b.toString(16).padStart(2, "0");
-      }).join(" "));
-    } catch (e) {
-      log("写失败：" + e.message, "err");
-    }
+  // 串口写入必须串行，否则多帧会交错
+  var queue = Promise.resolve();
+  function send(bytes, label, silent) {
+    if (!writer) { if (!silent) log("未连接", "err"); return Promise.resolve(); }
+    queue = queue.then(function () {
+      return writer.write(bytes).then(function () {
+        if (!silent) {
+          log(label + "  →  " + Array.from(bytes).map(function (b) {
+            return b.toString(16).padStart(2, "0");
+          }).join(" "));
+        }
+      });
+    }).catch(function (e) { log("写失败：" + e.message, "err"); });
+    return queue;
+  }
+
+  function setTorque(on) {
+    if (!writer) { log("先连接串口", "err"); return; }
+    JOINTS.forEach(function (j) {
+      send(frame(S.ids[j[0]], 0x03, [REG_TORQUE, on ? 1 : 0]), null, true);
+    });
+    torqueOn = on;
+    $("serial-torque").textContent = on ? "卸力" : "使能扭矩";
+    $("serial-torque").className = on ? "danger" : "";
+    log(on ? "已使能扭矩（保持当前位置）" : "已卸力", on ? "ok" : "");
   }
 
   async function connect() {
@@ -389,10 +417,45 @@
       writer = port.writable.getWriter();
       $("serial-state").textContent = "已连接 1Mbps";
       $("serial-state").className = "pill ok";
-      log("串口已连接，1Mbps 8N1", "ok");
+      log("串口已连接，1Mbps 8N1；先「使能扭矩」再下发", "ok");
       readLoop();
     } catch (e) {
       log("连接失败：" + e.message, "err");
+    }
+  }
+
+  function onFrame(f) {
+    var id = f[2], instr = f[4], params = f.slice(5, f.length - 1);
+    var name = null;
+    JOINTS.forEach(function (j) { if (S.ids[j[0]] === id) name = j[0]; });
+    if (!name) return;
+
+    if (instr === 0x00 && params.length >= 8) {
+      var o = fb[name];
+      o.pos = params[0] | (params[1] << 8);
+      o.speed = (params[2] | (params[3] << 8));
+      if (o.speed > 32767) o.speed -= 65536;
+      o.load = (params[4] | (params[5] << 8));
+      if (o.load > 32767) o.load -= 65536;
+      o.volts = params[6] / 10;
+      o.temp = params[7];
+      o.seen = true;
+      renderRow(name);
+      if (recording) pushCsv(name);
+      if (state.follow) {
+        var deg = (o.pos - 2048) * 0.087890625;
+        if (name === "yaw") { state.yaw = deg; state.playing = false; applyState(); }
+        else if (name === "shoulder") { state.shoulder = deg; state.playing = false; applyState(); }
+        else if (name === "elbow") { state.elbow = deg; state.playing = false; applyState(); }
+      }
+    } else if (instr === 0x00 && params.length >= 1) {
+      // 0x41 状态位（读 1 字节时返回）
+      var st = params[0];
+      if (st !== fb[name].status) {
+        fb[name].status = st;
+        if (st) log("ID " + id + "（" + name + "）故障位 0x" + st.toString(16), "err");
+        renderRow(name);
+      }
     }
   }
 
@@ -406,23 +469,11 @@
         var r = await reader.read();
         if (r.done) break;
         for (var i = 0; i < r.value.length; i++) buf.push(r.value[i]);
-        // 找完整帧：FF FF id len ...
         while (buf.length >= 6) {
           if (buf[0] !== 0xff || buf[1] !== 0xff) { buf.shift(); continue; }
           var total = buf[3] + 4;
           if (buf.length < total) break;
-          var f = buf.splice(0, total);
-          var params = f.slice(5, total - 1);
-          if (f[4] === 0x00 && params.length >= 8) {
-            var pos = params[0] | (params[1] << 8);
-            var deg = (pos - 2048) * 0.087890625;
-            log("ID " + f[2] + " 位置 " + pos + " (" + deg.toFixed(1) + "°)");
-            if (state.follow) {
-              if (f[2] === S.ids.yaw) { state.yaw = deg; state.playing = false; applyState(); }
-              else if (f[2] === S.ids.shoulder) { state.shoulder = deg; state.playing = false; applyState(); }
-              else if (f[2] === S.ids.elbow) { state.elbow = deg; state.playing = false; applyState(); }
-            }
-          }
+          onFrame(buf.splice(0, total));
         }
       }
     } catch (e) {
@@ -432,50 +483,149 @@
     }
   }
 
+  function targetOf(name) {
+    if (name === "gripper") return 180 - 60 * (1 - state.jaw);
+    return state[name];
+  }
+
+  function renderRow(name) {
+    var o = fb[name];
+    if (!o.seen) return;
+    var deg = (o.pos - 2048) * 0.087890625;
+    var target = targetOf(name);
+    var err = deg - target;
+    $("t-" + name).textContent = target.toFixed(1) + "°";
+    $("a-" + name).textContent = deg.toFixed(1) + "°";
+    var e = $("e-" + name);
+    e.textContent = err.toFixed(1) + "°";
+    e.className = Math.abs(err) > 5 ? "bad" : (Math.abs(err) > 1.5 ? "warn" : "");
+    var c = $("c-" + name);
+    c.textContent = o.temp + "℃";
+    c.className = o.temp >= 55 ? "bad" : (o.temp >= 45 ? "warn" : "");
+    $("u-" + name).textContent = o.volts.toFixed(1) + "V";
+    $("u-" + name).className = o.volts < 10.8 ? "warn" : "";
+  }
+
+  function poll() {
+    JOINTS.forEach(function (j) {
+      send(frame(S.ids[j[0]], 0x02, [REG_FB, 8]), null, true);
+      send(frame(S.ids[j[0]], 0x02, [REG_STATUS, 1]), null, true);
+    });
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(poll, 250);
+  }
+
+  function stopPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
   $("serial-connect").addEventListener("click", connect);
+  $("serial-torque").addEventListener("click", function () { setTorque(!torqueOn); });
 
   $("serial-estop").addEventListener("click", function () {
     if (!writer) { log("未连接：急停请直接关主电源", "err"); return; }
-    S.ids && Object.keys(S.ids).forEach(function (k) {
-      send(frame(S.ids[k], 0x03, [0x28, 0x00]), "卸力 ID " + S.ids[k]);
+    JOINTS.forEach(function (j) {
+      send(frame(S.ids[j[0]], 0x03, [REG_TORQUE, 0]), "卸力 ID " + S.ids[j[0]]);
     });
+    torqueOn = false;
+    $("serial-torque").textContent = "使能扭矩";
+    $("serial-torque").className = "";
+    log("已全部卸力", "ok");
   });
 
   $("serial-follow").addEventListener("click", function () {
     if (!writer) { log("先连接串口", "err"); return; }
     state.follow = !state.follow;
-    $("serial-follow").textContent = state.follow ? "停止跟随" : "跟随真机反馈（只读）";
+    $("serial-follow").textContent = state.follow ? "停止跟随" : "跟随反馈";
     $("serial-follow").className = state.follow ? "primary" : "";
-    if (state.follow) {
-      log("跟随模式：每 200ms 读一次 0x38 位置（只读，不发指令）", "ok");
-      pollTimer = setInterval(function () {
-        [S.ids.yaw, S.ids.shoulder, S.ids.elbow].forEach(function (id) {
-          send(frame(id, 0x02, [0x38, 0x08]), "读 ID " + id);
-        });
-      }, 200);
-    } else {
-      if (pollTimer) clearInterval(pollTimer);
-      pollTimer = null;
-      log("停止跟随");
-    }
+    if (state.follow) { startPolling(); log("跟随：每 250ms 读 0x38 + 0x41（只读）", "ok"); }
+    else { stopPolling(); log("停止跟随"); }
   });
 
   $("serial-send").addEventListener("click", function () {
     if (!writer) { log("未连接", "err"); return; }
-    var pairs = [
-      [S.ids.yaw, state.yaw],
-      [S.ids.shoulder, state.shoulder],
-      [S.ids.elbow, state.elbow]
-    ];
-    pairs.forEach(function (p) {
-      var t = ticks(p[1]);
-      // 写 0x2A 起 6 字节：位置(2) + 时间(2) + 速度(2)
-      send(frame(p[0], 0x03, [0x2A, t & 0xff, t >> 8, 0, 0, 0xE8, 0x03]), "ID " + p[0] + " → " + t);
+    if (!torqueOn) {
+      setTorque(true);
+      log("下发前自动使能扭矩；若姿态差很多请先手动摆近", "ok");
+    }
+    JOINTS.forEach(function (j) {
+      var name = j[0], t = ticks(targetOf(name));
+      // 0x2A 起 6 字节：位置(2) + 时间(2) + 速度(2)。时间 0 = 用速度控制
+      send(frame(S.ids[name], 0x03, [REG_GOAL, t & 0xff, t >> 8, 0, 0, 0xE8, 0x03]),
+           null, true);
     });
-    // 夹爪：0° 全开 → 180° 全闭（按实际机械行程改）
-    var g = ticks(180 - 60 * (1 - state.jaw));
-    send(frame(S.ids.gripper, 0x03, [0x2A, g & 0xff, g >> 8, 0, 0, 0xE8, 0x03]), "夹爪 → " + g);
+    log("已下发 4 轴目标（速度 1000）", "ok");
+    startPolling();
   });
+
+  function pushCsv(name) {
+    var o = fb[name], deg = (o.pos - 2048) * 0.087890625;
+    csv.push([Date.now(), name, S.ids[name], targetOf(name).toFixed(2), deg.toFixed(2),
+              (deg - targetOf(name)).toFixed(2), o.temp, o.volts.toFixed(1),
+              o.load, o.status].join(","));
+  }
+
+  $("serial-record").addEventListener("click", function () {
+    if (!recording) {
+      csv = ["time_ms,joint,id,target_deg,actual_deg,err_deg,temp_c,volts_v,load,status"];
+      recording = true;
+      $("serial-record").textContent = "停止并下载 CSV";
+      $("serial-record").className = "primary";
+      log("开始记录（跟随/轮询时写入）", "ok");
+      startPolling();
+    } else {
+      recording = false;
+      $("serial-record").textContent = "开始记录 CSV";
+      $("serial-record").className = "";
+      var blob = new Blob([csv.join("\n")], { type: "text/csv" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "modkit-debug-" + new Date().toISOString().replace(/[:.]/g, "-") + ".csv";
+      a.click();
+      log("已下载 " + (csv.length - 1) + " 行", "ok");
+    }
+  });
+
+  // 无硬件也能验面板：合成反馈走同一条 onFrame 渲染路径
+  function toggleDemo() {
+    demo = !demo;
+    if (demo) {
+      $("serial-state").textContent = "演示数据";
+      $("serial-state").className = "pill warn";
+      demoTimer = setInterval(function () {
+        JOINTS.forEach(function (j) {
+          var name = j[0], t = targetOf(name);
+          var o = fb[name];
+          o.pos = ticks(t + Math.sin(Date.now() / 700 + S.ids[name]) * 0.6);
+          o.volts = 11.9; o.temp = 38 + (S.ids[name] % 3);
+          o.load = 30; o.status = 0; o.seen = true;
+          renderRow(name);
+        });
+      }, 250);
+      log("演示模式：数据是合成的，不要当成真机", "warn");
+    } else {
+      if (demoTimer) clearInterval(demoTimer);
+      demoTimer = null;
+      $("serial-state").textContent = "未连接";
+      $("serial-state").className = "pill";
+      log("退出演示模式");
+    }
+  }
+  $("serial-demo").addEventListener("click", function () {
+    toggleDemo();
+    $("serial-demo").textContent = demo ? "退出演示数据" : "演示数据（无硬件）";
+    $("serial-demo").className = demo ? "primary" : "";
+  });
+  // 通过 ?demo 自动进入，方便截图与自测
+  if (/[?&]demo/.test(location.search)) {
+    toggleDemo();
+    $("serial-demo").textContent = "退出演示数据";
+    $("serial-demo").className = "primary";
+  }
 
   // ------------------------------------------------------------------ 渲染循环
   function resize() {

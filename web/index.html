@@ -50,11 +50,18 @@
   .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: var(--muted); }
   .pill.ok { background: #e7f4e9; color: #2f7d32; }
   .pill.err { background: #fdeceb; color: #b3261e; }
+  .pill.warn { background: #fff4e0; color: #b26a00; }
 
   #log { max-height: 150px; overflow-y: auto; font: 11px/1.5 ui-monospace, monospace; }
   .logline { border-bottom: 1px dashed #eef2f7; padding: 2px 0; color: var(--muted); }
   .logline.ok { color: #2f7d32; }
   .logline.err { color: #b3261e; }
+  #fb { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+  #fb th, #fb td { padding: 2px 3px; text-align: right; border-bottom: 1px solid #e3e9f1; }
+  #fb th:first-child, #fb td:first-child { text-align: left; }
+  #fb th { color: var(--muted); font-weight: 500; }
+  #fb td.bad { color: #b3261e; font-weight: 600; }
+  #fb td.warn { color: #b26a00; font-weight: 600; }
 
   footer {
     grid-column: 2; background: #fff; border-top: 1px solid var(--line);
@@ -114,17 +121,31 @@
   </div>
 
   <div class="card">
-    <h2>连接真机（可选） <span class="pill" id="serial-state">未连接</span></h2>
+    <h2>调试真机 <span class="pill" id="serial-state">未连接</span></h2>
     <div class="grid2">
       <button id="serial-connect">连接串口</button>
-      <button id="serial-send">下发当前姿态</button>
+      <button id="serial-torque">使能扭矩</button>
     </div>
-    <button id="serial-estop" class="danger" style="width:100%;margin-top:6px">急停（全部卸力）</button>
-    <button id="serial-follow" style="width:100%;margin-top:6px">跟随真机反馈（只读）</button>
+    <div class="grid2" style="margin-top:6px">
+      <button id="serial-send" class="primary">下发姿态</button>
+      <button id="serial-estop" class="danger">急停卸力</button>
+    </div>
+    <button id="serial-follow" style="width:100%;margin-top:6px">跟随反馈</button>
+    <button id="serial-record" style="width:100%;margin-top:6px">开始记录 CSV</button>
+    <button id="serial-demo" style="width:100%;margin-top:6px">演示数据（无硬件）</button>
     <div class="sub" style="margin:8px 0 4px">
-      Chrome/Edge，需 https 或 localhost。串口 1Mbps，
-      下发前先确认舵机 ID 与限位。
+      Chrome/Edge，https 或 localhost；1Mbps。下发前先确认 ID 与限位，
+      第一次请把手臂垫空、随时断主电。
     </div>
+    <table id="fb">
+      <thead><tr><th>关节</th><th>目标</th><th>实际</th><th>误差</th><th>温度</th><th>电压</th></tr></thead>
+      <tbody>
+        <tr><td>偏航</td><td id="t-yaw">—</td><td id="a-yaw">—</td><td id="e-yaw">—</td><td id="c-yaw">—</td><td id="u-yaw">—</td></tr>
+        <tr><td>肩</td><td id="t-shoulder">—</td><td id="a-shoulder">—</td><td id="e-shoulder">—</td><td id="c-shoulder">—</td><td id="u-shoulder">—</td></tr>
+        <tr><td>肘</td><td id="t-elbow">—</td><td id="a-elbow">—</td><td id="e-elbow">—</td><td id="c-elbow">—</td><td id="u-elbow">—</td></tr>
+        <tr><td>夹爪</td><td id="t-gripper">—</td><td id="a-gripper">—</td><td id="e-gripper">—</td><td id="c-gripper">—</td><td id="u-gripper">—</td></tr>
+      </tbody>
+    </table>
     <div id="log"></div>
   </div>
 </aside>

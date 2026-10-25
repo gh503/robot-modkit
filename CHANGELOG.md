@@ -1,5 +1,17 @@
 # 更新日志
 
+## v1.2.0 — 2026-10-25
+
+### 交付硬化
+
+- **硬件 bring-up 记录**：`modkit bringup` 11 步，pass 必须有证据文件 + sha256；
+  simulated 不计入物理闸门；M1–M5 汇总，当前 0/5
+- **协议异常流**：`protocol.decode_all` 支持粘包/截断/坏校验后重同步；+3 测试
+- **发布工程**：`tools/release.py` 生成 production/cad/web/render 四个 zip 与
+  `SHA256SUMS`；CI 自检
+- **社区/可复现**：PR 模板、SECURITY、`.python-version`；208 项 pytest
+- 文档 59/60
+
 ## v1.1.0 — 2026-10-25
 
 ### 新增（五项可选增强）

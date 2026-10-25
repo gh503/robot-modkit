@@ -22,6 +22,7 @@ from . import calibrate as cal
 from . import odomcal as oc
 from . import qc as qc
 from . import selftest as st
+from . import speedcal as sc
 from . import kinematics as kin
 from . import nav as nv
 from . import mission as ms
@@ -291,6 +292,27 @@ def cmd_backlash(args) -> int:
         print(f"已写入 {out}（可直接给 Compensator.load 用）")
         return 0 if jp.ok else 1
     raise SystemExit("未知动作")
+
+
+def cmd_speedcal(args) -> int:
+    link = SimLink(list(range(1, 7)), wheels=True) if args.sim else _make_link(args)
+    bot = Robot(link)
+    try:
+        r = sc.measure(bot, args.sid, args.lsb, args.seconds, args.hz)
+    finally:
+        try:
+            bot.set_speed_raw(args.sid, 0)
+        except Exception:
+            pass
+    print(json.dumps(r.as_dict(), ensure_ascii=False, indent=2))
+    if r.note:
+        print(r.note)
+    if args.save and r.ok:
+        out = pathlib.Path(args.save)
+        out.write_text(json.dumps({"speed_unit": round(r.unit, 4),
+                                   "wheel_sid": r.sid}, indent=2), encoding="utf-8")
+        print(f"已写入 {out}")
+    return 0 if r.ok else 1
 
 
 def cmd_record(args) -> int:
@@ -620,6 +642,14 @@ def main(argv: list[str] | None = None) -> int:
     nvp.add_argument("--closed-loop", action="store_true",
                      help="用里程计反馈闭环（目前仅 --sim）")
     nvp.set_defaults(func=cmd_nav)
+
+    spc = sub.add_parser("speedcal", help="标定速度寄存器 1 LSB = ? deg/s")
+    spc.add_argument("--sid", type=int, default=5)
+    spc.add_argument("--lsb", type=int, default=500)
+    spc.add_argument("--seconds", type=float, default=1.0)
+    spc.add_argument("--hz", type=float, default=50.0)
+    spc.add_argument("--save", help="把 speed_unit 存成 JSON")
+    spc.set_defaults(func=cmd_speedcal)
 
     rc = sub.add_parser("record", help="记录舵机反馈到 CSV")
     rc.add_argument("--ids", default="1,2,3,4")

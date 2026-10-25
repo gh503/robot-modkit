@@ -131,6 +131,20 @@ class Robot:
         self.goto(4, deg, speed=300, acc=10)
 
     # ------------------------------------------------------------ 底盘
+    def set_mode(self, sid: int, mode: int) -> None:
+        """0=位置伺服，1=恒速（轮子）。"""
+        self.link.transact(
+            p.encode(sid, p.WRITE, bytes([p.REG_MODE, mode & 0xFF])), sid, 0.05
+        )
+
+    def set_speed_raw(self, sid: int, lsb: int) -> None:
+        """直接写速度寄存器（标定用），单位是 LSB，BIT15 方向。"""
+        val = min(abs(int(lsb)), 0x7FFF) | (0x8000 if lsb < 0 else 0)
+        self.link.transact(
+            p.encode(sid, p.WRITE, bytes([p.REG_GOAL_SPEED, val & 0xFF, val >> 8])),
+            sid, 0.05,
+        )
+
     def set_wheel_speed(self, sid: int, mm_s: float,
                         geom: kin.DriveGeometry | None = None,
                         speed_unit: float | None = None) -> None:

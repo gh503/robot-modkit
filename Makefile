@@ -1,11 +1,11 @@
 # robot-modkit：一条命令跑完所有"不依赖实物"的验证
 PY ?= .venv/bin/python
 
-.PHONY: check check-fast doctor cad firmware firmware-target software sim docs workbench demo preflight clean-out
+.PHONY: check check-fast doctor cad firmware firmware-target software sim docs components components-cad workbench demo preflight clean-out
 
-check: cad firmware software sim docs
+check: cad firmware software sim docs components
 
-check-fast: software sim docs
+check-fast: software sim docs components
 
 doctor:
 	$(PY) tools/doctor.py
@@ -42,6 +42,21 @@ docs:
 	$(PY) tools/linkcheck.py .
 	$(PY) tools/consistency.py
 	$(PY) tools/traceability.py
+
+# 组件库：注册表自检 + 全部装配示例生成 plan/BOM/safety/预览
+# 输出在 cad/out/assemblies/（已 gitignore），不把派生物写回仓库。
+components:
+	cd software && ../$(PY) -m modkit.cli components check
+	cd software && for f in ../assemblies/*.json; do \
+		../$(PY) -m modkit.cli assemble plan "$$f" \
+			--out "../cad/out/assemblies/$$(basename $$f .json)" >/dev/null || exit 1; \
+	done
+	@echo "装配示例：$$(ls assemblies/*.json | wc -l) 个 PASS；输出 cad/out/assemblies"
+
+# 参数化组件 CAD（36 个，含参考包围盒）；比 make cad 轻，可按需跑
+components-cad:
+	cd cad && ../$(PY) component_cad.py
+
 
 preflight:
 	cd software && ../$(PY) -m modkit.cli --sim preflight --expect 1,2,3,4,5,6 --write-limits

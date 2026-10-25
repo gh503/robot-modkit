@@ -1,0 +1,27 @@
+{
+  "name": "modkit-m1-standard",
+  "description": "标准 M1：240×200 差速底盘 + 3 关节 + 40mm 夹爪；四自由度（含夹爪）。",
+  "payload_g": 0,
+  "max_accel_m_s2": 0.5,
+  "components": [
+    {"id": "chassis", "type": "frame.chassis_240"},
+    {"id": "drive_l", "type": "drive.wheel_65", "parent": "chassis", "port": "drive_left", "servo_id": 5},
+    {"id": "drive_r", "type": "drive.wheel_65", "parent": "chassis", "port": "drive_right", "servo_id": 6},
+    {"id": "caster_f", "type": "drive.caster", "parent": "chassis", "port": "caster_front"},
+    {"id": "caster_r", "type": "drive.caster", "parent": "chassis", "port": "caster_rear"},
+    {"id": "esp32", "type": "electronics.esp32", "parent": "chassis", "port": "top", "at": [60, -60]},
+    {"id": "buck", "type": "electronics.buck_5v", "parent": "chassis", "port": "top", "at": [80, -20]},
+    {"id": "pwr", "type": "power.adapter_12v5a", "parent": "chassis", "port": "top", "at": [-60, -60]},
+    {"id": "estop", "type": "power.estop", "parent": "chassis", "port": "top", "at": [-60, 60]},
+
+    {"id": "yaw", "type": "joint.yaw", "parent": "chassis", "port": "top", "at": [20, 0], "servo_id": 1},
+    {"id": "a1", "type": "adapter.disc_grid", "parent": "yaw", "port": "out"},
+    {"id": "shoulder", "type": "joint.pitch", "parent": "a1", "port": "out", "servo_id": 2},
+    {"id": "a2", "type": "adapter.disc_grid", "parent": "shoulder", "port": "out"},
+    {"id": "upper", "type": "link.beam_100", "parent": "a2", "port": "out"},
+    {"id": "elbow", "type": "joint.elbow", "parent": "upper", "port": "out", "servo_id": 3},
+    {"id": "a3", "type": "adapter.disc_grid", "parent": "elbow", "port": "out"},
+    {"id": "fore", "type": "link.beam_60", "parent": "a3", "port": "out"},
+    {"id": "gripper", "type": "tool.gripper_40", "parent": "fore", "port": "out", "servo_id": 4}
+  ]
+}

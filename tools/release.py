@@ -43,12 +43,17 @@ def collect() -> dict[str, list[pathlib.Path]]:
     prod += sorted((ROOT / "docs" / "drawings").glob("*.pdf"))
     prod += sorted((ROOT / "docs" / "images").glob("*.png"))
     prod += sorted((ROOT / "hardware").glob("*.json"))
+    prod += sorted((ROOT / "assemblies").glob("*.json"))
     prod += sorted((ROOT / "tools").glob("*.py"))
 
     cad_dir = ROOT / "cad" / "out"
     cad = [p for p in sorted(cad_dir.glob("*"))
            if p.suffix in (".step", ".stl") and p.name not in LEGACY_PLATES]
     cad += [cad_dir / "plan.json", cad_dir / "manufacturing.json"]
+    comp_dir = cad_dir / "components"
+    cad += sorted(comp_dir.glob("*.step"))
+    cad += sorted(comp_dir.glob("*.stl"))
+    cad += [comp_dir / "manifest.json"]
     cad = [p for p in cad if p.exists()]
 
     web = [p for p in sorted((ROOT / "web").rglob("*")) if p.is_file()]

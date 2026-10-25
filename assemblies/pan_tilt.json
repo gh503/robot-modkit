@@ -1,0 +1,15 @@
+{
+  "name":"pan-tilt",
+  "ignore_collision":[["yaw","pitch"]],
+  "components":[
+    {"id":"deck","type":"frame.deck_160x100"},
+    {"id":"mast","type":"frame.mast_100","parent":"deck","port":"top","at":[0,20]},
+    {"id":"yaw","type":"joint.yaw","parent":"mast","port":"top","servo_id":1},
+    {"id":"a1","type":"adapter.disc_grid","parent":"yaw","port":"out"},
+    {"id":"pitch","type":"joint.pitch","parent":"a1","port":"out","rot":[90,0,0],"servo_id":2},
+    {"id":"a2","type":"adapter.disc_grid","parent":"pitch","port":"out"},
+    {"id":"cam","type":"sensor.camera_usb","parent":"a2","port":"out"},
+    {"id":"pwr","type":"power.adapter_12v5a","offboard":true},
+    {"id":"esp32","type":"electronics.esp32","parent":"deck","port":"top","at":[-40,-20]}
+  ]
+}

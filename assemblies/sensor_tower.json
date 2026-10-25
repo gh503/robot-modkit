@@ -1,0 +1,15 @@
+{
+  "name":"sensor-tower",
+  "description":"200mm 立柱 + 相机/ToF/IMU；不装舵机的固定感知塔。",
+  "payload_g":0,
+  "components":[
+    {"id":"deck","type":"frame.deck_160x100"},
+    {"id":"mast","type":"frame.mast_200","parent":"deck","port":"top","at":[0,20]},
+    {"id":"cam","type":"sensor.camera_usb","parent":"mast","port":"top"},
+    {"id":"tof","type":"sensor.tof","parent":"deck","port":"top","at":[40,20]},
+    {"id":"imu","type":"sensor.imu","parent":"deck","port":"top","at":[-40,20]},
+    {"id":"esp32","type":"electronics.esp32","parent":"deck","port":"top","at":[-40,-20]},
+    {"id":"buck","type":"electronics.buck_5v","parent":"deck","port":"top","at":[40,-20]},
+    {"id":"pwr","type":"power.adapter_12v5a","offboard":true}
+  ]
+}

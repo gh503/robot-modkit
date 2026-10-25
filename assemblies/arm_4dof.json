@@ -1,0 +1,22 @@
+{
+  "name":"arm-4dof",
+  "description":"桌面 4 自由度臂：偏航/肩/肘/腕 + 夹爪；无底盘，验证长链装配与关节静载。",
+  "payload_g": 50,
+  "components":[
+    {"id":"deck","type":"frame.deck_160x100"},
+    {"id":"esp32","type":"electronics.esp32","parent":"deck","port":"top","at":[-40,-20]},
+    {"id":"pwr","type":"power.adapter_12v5a","offboard":true},
+    {"id":"yaw","type":"joint.yaw","parent":"deck","port":"top","at":[40,0],"servo_id":1},
+    {"id":"a1","type":"adapter.disc_grid","parent":"yaw","port":"out"},
+    {"id":"shoulder","type":"joint.pitch","parent":"a1","port":"out","servo_id":2},
+    {"id":"a2","type":"adapter.disc_grid","parent":"shoulder","port":"out"},
+    {"id":"upper","type":"link.beam_100","parent":"a2","port":"out"},
+    {"id":"elbow","type":"joint.elbow","parent":"upper","port":"out","servo_id":3},
+    {"id":"a3","type":"adapter.disc_grid","parent":"elbow","port":"out"},
+    {"id":"fore","type":"link.beam_60","parent":"a3","port":"out"},
+    {"id":"wrist","type":"joint.generic","parent":"fore","port":"out","servo_id":4,
+     "joint":{"name":"wrist","min":-90,"max":90,"max_step":45}},
+    {"id":"a4","type":"adapter.disc_grid","parent":"wrist","port":"out"},
+    {"id":"gripper","type":"tool.gripper_40","parent":"a4","port":"out","servo_id":5}
+  ]
+}

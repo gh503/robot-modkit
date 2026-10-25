@@ -1,0 +1,19 @@
+{
+  "name":"wide-gripper",
+  "description":"3 关节 + 70mm 宽口夹爪；验证大开口工具与 100g 载荷。",
+  "payload_g":100,
+  "components":[
+    {"id":"deck","type":"frame.deck_160x100"},
+    {"id":"esp32","type":"electronics.esp32","parent":"deck","port":"top","at":[-40,-20]},
+    {"id":"pwr","type":"power.adapter_12v5a","offboard":true},
+    {"id":"yaw","type":"joint.yaw","parent":"deck","port":"top","at":[40,0],"servo_id":1},
+    {"id":"a1","type":"adapter.disc_grid","parent":"yaw","port":"out"},
+    {"id":"shoulder","type":"joint.pitch","parent":"a1","port":"out","servo_id":2},
+    {"id":"a2","type":"adapter.disc_grid","parent":"shoulder","port":"out"},
+    {"id":"upper","type":"link.beam_100","parent":"a2","port":"out"},
+    {"id":"elbow","type":"joint.elbow","parent":"upper","port":"out","servo_id":3},
+    {"id":"a3","type":"adapter.disc_grid","parent":"elbow","port":"out"},
+    {"id":"fore","type":"link.beam_60","parent":"a3","port":"out"},
+    {"id":"gripper","type":"tool.gripper_70","parent":"fore","port":"out","servo_id":4}
+  ]
+}

@@ -25,6 +25,8 @@ from . import qc as qc
 from . import selftest as st
 from . import safety as sf
 from . import envelope as env
+from . import components as comps
+from . import assembly as asm
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -271,6 +273,114 @@ def cmd_preflight(args) -> int:
         out.write_text(json.dumps(rep.as_dict(), ensure_ascii=False, indent=2) + "\n",
                        encoding="utf-8")
         print(f"报告：{out}")
+    if args.json:
+        print(json.dumps(rep.as_dict(), ensure_ascii=False, indent=2))
+    return 0 if rep.ok else 2
+
+
+def cmd_components(args) -> int:
+    """组件库：列出/查看/自检；不接硬件。"""
+    action = args.action or "list"
+    if action == "check":
+        bad = comps.registry_problems()
+        if bad:
+            for x in bad:
+                print(f"✗ {x}")
+            print(f"组件库：{len(bad)} 个问题 / {len(comps.COMPONENTS)} 个组件")
+            return 1
+        print(f"组件库：{len(comps.COMPONENTS)} 个组件，接口自检 PASS")
+        return 0
+    if action == "show":
+        if not args.id:
+            print("用法：modkit components show <id>")
+            return 2
+        try:
+            c = comps.get(args.id)
+        except KeyError as e:
+            print(str(e))
+            return 2
+        if args.json:
+            print(json.dumps(c.as_dict(), ensure_ascii=False, indent=2))
+            return 0
+        print(f"{c.id}  {c.name}  [{c.category}/{c.status}]")
+        print(f"  {c.description}")
+        print(f"  尺寸 {c.dims[0]:g}×{c.dims[1]:g}×{c.dims[2]:g}mm  "
+              f"质量 {c.mass_g:g}g  BOM ¥{c.cost_cny:g}")
+        print("  端口：")
+        for p_ in c.ports:
+            grid = f" grid={p_.grid[0]:g}×{p_.grid[1]:g}" if p_.grid else ""
+            print(f"    {p_.name:<10} {p_.kind:<14} {p_.gender:<7}{grid}")
+        if c.joint:
+            print(f"  关节：{c.joint.name}  [{c.joint.min_value:g}, {c.joint.max_value:g}] "
+                  f"{c.joint.unit}  mode={c.joint.mode}")
+        if c.tool:
+            print(f"  工具：{c.tool.kind}  最大载荷 {c.tool.max_payload_g:g}g")
+        return 0
+
+    rows = comps.by_category(args.category)
+    if args.json:
+        print(json.dumps([c.as_dict() for c in rows], ensure_ascii=False, indent=2))
+        return 0
+    print(f"{'ID':<28} {'类别':<12} {'状态':<9} {'质量g':>7} {'¥':>5}  名称")
+    for c in rows:
+        print(f"{c.id:<28} {c.category:<12} {c.status:<9} {c.mass_g:7.0f} {c.cost_cny:5.0f}  {c.name}")
+    print(f"\n共 {len(rows)} / {len(comps.COMPONENTS)} 个组件")
+    return 0
+
+
+def cmd_assemble(args) -> int:
+    """装配图：校验/生成 BOM/安全配置/预览。"""
+    try:
+        name, inst, payload, accel, strict, raw = asm.load(args.file)
+    except asm.AssemblyError as e:
+        print(f"装配读取失败：{e}")
+        return 2
+    if args.payload is not None:
+        payload = args.payload
+    if args.max_accel is not None:
+        accel = args.max_accel
+    if args.strict:
+        strict = True
+    rep = asm.validate(name, inst, payload, accel, strict, raw)
+
+    if args.action == "preview":
+        if not args.out:
+            print("用法：assemble preview <file> --out preview.svg")
+            return 2
+        out = pathlib.Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(asm.to_svg(rep), encoding="utf-8")
+        print(f"预览：{out}  ({'PASS' if rep.ok else 'BLOCK'})")
+        return 0 if rep.ok else 2
+
+    if args.action == "plan":
+        if not args.out:
+            print("用法：assemble plan <file> --out out/")
+            return 2
+        paths = asm.write_plan(rep, args.out)
+        print(f"装配：{name}  {'PASS' if rep.ok else 'BLOCK'}  "
+              f"{len(rep.instances)} 组件 / {len(rep.servo_ids)} 舵机 / "
+              f"{rep.total_mass_g:.0f}g / ¥{rep.total_cost_cny:.0f}")
+        for k, v in paths.items():
+            print(f"  {k:<12} {v}")
+        for x in rep.issues:
+            if x.level == "error":
+                print(f"  ✗ {x.message}")
+        return 0 if rep.ok else 2
+
+    # validate（默认）
+    print(f"装配：{name}  {'PASS' if rep.ok else 'BLOCK'}  "
+          f"{len(rep.instances)} 组件 / {len(rep.servo_ids)} 舵机 / "
+          f"{rep.total_mass_g:.0f}g / ¥{rep.total_cost_cny:.0f}")
+    for x in rep.issues:
+        mark = "✗" if x.level == "error" else ("!" if x.level == "warn" else "·")
+        print(f"  {mark} [{x.code}] {x.instance or '-'}: {x.message}")
+    if rep.power:
+        print(f"  电源：规划 {rep.power.planning_a:.2f}A / 峰值 {rep.power.peak_a:.2f}A "
+              f"/ 电源 {rep.power.supply_a:.1f}A")
+    if rep.stability:
+        m = rep.stability.margin_mm
+        print(f"  重心边距：{'—' if m is None else f'{m:.1f}mm'}")
     if args.json:
         print(json.dumps(rep.as_dict(), ensure_ascii=False, indent=2))
     return 0 if rep.ok else 2
@@ -938,6 +1048,24 @@ def main(argv: list[str] | None = None) -> int:
     pf.add_argument("--save-policy", default="", help="保存当前安全策略 JSON")
     pf.add_argument("--json", action="store_true", help="同时打印 JSON")
     pf.set_defaults(func=cmd_preflight)
+
+    co = sub.add_parser("components", help="组件库：列出/查看/接口自检")
+    co.add_argument("action", nargs="?", choices=("list", "show", "check"), default="list")
+    co.add_argument("id", nargs="?")
+    co.add_argument("--category", choices=comps.CATEGORIES)
+    co.add_argument("--json", action="store_true")
+    co.set_defaults(func=cmd_components)
+
+    ab = sub.add_parser("assemble", help="装配图：校验/BOM/安全配置/预览")
+    ab.add_argument("action", choices=("validate", "plan", "preview"), default="validate",
+                    nargs="?")
+    ab.add_argument("file")
+    ab.add_argument("--out", help="plan 输出目录，或 preview 的 .svg 路径")
+    ab.add_argument("--payload", type=float, help="工具端载荷 g（默认用装配文件）")
+    ab.add_argument("--max-accel", type=float, help="设计加速度 m/s²，用于稳定性余量")
+    ab.add_argument("--strict", action="store_true", help="把包围盒重叠升级为错误")
+    ab.add_argument("--json", action="store_true")
+    ab.set_defaults(func=cmd_assemble)
 
     q = sub.add_parser("qc", help="生产记录：序列号/质检/汇总")
     q.add_argument("--action", required=True, choices=["new", "show", "validate", "summary"])

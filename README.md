@@ -8,6 +8,10 @@
 > 一台"接口先定、形态后长"的机器人：**差速底盘 + 4 自由度臂 + 夹爪**，
 > 目标不是演示视频，而是**能独立完成物理任务**（导航到指定位置 → 识别目标 → 抓取 → 放到另一处）。
 >
+> v1.5 起，底盘/关节/连杆/夹爪/传感器是**有端口和数据的组件**：换构型不改代码，
+> 用 JSON 拼装后生成 BOM、功率、重心和 `safety.json`。见
+> [docs/65-组件库与自由组装.md](docs/65-组件库与自由组装.md)。
+>
 > 面向新手：从零基础到能自己改图纸、改固件、加传感器，手册在 [docs/07-小白操作手册.md](docs/07-小白操作手册.md)。
 
 ![关节模块装配预览](docs/images/assembly.png)
@@ -35,7 +39,7 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 | 生产：检验/追溯/包装 | ✅ 可用 | 27 件逐件检验表；20 条需求追溯（16 已验证）；箱规与跌落判据 |
 | 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 单测 + **5 个在环场景**（119 断言） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **234 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架/安全预检）；无硬件可跑全流程 |
+| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **261 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架/安全预检/组件装配）；无硬件可跑全流程 |
 | 仿真：三维视图 + **数字孪生** | ✅ 可用 | 16 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
 | 打印校准件 + 四张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_01..04.stl`（27 件）、jigs 三件套 |
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
@@ -46,6 +50,7 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 | **v1.2 交付硬化** | ✅ 已验收 | bring-up 证据、协议异常流、发布校验和；见 [docs/60](docs/60-v1.2验收.md) |
 | **v1.3 产品级 UI** | ✅ 已验收 | 工作台/查看器重做、键盘与安全确认、移动端；见 [docs/61](docs/61-v1.3-UI优化.md) |
 | **v1.4 预硬件安全** | ✅ 离线验收 | 软限位/单步/温度/电压/故障联锁、几何+路径包络、`preflight`、到货执行单；物理仍 0/5；见 [docs/64](docs/64-v1.4-预硬件验收.md) |
+| **v1.5 组件库** | ✅ 离线验收 | 36 个组件 + 6 个装配示例；BOM/功率/重心/静载/安全配置；`components`/`assemble`；物理仍 0/5；见 [docs/66](docs/66-v1.5验收.md) |
 
 > 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
 
@@ -71,6 +76,8 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 | **运动预检/联锁** | `modkit --sim preflight` 或 `modkit --port ... preflight --write-limits`；见 [docs/63](docs/63-硬件到货执行单.md) |
 | **离线姿态包络** | `modkit envelope --x 100 --y 0 --z 120`；桌面/底座/折叠越界返回 2 |
 | **物理约束台账** | 逐项覆盖与缺口见 [docs/62](docs/62-物理约束台账.md) |
+| **自由拼机器人** | `modkit components` 看库；`modkit assemble plan assemblies/m1.json --out out/`；见 [docs/65](docs/65-组件库与自由组装.md) |
+| **组件 CAD 批导出** | `make components-cad` → `cad/out/components/`（36 个 STEP/STL + manifest） |
 | 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
 | 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
 | 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |
@@ -82,7 +89,7 @@ fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不�
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor                                          # 环境自检
-make check-fast                                      # 212 项测试 + 16 场景
+make check-fast                                      # 261 项测试 + 16 场景 + 6 个装配示例
 ./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点
 ./.venv/bin/python -m modkit.cli --sim demo          # 逐关节摆动
@@ -152,12 +159,13 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 ## 版本
 
-当前 **v1.4.1**：预硬件安全与调试收口（含路径采样）——Python/查看器双侧软限位、单步、温度/电压/故障
-联锁，桌面/底座/折叠几何包络，`preflight` 与 `envelope` 命令，标定文件覆盖，
-以及 D0–D14 到货执行单。实物未采购/未装配，物理闸门 **0/5**。边界见
+当前 **v1.5.0**：组件库与自由组装——36 个有端口/质量/功率/关节数据的模块，
+6 个装配示例，`components`/`assemble` 命令，BOM/功率/重心/静载/`safety.json` 生成，
+以及 36 个组件的参数化 CAD 导出。实物未采购/未装配，物理闸门 **0/5**。边界见
 [docs/52](docs/52-v1.0完成声明.md)、[58](docs/58-v1.1验收.md)、[60](docs/60-v1.2验收.md)、
-[61](docs/61-v1.3-UI优化.md)、[64](docs/64-v1.4-预硬件验收.md)，逐项约束见
-[docs/62](docs/62-物理约束台账.md)，完整变更见 [CHANGELOG.md](CHANGELOG.md)。
+[61](docs/61-v1.3-UI优化.md)、[64](docs/64-v1.4-预硬件验收.md)、
+[66](docs/66-v1.5验收.md)，逐项约束见 [docs/62](docs/62-物理约束台账.md)，
+完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可
 

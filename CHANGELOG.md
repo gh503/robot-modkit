@@ -1,5 +1,28 @@
 # 更新日志
 
+## v1.5.0 — 2026-10-25
+
+### 组件库与自由组装（无硬件）
+
+- **36 个组件 / 9 类**：底盘、甲板/立柱、关节、方梁、转接板、驱动轮/万向轮、
+  夹爪/笔/吸盘、相机/ToF/IMU/循迹、ESP32/降压/配电、电源/电池/急停。
+  每个组件带端口、质量、成本、BOM、功率、关节/工具元数据与证据等级。
+- **统一端口**：20mm 网格、舵机输出盘、工具法兰、舵机总线、12V/5V 电源；
+  4×4 刚体变换 + 公母/网格配对。
+- **装配求解/校验** `modkit assemble`：JSON 装配图、端口求解、网格 20mm、
+  端口复用、环、舵机 ID/控制器容量、BOM、功率、重心/支撑、关节静载、
+  AABB 碰撞、`safety.json` + 标定模板。
+- **6 个示例**：`m1`、`mini_rover`、`pan_tilt`、`arm_4dof`、`wide_gripper`、
+  `sensor_tower`；`make components` 全部 PASS。
+- **参数化 CAD**：`cad/component_cad.py` 导出 36 个 STEP/STL + manifest，
+  `make components-cad`；结构件包围盒误差 ≤1mm。
+- **CLI**：`modkit components [list|show|check]`、
+  `modkit assemble [validate|plan|preview]`。
+- 测试 234 → **261**；物理闸门仍 **0/5**：没有采购/打印/装配/上电/标定。
+- 边界：只校验装配零位；碰撞是 AABB，不是网格；静载/功率/质量均为保守估算；
+  `m1.json` 是组件库塔式装配，不等同原 M1 CAD 水平关节臂。
+
+
 ## v1.4.1 — 2026-10-25
 
 ### 路径级安全（无硬件）

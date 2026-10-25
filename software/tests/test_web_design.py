@@ -34,6 +34,7 @@ for (const f of ['web/data/components.js', 'web/data/assemblies.js']) {
 }
 global.window = ctx.window;
 const A = require('./web/assembly-core.js');
+const B = require('./web/budget-core.js')(A, window.MODKIT_COMPONENTS);
 const out = (() => { %s })();
 console.log(JSON.stringify(out));
 """ % script
@@ -47,6 +48,7 @@ def test_data_files_exist():
     assert (DATA / "components.js").is_file()
     assert (DATA / "assemblies.js").is_file()
     assert (WEB / "assembly-core.js").is_file()
+    assert (WEB / "budget-core.js").is_file()
     assert (WEB / "designer.js").is_file()
     assert (WEB / "design.html").is_file()
     assert len(list((WEB / "models").glob("*.step"))) == 36
@@ -90,6 +92,28 @@ def test_budget_preset_under_1000():
     assert out["budget"] == 1000
     assert out["n"] == 15
     assert out["warnings"] >= 1
+
+
+def test_budget_optimizer_finds_two_joint_variant():
+    out = run_core("""
+      const base = window.MODKIT_ASSEMBLIES.m1;
+      const cands = B.suggest(base);
+      const c = cands.find(x => x.id === 'drop-elbow');
+      if (!c) return { found: false };
+      const r = A.validate(c.assembly);
+      return { found: true, cost: c.cost, saving: c.saving, n: c.components,
+               joints: c.joints, ok: r.ok,
+               old_names: base.components.map(x => x.id),
+               new_names: c.assembly.components.map(x => x.id) };
+    """)
+    assert out["found"], out
+    assert out["ok"]
+    assert out["n"] == 15
+    assert out["joints"] == 3
+    assert abs(out["cost"] - 968.0) < 0.2
+    assert abs(out["saving"] - 159.4) < 0.2
+    assert "elbow" in out["old_names"] and "elbow" not in out["new_names"]
+    assert "gripper" in out["new_names"]
 
 
 def test_tool_dual_mount_allows_swap():

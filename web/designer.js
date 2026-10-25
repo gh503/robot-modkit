@@ -21,7 +21,7 @@
   };
   var state = {
     assembly: null, report: null, selected: null, replaceMode: false,
-    angles: {}, playing: false, playStart: 0, speed: 1, dirty: false
+    angles: {}, playing: false, playStart: 0, speed: 1, dirty: false, optimizer: null
   };
   var view = {
     scene: null, camera: null, renderer: null, controls: null, root: null,
@@ -29,7 +29,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.7.0";
+  var STUDIO_VERSION = "1.8.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -556,6 +556,7 @@
   function revalidate() {
     if (!state.assembly) return;
     if (state.assembly.budget_cny == null) state.assembly.budget_cny = 1000;
+    state.optimizer = null;
     // 保持选择有效
     if (state.selected && !rawById(state.selected)) state.selected = state.assembly.components[0] ? state.assembly.components[0].id : null;
     try {
@@ -743,6 +744,7 @@
     renderMetrics();
     renderIssues();
     renderBOM();
+    renderOptimizer();
     renderJoints();
     renderExportState();
     updateHud();
@@ -832,6 +834,72 @@
     $("bom-note").innerHTML = '合计 <b>¥' + Math.round(r.totalCost) + '</b>、约 <b>' + Math.round(r.totalMass) + 'g</b>；预算 <b>¥' + Math.round(budget) + '</b>，' +
       (over ? '<b style="color:var(--bad)">超 ¥' + Math.round(r.totalCost - budget) + '</b>' : '<b style="color:var(--ok)">余 ¥' + Math.round(budget - r.totalCost) + '</b>') +
       '。这是组件库保守估算，不是供应商报价；打印件/线材/紧固件按 BOM 行计。';
+  }
+
+  function renderOptimizer() {
+    var host = $("optimizer"), note = $("optimizer-note");
+    if (!host) return;
+    var r = state.report;
+    if (!r) { host.innerHTML = ""; if (note) note.textContent = ""; return; }
+    var budget = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
+    var over = r.totalCost > budget;
+    if (note) note.textContent = over
+      ? "当前超预算 ¥" + Math.round(r.totalCost - budget) + "；优先看高节省候选。"
+      : "当前在预算内；候选用于进一步减重/降本。";
+    if (!state.optimizer) {
+      host.innerHTML = '<div class="opt-empty">点“生成降本候选”，会基于当前装配逐个试算并重新校验。</div>';
+      return;
+    }
+    if (!state.optimizer.length) {
+      host.innerHTML = '<div class="opt-empty">没有找到既省钱又能通过校验的单步候选。可先换更小的工具/底盘，或接受当前预算。</div>';
+      return;
+    }
+    host.innerHTML = state.optimizer.map(function (c) {
+      var risk = c.risk || "medium";
+      return '<div class="opt-card ' + esc(risk) + '">' +
+        '<div class="opt-top"><b>' + esc(c.title) + '</b><span class="opt-save">省 ¥' + Math.round(c.saving) + '</span></div>' +
+        '<p>' + esc(c.tradeoff) + '</p>' +
+        '<div class="opt-meta"><span>¥' + Math.round(c.cost) + ' · ' + c.components + ' 组件 · ' + c.joints + ' 关节</span>' +
+        '<button class="btn" data-opt="' + esc(c.id) + '">应用</button></div></div>';
+    }).join("");
+    Array.prototype.forEach.call(host.querySelectorAll("button[data-opt]"), function (b) {
+      b.addEventListener("click", function () { applyOptimizer(b.getAttribute("data-opt")); });
+    });
+  }
+
+  function runOptimizer() {
+    if (!state.assembly || !state.report) return;
+    if (!window.MODKIT_BUDGET) { toast("预算优化器未加载", "err"); return; }
+    try {
+      state.optimizer = window.MODKIT_BUDGET.suggest(state.assembly, { max: 8 });
+    } catch (e) {
+      state.optimizer = [];
+      toast("优化计算失败：" + e.message, "err");
+    }
+    renderOptimizer();
+    toast(state.optimizer.length ? ("生成 " + state.optimizer.length + " 个可验证候选") : "没有可验证的降本候选", state.optimizer.length ? "ok" : "");
+  }
+
+  function applyOptimizer(id) {
+    if (!state.assembly || !state.optimizer) return;
+    var c = null;
+    state.optimizer.forEach(function (x) { if (x.id === id) c = x; });
+    if (!c) return;
+    var before = state.report ? state.report.totalCost : 0;
+    var next = window.MODKIT_BUDGET.apply(state.assembly, c);
+    if (!next) { toast("候选已失效，请重新生成", "err"); return; }
+    next.name = (next.name || "design").replace(/-opt$/, "") + "-opt";
+    next.description = "预算优化：应用「" + c.title + "」。" + (next.description || "");
+    state.assembly = next;
+    state.optimizer = null;
+    state.angles = {}; state.playing = false; state.fitPending = true;
+    if (!next.components.some(function (x) { return x.id === state.selected; })) {
+      state.selected = next.components.length ? next.components[0].id : null;
+    }
+    revalidate();
+    state.optimizer = window.MODKIT_BUDGET.suggest(state.assembly, { max: 8 });
+    renderAll();
+    toast("已应用：" + c.title + "，省 ¥" + Math.round(before - (state.report ? state.report.totalCost : before)), "ok");
   }
 
   function renderJoints() {
@@ -1097,6 +1165,7 @@
     ["build", "check", "bom", "export"].forEach(function (k) {
       $("tab-btn-" + k).addEventListener("click", function () { showTab(k); });
     });
+    $("optimize").addEventListener("click", runOptimizer);
     $("export-json").addEventListener("click", exportJSON);
     $("export-csv").addEventListener("click", exportCSV);
     $("export-stl").addEventListener("click", exportSTL);
@@ -1123,6 +1192,7 @@
     state: state, view: view, addComponent: addComponent, replaceSelected: replaceSelected,
     deleteSelected: deleteSelected, revalidate: revalidate, loadPreset: loadPreset,
     applyMotion: applyMotion, exportSTL: exportSTL, exportJSON: exportJSON,
-    exportStepZip: exportStepZip, fitCamera: fitCamera
+    exportStepZip: exportStepZip, fitCamera: fitCamera,
+    optimize: runOptimizer, applyOptimization: applyOptimizer
   };
 })();

@@ -66,3 +66,33 @@ def test_angle_roundtrip():
 def test_sync_write_requires_equal_lengths():
     with pytest.raises(p.ProtocolError):
         p.encode_sync_write(0x2A, {1: b"\x00\x08", 2: b"\x00\x08\x00"})
+
+
+def _resp(sid, params):
+    body = bytes([sid, len(params) + 2, 0]) + params
+    return b"\xff\xff" + body + bytes([p.checksum(body)])
+
+
+def test_decode_all_sticky_packets():
+    a = bytes.fromhex("FF FF 01 04 00 18 05 DD")
+    b = _resp(2, bytes([0x20, 0x05]))
+    frames, rest = p.decode_all(a + b)
+    assert [f.id for f in frames] == [1, 2]
+    assert rest == b""
+
+
+def test_decode_all_bad_checksum_then_good():
+    bad = bytearray.fromhex("FF FF 01 04 00 18 05 DD")
+    bad[-1] ^= 0xFF
+    good = _resp(2, bytes([0x20, 0x05]))
+    frames, rest = p.decode_all(bytes(bad) + good)
+    assert [f.id for f in frames] == [2]
+    assert rest == b""
+
+
+def test_decode_all_truncated_tail_kept():
+    a = bytes.fromhex("FF FF 01 04 00 18 05 DD")
+    tail = bytes.fromhex("FF FF 02 04 00")
+    frames, rest = p.decode_all(a + tail)
+    assert [f.id for f in frames] == [1]
+    assert rest == tail

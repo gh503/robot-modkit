@@ -140,3 +140,24 @@ def status_bits(status: int) -> list[str]:
     """舵机状态字节 → 人类可读的故障列表（位定义见 STS 内存表 §3.2）。"""
     names = {0: "电压", 1: "磁编码", 2: "温度", 3: "电流", 5: "负载"}
     return [f"{n}异常" for bit, n in names.items() if status & (1 << bit)]
+
+def decode_all(buf: bytes, limit: int = 1024) -> tuple[list[Frame], bytes]:
+    """从字节流里解出所有完整帧，返回 (frames, 剩余未完整字节)。
+
+    坏校验/垃圾字节只丢 1 字节再找下一个 FF FF，不会把后面的好帧一起丢掉。
+    """
+    frames: list[Frame] = []
+    rest = bytes(buf)
+    for _ in range(limit):
+        if not rest:
+            break
+        frame, used = decode(rest)
+        if used == 0:
+            break
+        if used < 0:
+            rest = rest[1:]
+            continue
+        if frame is not None:
+            frames.append(frame)
+        rest = rest[used:]
+    return frames, rest

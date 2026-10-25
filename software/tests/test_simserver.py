@@ -1,6 +1,7 @@
 """工作台后端：HTTP 状态/步进/控制/复位/故障注入。"""
 
 import json
+import pathlib
 import threading
 import urllib.request
 
@@ -127,3 +128,32 @@ def test_fault_options_apply_live(server):
     assert session.sim.bus_latency == pytest.approx(0.01)
     assert session.options.camera_noise == pytest.approx(5)
     assert session.options.mu == pytest.approx(0.1)
+
+
+def test_scenario_source_save_run(server, tmp_path):
+    base, _ = server
+    r = json.loads(get(base + "/api/scenario/source?name=servo_hold.json"))
+    assert "actions" in r["json"]
+    name = "__test_editor.json"
+    post(base + "/api/scenario/save", {
+        "name": name,
+        "scene": {"name": "editor", "actions": [{"cmd": "wait", "seconds": 0.1}]}})
+    try:
+        out = post(base + "/api/scenario/run", {
+            "scene": {"actions": [{"cmd": "wait", "seconds": 0.1}]}})
+        assert out["ok"] and len(out["trace"]) >= 1
+    finally:
+        (pathlib.Path(__file__).resolve().parents[2] / "sim" / "scenarios" / name).unlink(
+            missing_ok=True)
+
+
+def test_scenario_source_traversal_rejected(server):
+    base, _ = server
+    with pytest.raises(Exception):
+        get(base + "/api/scenario/source?name=../hardware/bom.json")
+
+
+def test_vendor_three_served(server):
+    base, _ = server
+    data = get(base + "/vendor/three.min.js")
+    assert len(data) > 10_000

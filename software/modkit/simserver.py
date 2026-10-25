@@ -9,11 +9,12 @@ from __future__ import annotations
 import io
 import json
 import math
+import pathlib
 import threading
 import webbrowser
 from dataclasses import asdict, dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from pathlib import Path
 
 from . import contact as ct
@@ -262,13 +263,39 @@ def list_scenarios() -> list[dict]:
     return out
 
 
-def run_scenario_file(name: str) -> dict:
+def scenario_path(name: str) -> pathlib.Path:
+    if (not name or name != pathlib.Path(name).name or
+            not name.endswith(".json") or name.startswith(".")):
+        raise FileNotFoundError(name)
     path = (_SCEN / name).resolve()
-    if path.parent != _SCEN.resolve() or path.suffix != ".json" or not path.exists():
+    if path.parent != _SCEN.resolve():
+        raise FileNotFoundError(name)
+    return path
+
+
+def run_scenario_file(name: str) -> dict:
+    path = scenario_path(name)
+    if not path.exists():
         raise FileNotFoundError(name)
     result = sn.run_scenario(sn.load(path))
     result["file"] = name
     return result
+
+
+def read_scenario_source(name: str) -> dict:
+    path = scenario_path(name)
+    if not path.exists():
+        raise FileNotFoundError(name)
+    return {"file": name, "json": path.read_text(encoding="utf-8")}
+
+
+def save_scenario(name: str, scene: dict) -> dict:
+    path = scenario_path(name)
+    if not isinstance(scene, dict) or "actions" not in scene:
+        raise ValueError("场景必须是含 actions 的 JSON 对象")
+    path.write_text(json.dumps(scene, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8")
+    return {"file": name, "saved": True}
 
 
 def make_handler(session: SimSession):
@@ -291,6 +318,10 @@ def make_handler(session: SimSession):
             path = urlsplit(self.path).path
             if path in ("/", "/index.html"):
                 self._send(200, _HTML.read_bytes(), "text/html; charset=utf-8")
+            elif path == "/vendor/three.min.js":
+                data = (pathlib.Path(__file__).resolve().parents[2] /
+                        "web" / "vendor" / "three.min.js").read_bytes()
+                self._send(200, data, "text/javascript; charset=utf-8")
             elif path.startswith("/api/state"):
                 self._json(session.state())
             elif path.startswith("/api/camera"):
@@ -303,6 +334,9 @@ def make_handler(session: SimSession):
                 self.wfile.write(data)
             elif path.startswith("/api/options"):
                 self._json(session.options.as_dict())
+            elif path.startswith("/api/scenario/source"):
+                q = parse_qs(urlsplit(self.path).query)
+                self._json(read_scenario_source(q.get("name", [""])[0]))
             elif path.startswith("/api/scenarios"):
                 self._json(list_scenarios())
             else:
@@ -325,6 +359,15 @@ def make_handler(session: SimSession):
                     session.reset(SimOptions(**data) if data else None)
                 elif path == "/api/goto":
                     session.control({"joints": data.get("joints", {})})
+                elif path == "/api/scenario/save":
+                    self._json(save_scenario(data.get("name", ""), data.get("scene", {})))
+                    return
+                elif path == "/api/scenario/run":
+                    scene = data.get("scene", {})
+                    r = sn.run_scenario(scene)
+                    r["file"] = data.get("name", "editor")
+                    self._json(r)
+                    return
                 elif path == "/api/scenario":
                     self._json(run_scenario_file(data.get("file", "")))
                     return

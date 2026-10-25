@@ -33,8 +33,13 @@
   .card h2{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;
            letter-spacing:.8px;text-transform:uppercase}
   canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--panel2)}
-  .views{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .views{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  #view3d{width:100%;height:auto;border-radius:8px;background:#0b1018;display:block}
   #cam{width:100%;height:auto;border-radius:8px;background:var(--panel2);display:block}
+  #sc-text{width:100%;height:120px;margin-top:8px;background:#0f141c;color:#cfe3ff;
+    border:1px solid #223041;border-radius:7px;padding:8px;font:12px/1.4 ui-monospace,monospace;
+    resize:vertical;display:none}
+  #sc-text.show{display:block}
   @media(max-width:1200px){.views{grid-template-columns:1fr 1fr}}
   @media(max-width:1050px){main{grid-template-columns:1fr}.views{grid-template-columns:1fr}}
   .row{display:flex;align-items:center;gap:10px;margin:9px 0}
@@ -75,6 +80,8 @@
         <canvas id="top" width="560" height="430"></canvas></div>
       <div class="card"><h2>侧视图 · 臂与夹爪</h2>
         <canvas id="side" width="560" height="430"></canvas></div>
+      <div class="card"><h2>3D 实时</h2>
+        <canvas id="view3d" width="560" height="420"></canvas></div>
       <div class="card"><h2>相机 · 检测框</h2>
         <img id="cam" alt="相机画面">
         <div class="row"><button id="camtoggle">切换车载</button>
@@ -151,6 +158,10 @@
       <div class="row"><button id="runsc">运行场景</button>
         <button id="export">导出 JSON</button>
         <span id="sc-res" class="val" style="width:auto;flex:1;text-align:left"></span></div>
+      <div class="row"><button id="edit">编辑</button>
+        <button id="runedit">运行编辑</button>
+        <button id="save">保存</button></div>
+      <textarea id="sc-text" spellcheck="false" placeholder="选中场景后点「编辑」"></textarea>
       <div id="sc-log" class="log"></div>
     </div>
     <div class="group"><h3>日志</h3><div id="log" class="log"></div></div>
@@ -158,11 +169,13 @@
 </main>
 <footer>空格 运行/暂停 · → 单步 · 所有数值来自 HardwareSim，不含实物</footer>
 
+<script src="/vendor/three.min.js"></script>
 <script>
 (function(){
   "use strict";
   const $ = id => document.getElementById(id);
   const st = {s:null, running:false, busy:false, last:0, replay:null};
+  window.addEventListener("error", e=>log("JS 错误："+(e.message||e.type)));
   const logEl = $("log");
   function log(msg){
     const t = st.s ? st.s.time.toFixed(1) : "0.0";
@@ -245,6 +258,7 @@
   };
   setInterval(()=>{ if(!document.hidden) refreshCam(); }, 400);
   document.addEventListener("keydown", e=>{
+    if(e.target.tagName==="TEXTAREA" || e.target.tagName==="INPUT") return;
     if(e.code==="Space"){ e.preventDefault(); togglePlay(); }
     if(e.code==="ArrowRight"){ e.preventDefault(); step(0.05); }
   });
@@ -401,21 +415,120 @@
       sel.innerHTML = list.map(x=>`<option value="${x.file}">${x.file} · ${x.name}</option>`).join("");
     }catch(e){ log("场景列表失败："+e.message); }
   }
+  function showResult(r, label){
+    st.running = false;
+    st.replay = {trace:r.trace, i:0, playing:false, last:0, log:r.log, ok:r.ok};
+    syncPlay();
+    $("sc-res").textContent = r.ok ? "PASS" : "FAIL";
+    $("sc-res").style.color = r.ok ? "var(--green)" : "var(--red)";
+    $("sc-log").textContent = (r.log||[]).slice(-8).join("\n");
+    renderReplay(); log(`载入 ${label}：${r.trace.length} 帧`);
+  }
   async function runScenario(){
     const file = $("scenario").value; if(!file) return;
     $("sc-res").textContent = "运行中…"; $("sc-res").className = "val";
     $("sc-log").textContent = "";
-    try{
-      const r = await api("/api/scenario", {file});
-      st.running = false; syncPlay();
-      st.replay = {trace:r.trace, i:0, playing:false, last:0, log:r.log, ok:r.ok};
-      syncPlay();
-      $("sc-res").textContent = r.ok ? "PASS" : "FAIL";
-      $("sc-res").style.color = r.ok ? "var(--green)" : "var(--red)";
-      $("sc-log").textContent = (r.log||[]).slice(-8).join("\n");
-      renderReplay(); log(`载入 ${file}：${r.trace.length} 帧`);
-    }catch(e){ $("sc-res").textContent = "错误"; $("sc-res").style.color="var(--red)";
+    try{ showResult(await api("/api/scenario", {file}), file); }
+    catch(e){ $("sc-res").textContent = "错误"; $("sc-res").style.color="var(--red)";
       log("场景失败："+e.message); }
+  }
+  $("edit").onclick = async ()=>{
+    const file = $("scenario").value; if(!file) return;
+    try{
+      const r = await api("/api/scenario/source?name="+encodeURIComponent(file));
+      $("sc-text").value = r.json; $("sc-text").classList.add("show");
+      log(`编辑 ${file}`);
+    }catch(e){ log("读场景失败："+e.message); }
+  };
+  $("save").onclick = async ()=>{
+    if(!$("sc-text").value.trim()){ log("先点「编辑」载入场景"); return; }
+    let scene; try{ scene = JSON.parse($("sc-text").value); }
+    catch(e){ log("JSON 错误："+e.message); return; }
+    const name = (prompt("保存为（.json）", "my_scenario.json")||"").trim();
+    if(!name) return;
+    try{
+      await api("/api/scenario/save", {name, scene});
+      await loadScenarios(); log(`已保存 ${name}`);
+    }catch(e){ log("保存失败："+e.message); }
+  };
+  function runEdited(){
+    let scene; try{ scene=JSON.parse($("sc-text").value); }
+    catch(err){ log("JSON 错误："+err.message); return; }
+    api("/api/scenario/run", {scene, name:"editor"})
+      .then(r=>showResult(r, "编辑器")).catch(err=>log("运行失败："+err.message));
+  }
+  $("runedit").onclick = runEdited;
+  $("sc-text").addEventListener("keydown", e=>{
+    if((e.ctrlKey||e.metaKey) && e.code==="Enter"){
+      e.preventDefault(); runEdited();
+    }
+  });
+
+  // ---------------------------------------------------------- 3D 实时
+  const T3 = {ready:false, renderer:null, scene:null, camera:null,
+              robot:null, arm:[], cube:null, ee:null};
+  function init3D(){
+    if(!window.THREE){ log("3D：three.js 未加载，跳过"); return; }
+    try{
+    const cv = $("view3d");
+    const r = new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:true});
+    r.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+    r.setSize(cv.width, cv.height, false);
+    const sc = new THREE.Scene();
+    sc.background = new THREE.Color(0x0b1018);
+    const cam = new THREE.PerspectiveCamera(42, cv.width/cv.height, 1, 3000);
+    cam.up.set(0,0,1);
+    cam.position.set(360, -420, 330);
+    cam.lookAt(0, 0, 40);
+    sc.add(new THREE.AmbientLight(0xffffff, 0.65));
+    const dl = new THREE.DirectionalLight(0xffffff, 0.9);
+    dl.position.set(200, -300, 500); sc.add(dl);
+    const grid = new THREE.GridHelper(800, 16, 0x1d2a3a, 0x141d28);
+    grid.rotation.x = Math.PI/2; sc.add(grid);
+    const robot = new THREE.Group();
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(120, 200, 18),
+      new THREE.MeshStandardMaterial({color:0x2f6f8f, roughness:0.7}));
+    chassis.position.z = 9; robot.add(chassis);
+    const mat = new THREE.MeshStandardMaterial({color:0xd7e4ef, roughness:0.45,
+      metalness:0.15});
+    const arm = [];
+    for(let i=0;i<2;i++){
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(5,5,1,12), mat);
+      robot.add(m); arm.push(m);
+    }
+    const ee = new THREE.Mesh(new THREE.SphereGeometry(7,14,10),
+      new THREE.MeshStandardMaterial({color:0x22d37a}));
+    robot.add(ee);
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(40,40,40),
+      new THREE.MeshStandardMaterial({color:0xc83c28, roughness:0.6}));
+    sc.add(cube);
+    T3.ready = true; T3.renderer=r; T3.scene=sc; T3.camera=cam; T3.robot=robot;
+    T3.arm=arm; T3.cube=cube; T3.ee=ee;
+    }catch(err){
+      T3.ready = false;
+      log("3D 不可用："+(err.message||err));
+    }
+  }
+  function seg(mesh, a, b){
+    const va = new THREE.Vector3(a[0], 0, a[1]);
+    const vb = new THREE.Vector3(b[0], 0, b[1]);
+    const d = vb.clone().sub(va), len = d.length();
+    mesh.position.copy(va).add(vb).multiplyScalar(0.5);
+    mesh.scale.set(1, Math.max(0.01, len), 1);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize());
+  }
+  function update3D(s){
+    if(!T3.ready) return;
+    T3.robot.position.set(s.pose[0], s.pose[1], 0);
+    T3.robot.rotation.z = s.pose[2] * Math.PI/180;
+    const p = s.arm_side;
+    for(let i=0;i<T3.arm.length;i++) seg(T3.arm[i], p[i], p[i+1]);
+    T3.ee.position.set(p[p.length-1][0], 0, p[p.length-1][1]);
+    T3.cube.position.set(s.cube[0], s.cube[1], s.cube[2]/2);
+    T3.cube.scale.setScalar(s.cube[2]/40);
+    T3.cube.material.color.set(s.held ? 0x22d37a : 0xc83c28);
+    try{ T3.renderer.render(T3.scene, T3.camera); }
+    catch(err){ T3.ready = false; log("3D 渲染停止："+(err.message||err)); }
   }
 
   function render(s){
@@ -429,8 +542,10 @@
     $("s-held").textContent = s.held ? "夹持中" : (slip ? "滑落" : "空");
     $("s-held").className = s.held ? "on" : (slip ? "off" : "");
     $("s-held").title = s.grasp ? `摩擦 ${s.grasp.capacity_n}N / 需要 ${s.grasp.required_n}N` : "";
-    drawTop(s); drawSide(s); drawChart(s);
+    drawTop(s); drawSide(s); drawChart(s); update3D(s);
   }
+
+  init3D();
 
   async function boot(){
     try{

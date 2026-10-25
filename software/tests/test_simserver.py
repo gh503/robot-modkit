@@ -108,3 +108,12 @@ def test_scenario_path_traversal(server):
 def test_query_string_serves_index(server):
     base, _ = server
     assert b"modkit" in get(base + "/?scenario=low_battery.json")
+
+
+def test_camera_png_and_mode(server):
+    base, _ = server
+    a = get(base + "/api/camera")
+    assert a[:8] == b"\x89PNG\r\n\x1a\n" and len(a) > 500
+    post(base + "/api/control", {"options": {"camera_mode": "onboard"}})
+    b = get(base + "/api/camera")
+    assert b[:8] == b"\x89PNG\r\n\x1a\n" and b != a

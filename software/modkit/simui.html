@@ -33,7 +33,9 @@
   .card h2{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;
            letter-spacing:.8px;text-transform:uppercase}
   canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--panel2)}
-  .views{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .views{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  #cam{width:100%;height:auto;border-radius:8px;background:var(--panel2);display:block}
+  @media(max-width:1200px){.views{grid-template-columns:1fr 1fr}}
   @media(max-width:1050px){main{grid-template-columns:1fr}.views{grid-template-columns:1fr}}
   .row{display:flex;align-items:center;gap:10px;margin:9px 0}
   .row label{width:74px;color:var(--dim);font-size:12px}
@@ -72,6 +74,11 @@
         <canvas id="top" width="560" height="430"></canvas></div>
       <div class="card"><h2>侧视图 · 臂与夹爪</h2>
         <canvas id="side" width="560" height="430"></canvas></div>
+      <div class="card"><h2>相机 · 检测框</h2>
+        <img id="cam" alt="相机画面">
+        <div class="row"><button id="camtoggle">切换车载</button>
+          <span class="val" id="cam-mode" style="flex:1;text-align:left">俯视</span></div>
+      </div>
     </div>
     <div class="card" style="margin-top:12px">
       <h2>信号 · 电压 / 温度 / 轮速</h2>
@@ -205,6 +212,16 @@
     else reset();
   };
   $("runsc").onclick = runScenario;
+
+  function refreshCam(){ $("cam").src = "/api/camera?t=" + Date.now(); }
+  function camLabel(mode){ $("cam-mode").textContent = mode === "onboard" ? "车载" : "俯视"; }
+  $("camtoggle").onclick = ()=>{
+    const cur = (st.s && st.s.options && st.s.options.camera_mode) || "overhead";
+    const next = cur === "onboard" ? "overhead" : "onboard";
+    camLabel(next);
+    control({options:{camera_mode:next}}).then(refreshCam);
+  };
+  setInterval(()=>{ if(!document.hidden) refreshCam(); }, 400);
   document.addEventListener("keydown", e=>{
     if(e.code==="Space"){ e.preventDefault(); toggle(); }
     if(e.code==="ArrowRight"){ e.preventDefault(); step(0.05); }
@@ -401,6 +418,8 @@
       ["j1","j2","j3"].forEach((id,i)=>{
         const deg = s.controls.joints[String(i+1)]; $(id).value=deg; $(id+"-val").textContent=`${Math.round(deg)}°`;
       });
+      camLabel((s.options && s.options.camera_mode) || "overhead");
+      refreshCam();
       log("已连接仿真后端");
       await loadScenarios();
       const q = new URLSearchParams(location.search);

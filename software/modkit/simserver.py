@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import math
 import threading
@@ -17,7 +18,9 @@ from pathlib import Path
 
 from . import contact as ct
 from . import kinematics as kin
+from . import camsim as cs
 from . import scenario as sn
+from . import vision as vis
 from .hwsim import BatterySpec, HardwareSim, ServoSpec
 from .robot import Robot
 
@@ -33,6 +36,7 @@ class SimOptions:
     mu: float = 0.4
     grip_force: float = 4.0
     cube_mass: float = 0.05
+    camera_mode: str = "overhead"
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -103,7 +107,10 @@ class SimSession:
                 for k, v in data["options"].items():
                     if not hasattr(self.options, k):
                         continue
-                    setattr(self.options, k, float(v))
+                    if k == "camera_mode":
+                        setattr(self.options, k, "onboard" if v == "onboard" else "overhead")
+                    else:
+                        setattr(self.options, k, float(v))
                 self.sim.chassis.slip = self.options.slip
                 self.sim.battery.ocv = self.options.battery_ocv
                 self.sim.payload_kg = self.options.payload_kg
@@ -162,6 +169,32 @@ class SimSession:
         ee_z = g.base_h + g.l1 * math.sin(a) + g.l2 * math.sin(a + b)
         elbow = [g.l1 * math.cos(a), g.base_h + g.l1 * math.sin(a)]
         return [[0.0, g.base_h], elbow, [d, ee_z]]
+
+    def camera_png(self) -> bytes:
+        """当前视角的相机图，检测框画在图上，直接给前端 <img>。"""
+        with self.lock:
+            if self.options.camera_mode == "onboard":
+                cam = cs.Camera(width=320, height=240, cx=160, cy=120,
+                                fx=250, fy=250, z=500,
+                                x=self.sim.chassis.x, y=self.sim.chassis.y,
+                                yaw_deg=self.sim.chassis.yaw)
+            else:
+                cam = cs.Camera(width=320, height=240, cx=160, cy=120,
+                                fx=300, fy=300, z=800)
+            cube = cs.Cube(self.cube[0], self.cube[1], 40)
+            img = cs.render(cam, [cube], seed=0, noise=0, texture=False)
+            det = vis.detect_color(img, cube.color, tol=40)
+            from PIL import Image as PILImage, ImageDraw
+            pic = PILImage.fromarray(img.astype("uint8"), "RGB")
+            if det is not None:
+                d = ImageDraw.Draw(pic)
+                d.rectangle(det.bbox, outline=(0, 220, 90), width=2)
+                d.text((det.bbox[0], max(0, det.bbox[1] - 12)),
+                       f"{det.cx:.0f},{det.cy:.0f}", fill=(0, 220, 90))
+            img = pic
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            return buf.getvalue()
 
     # ------------------------------------------------------------ 状态
     def state(self, history: bool = True) -> dict:
@@ -256,6 +289,14 @@ def make_handler(session: SimSession):
                 self._send(200, _HTML.read_bytes(), "text/html; charset=utf-8")
             elif path.startswith("/api/state"):
                 self._json(session.state())
+            elif path.startswith("/api/camera"):
+                data = session.camera_png()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
             elif path.startswith("/api/options"):
                 self._json(session.options.as_dict())
             elif path.startswith("/api/scenarios"):

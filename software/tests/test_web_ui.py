@@ -41,7 +41,8 @@ def test_viewer_ids_unique_and_interactive():
     for feature in ("showModal", "setSerialState", "SRGBColorSpace",
                     "guardSafety", "OrbitControls", "outputColorSpace",
                     "guardMotion", "REG_CURRENT_LIMIT", "REG_TORQUE_LIMIT",
-                    "applyLimits", "jointOfServo", "maxStepOf", "loadCalibration"):
+                    "applyLimits", "jointOfServo", "maxStepOf", "loadCalibration",
+                    "pathProblem"):
         assert feature in js
     # 回归：标定 zero_ticks 是绝对 tick，viewer 的 ticks() 收的是相对 180° 的偏移；
     # 少减/多加 180° 会让夹爪转到 360° 或让肘反向。

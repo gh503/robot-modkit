@@ -112,11 +112,31 @@ class Robot:
         decision = policy.guard_motion(self, {name: value})
         if not decision.ok:
             raise ValueError(f"{decision.code}: {decision.message}")
+        self._assert_path(policy, {name: value})
         j = policy.joint(name)
         policy.apply_limits(self, [j.servo_id])
         self.goto(j.servo_id, j.to_servo_deg(value),
                   speed=policy.speed if speed is None else speed,
                   acc=policy.acc if acc is None else acc)
+
+    def _current_angles(self, policy, names: tuple[str, ...]) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for name in names:
+            fb = self.feedback(policy.joint(name).servo_id)
+            out[name] = policy.joint(name).from_servo_deg(fb.position_deg)
+        return out
+
+    def _assert_path(self, policy, targets: dict[str, float]) -> None:
+        """检查当前姿态→目标的关节空间路径；起点/终点安全不代表中间安全。"""
+        from . import envelope
+
+        names = ("yaw", "shoulder", "elbow")
+        cur = self._current_angles(policy, names)
+        start = tuple(cur[n] for n in names)
+        end = tuple(targets.get(n, cur[n]) for n in names)
+        problems = envelope.check_path(self.arm, start, end)
+        if problems:
+            raise ValueError("路径包络：" + "；".join(problems[:3]))
 
     def sync_goto_checked(self, targets: dict[str, float], policy,
                           speed: int | None = None) -> None:
@@ -124,6 +144,7 @@ class Robot:
         decision = policy.guard_motion(self, targets)
         if not decision.ok:
             raise ValueError(f"{decision.code}: {decision.message}")
+        self._assert_path(policy, targets)
         policy.apply_limits(self)
         self.sync_goto(policy.targets_to_servo(targets),
                        speed=policy.speed if speed is None else speed)

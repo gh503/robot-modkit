@@ -251,18 +251,40 @@
     return P.jawOpen * jaw + P.jawClosed * (1 - jaw);
   }
 
-  function envelopeProblem(yawDeg, shoulderDeg, elbowDeg) {
+  function envelopeProblem(yawDeg, shoulderDeg, elbowDeg, skipLimits) {
     var sh = THREE.MathUtils.degToRad(shoulderDeg);
     var el = THREE.MathUtils.degToRad(shoulderDeg + elbowDeg);
     var tx = P.l1 * Math.cos(sh) + P.l2 * Math.cos(el) + P.gripperLen * Math.cos(el);
     var tz = P.l1 * Math.sin(sh) + P.l2 * Math.sin(el) + P.gripperLen * Math.sin(el);
     var z = P.baseH + tz, d = Math.abs(tx);
-    if (Math.abs(yawDeg) > 120.5) return "偏航超出 ±120°";
-    if (shoulderDeg < -25.5 || shoulderDeg > 100.5) return "肩角超出设计包络";
-    if (elbowDeg < -150.5 || elbowDeg > 5.5) return "肘角超出设计包络";
+    if (!skipLimits) {
+      if (Math.abs(yawDeg) > 120.5) return "偏航超出 ±120°";
+      if (shoulderDeg < -25.5 || shoulderDeg > 100.5) return "肩角超出设计包络";
+      if (elbowDeg < -150.5 || elbowDeg > 5.5) return "肘角超出设计包络";
+    }
     if (z < 12) return "指尖低于桌面安全线";
     if (z < 130 && d < 72) return "指尖进入底座避让区";
     if (elbowDeg < -140 && shoulderDeg < 10 && d < 95) return "肩肘折叠过深";
+    return "";
+  }
+
+  // 起点/终点都安全，不代表中间不扫桌；按关节空间直线采样。
+  function pathProblem() {
+    if (!fb.yaw.seen || !fb.shoulder.seen || !fb.elbow.seen) return "";
+    var start = {
+      yaw: jointOfServo("yaw", (fb.yaw.pos - 2048) * DEG),
+      shoulder: jointOfServo("shoulder", (fb.shoulder.pos - 2048) * DEG),
+      elbow: jointOfServo("elbow", (fb.elbow.pos - 2048) * DEG)
+    };
+    var end = { yaw: state.yaw, shoulder: state.shoulder, elbow: state.elbow };
+    for (var i = 1; i <= 12; i++) {
+      var t = i / 12;
+      var y = start.yaw + (end.yaw - start.yaw) * t;
+      var s = start.shoulder + (end.shoulder - start.shoulder) * t;
+      var e = start.elbow + (end.elbow - start.elbow) * t;
+      var prob = envelopeProblem(y, s, e, true);
+      if (prob) return "路径 " + Math.round(t * 100) + "%：" + prob;
+    }
     return "";
   }
 
@@ -814,6 +836,8 @@
     var rep = healthIssues();
     var geom = envelopeProblem(state.yaw, state.shoulder, state.elbow);
     if (geom) rep.issues.push("几何包络：" + geom);
+    var path = pathProblem();
+    if (path) rep.issues.push(path);
     JOINTS.forEach(function (j) {
       var name = j[0], target = jointTargetOf(name), o = fb[name];
       if (!isFinite(target)) { rep.issues.push(name + " 目标不是有限数"); return; }
@@ -1109,6 +1133,14 @@
   } else if (/autoplay/.test(location.search)) {
     state.playing = true;
     $("play").textContent = "⏸ 暂停";
+  }
+
+  if (/[?&]debug=1/.test(location.search)) {
+    // 只读调试钩子：给浏览器回归脚本核对角度/tick 映射，不参与产品逻辑。
+    window.MODKIT_VIEWER_DEBUG = {
+      ticks: ticks, servoOffsetOf: servoOffsetOf, jointOfServo: jointOfServo,
+      envelopeProblem: envelopeProblem, pathProblem: pathProblem
+    };
   }
 
   applyState();

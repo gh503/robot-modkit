@@ -81,9 +81,23 @@ def test_apply_limits_writes_registers():
 def test_sync_checked_uses_correct_elbow_sign():
     r = bot()
     pol = SafetyPolicy.defaults()
+    # 先把肩抬到安全高度，再收肘；从默认直臂直接收肘会扫到桌面，路径检查应拦。
+    r.sync_goto_checked({"shoulder": 35}, pol)
     r.sync_goto_checked({"elbow": -55}, pol)
     ticks = r.link.mem[3][p.REG_PRESENT_POS] | (r.link.mem[3][p.REG_PRESENT_POS + 1] << 8)
     assert ticks == pytest.approx(2048 + 55 / p.DEG_PER_TICK, abs=2)
+
+
+def test_path_check_rejects_table_sweep():
+    r = bot()
+    pol = SafetyPolicy.defaults()
+    # 摆到安全起点：肩 35°、肘 -55°
+    for sid, deg in ((1, 180.0), (2, 215.0), (3, 235.0)):
+        t = p.deg_to_ticks(deg)
+        r.link.mem[sid][p.REG_PRESENT_POS] = t & 0xff
+        r.link.mem[sid][p.REG_PRESENT_POS + 1] = t >> 8
+    with pytest.raises(ValueError, match="路径包络"):
+        r.sync_goto_checked({"elbow": -100}, pol)
 
 
 def test_guard_motion_rejects_step_and_bounds():

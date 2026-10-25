@@ -26,17 +26,22 @@ class Envelope:
 
 
 def check_pose(geom: kin.ArmGeometry, yaw: float, shoulder: float, elbow: float,
-               env: Envelope | None = None) -> list[str]:
-    """返回问题列表；空列表表示通过。角度为关节角（度）。"""
+               env: Envelope | None = None, limits: bool = True) -> list[str]:
+    """返回问题列表；空列表表示通过。角度为关节角（度）。
+
+    limits=False 时只查桌面/底座/折叠几何，用于路径采样：当前姿态可能已经在
+    软限位外，但仍需要判断“退回来”的路径是否会扫到桌面。
+    """
     env = env or Envelope()
     problems: list[str] = []
 
-    if abs(yaw) > geom.yaw_limit + 0.5:
-        problems.append(f"偏航 {yaw:.1f}° 超出 ±{geom.yaw_limit:.0f}°")
-    if not geom.shoulder_min - 0.5 <= shoulder <= geom.shoulder_max + 0.5:
-        problems.append(f"肩 {shoulder:.1f}° 超出 [{geom.shoulder_min:.0f}, {geom.shoulder_max:.0f}]")
-    if not geom.elbow_min - 0.5 <= elbow <= geom.elbow_max + 0.5:
-        problems.append(f"肘 {elbow:.1f}° 超出 [{geom.elbow_min:.0f}, {geom.elbow_max:.0f}]")
+    if limits:
+        if abs(yaw) > geom.yaw_limit + 0.5:
+            problems.append(f"偏航 {yaw:.1f}° 超出 ±{geom.yaw_limit:.0f}°")
+        if not geom.shoulder_min - 0.5 <= shoulder <= geom.shoulder_max + 0.5:
+            problems.append(f"肩 {shoulder:.1f}° 超出 [{geom.shoulder_min:.0f}, {geom.shoulder_max:.0f}]")
+        if not geom.elbow_min - 0.5 <= elbow <= geom.elbow_max + 0.5:
+            problems.append(f"肘 {elbow:.1f}° 超出 [{geom.elbow_min:.0f}, {geom.elbow_max:.0f}]")
 
     p = kin.forward(geom, yaw, shoulder, elbow)
     # forward() 给的是腕点；夹爪沿前臂再伸出 gripper_len，安全检查要按指尖算。
@@ -56,6 +61,28 @@ def check_pose(geom: kin.ArmGeometry, yaw: float, shoulder: float, elbow: float,
     if elbow < -140 and shoulder < 10 and d < 95:
         problems.append("肩肘折叠过深，可能夹住底座立柱")
     return problems
+
+
+def check_path(geom: kin.ArmGeometry,
+               start: tuple[float, float, float],
+               end: tuple[float, float, float],
+               env: Envelope | None = None, steps: int = 12) -> list[str]:
+    """采样关节空间直线路径；返回带进度的问题列表，空表示整段通过。
+
+    舵机实际走的是各自的梯形速度曲线，不是严格直线；这里只做保守采样，
+    用来挡住"起点/终点都安全、中间扫桌"的常见错误。
+    """
+    if steps < 1:
+        raise ValueError("steps 必须 ≥1")
+    env = env or Envelope()
+    out: list[str] = []
+    for i in range(steps + 1):
+        t = i / steps
+        pose = tuple(start[j] + (end[j] - start[j]) * t for j in range(3))
+        probs = check_pose(geom, *pose, env=env, limits=False)
+        if probs:
+            out.append(f"t={t:.2f}: " + "；".join(probs))
+    return out
 
 
 def check_joint_target(geom: kin.ArmGeometry, name: str, value: float,

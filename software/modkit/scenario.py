@@ -90,10 +90,25 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
     log = []
     failures = []
     meta: dict = {}
+    trace: list[dict] = []
+
+    def advance(h: float):
+        sim.step(h)
+        if not trace or sim.time - trace[-1]["t"] >= 0.02:
+                trace.append({
+                    "t": round(sim.time, 3),
+                    "x": round(sim.chassis.x, 2), "y": round(sim.chassis.y, 2),
+                    "yaw": round(sim.chassis.yaw, 1),
+                    "j1": round(sim.joint_deg(1), 1),
+                    "j2": round(sim.joint_deg(2), 1),
+                    "j3": round(sim.joint_deg(3), 1),
+                    "v": round(sim.voltage, 2),
+                    "temp": round(sim.servos[2].temp_c, 1),
+                })
 
     def step(seconds: float):
         for _ in range(max(1, int(round(seconds / dt)))):
-            sim.step(dt)
+            advance(dt)
 
     for i, act in enumerate(scene.get("actions", []), 1):
         cmd = act.get("cmd")
@@ -121,7 +136,7 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                 return det
 
             def drive(x, y, th):
-                sim.step(act.get("drive_seconds", 2.0))
+                step(act.get("drive_seconds", 2.0))
                 return True
 
             def pick(det):
@@ -132,18 +147,18 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                                      grasp_z=act.get("grasp_z", 25.0),
                                      clearance=act.get("clearance", 60.0))
                 bot.move_pose(plan.x, plan.y, plan.above_z)
-                sim.step(1.5)
+                step(1.5)
                 bot.move_pose(plan.x, plan.y, plan.grasp_z)
-                sim.step(1.5)
+                step(1.5)
                 bot.gripper(act.get("close", 0.15))
-                sim.step(0.5)
+                step(0.5)
                 bot.move_pose(plan.x, plan.y, plan.above_z)   # 抬起
-                sim.step(1.5)
+                step(1.5)
                 return True
 
             def drop():
                 bot.gripper(1.0)
-                sim.step(0.8)
+                step(0.8)
                 return True
 
             r = ms.Mission(drive, look, pick, drop,
@@ -167,7 +182,7 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                      else [nv.Pose(act["x"], act["y"], act.get("theta", 0.0))])
             for g in goals:
                 r = nv.navigate(read_pose, set_speed, g, dt=act.get("dt", 0.02),
-                                sleep=lambda h: sim.step(h))
+                                sleep=advance)
                 log.append(f"[{i}] nav({g.x:.0f},{g.y:.0f}) "
                            f"{r.error_mm:.1f}mm/{r.error_deg:.1f}° "
                            f"{'OK' if r.ok else 'FAIL'}")
@@ -198,7 +213,8 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
 
     return {"ok": not failures, "failures": failures, "log": log,
             "pose": [round(v, 2) for v in sim.pose()],
-            "voltage": round(sim.voltage, 2), "time": round(sim.time, 2)}
+            "voltage": round(sim.voltage, 2), "time": round(sim.time, 2),
+            "trace": trace}
 
 
 def load(path: str | Path) -> dict:

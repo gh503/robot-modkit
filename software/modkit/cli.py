@@ -296,6 +296,18 @@ def cmd_backlash(args) -> int:
     raise SystemExit("未知动作")
 
 
+def cmd_simplot(args) -> int:
+    from . import simplot
+    scene = sn.load(args.scenario)
+    r = sn.run_scenario(scene)
+    out = simplot.plot(r, args.out)
+    print(f"已写出 {out}（{len(r['trace'])} 帧，{r['time']}s，"
+          f"场景 {'PASS' if r['ok'] else 'FAIL'}）")
+    for msg in r["failures"]:
+        print(f"  ! {msg}")
+    return 0 if r["ok"] else 1
+
+
 def cmd_camsim(args) -> int:
     cam = cs.Camera(width=args.width, height=args.height,
                     z=args.height_mm, fx=args.fx, fy=args.fx)
@@ -734,6 +746,11 @@ def main(argv: list[str] | None = None) -> int:
     csp.add_argument("--seed", type=int, default=0)
     csp.add_argument("--detect", action="store_true")
     csp.set_defaults(func=cmd_camsim)
+
+    spl = sub.add_parser("simplot", help="把场景 trace 画成调试图")
+    spl.add_argument("--scenario", required=True)
+    spl.add_argument("--out", default="simplot.png")
+    spl.set_defaults(func=cmd_simplot)
 
     sr = sub.add_parser("simrun", help="跑硬件仿真场景（确定性）")
     sr.add_argument("--scenario", help="单个场景 JSON")

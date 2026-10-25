@@ -1,0 +1,11 @@
+{
+  "name": "60mm 方块超出 42mm 夹爪开口，任务必须失败",
+  "expect_fail": true,
+  "actions": [
+    {"cmd": "mission", "pick": [200, 0], "drop": [-150, 0],
+     "cube": [200, 0, 40], "drive_seconds": 1.0, "cube_size": 60, "max_opening": 42}
+  ],
+  "assert": [
+    {"path": "mission.success", "value": false, "op": "eq"}
+  ]
+}

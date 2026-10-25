@@ -27,3 +27,9 @@ def test_acceleration_reduces_margin():
 
 def test_max_accel_positive_for_good_grasp():
     assert GraspSpec().max_accel_m_s2 > 5.0
+
+
+def test_cube_too_big_does_not_fit():
+    g = GraspSpec(cube_size_mm=60, max_opening_mm=42)
+    assert not g.fits()
+    assert not g.holds()

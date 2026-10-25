@@ -86,3 +86,8 @@ def test_slippery_cube_expected_failure():
 def test_onboard_camera_mission():
     r = scenario.run_scenario(scenario.load(SCEN / "mission_onboard.json"))
     assert r["ok"], r["failures"]
+
+
+def test_big_cube_expected_failure():
+    r = scenario.run_scenario(scenario.load(SCEN / "big_cube.json"))
+    assert r["ok"], r["failures"]

@@ -21,6 +21,11 @@ class GraspSpec:
     mu: float = 0.4             # 橡胶爪 ↔ PLA
     grip_force_n: float = 4.0   # 单侧法向力（舵机夹紧估算）
     safety: float = 1.5         # 抗扰动余量
+    cube_size_mm: float = 40.0  # 方块边长
+    max_opening_mm: float = 42.0  # 夹爪有效开口
+
+    def fits(self) -> bool:
+        return self.cube_size_mm <= self.max_opening_mm
 
     @property
     def friction_capacity_n(self) -> float:
@@ -31,7 +36,7 @@ class GraspSpec:
         return self.mass_kg * math.hypot(G, accel_m_s2) * self.safety
 
     def holds(self, accel_m_s2: float = 0.0) -> bool:
-        return self.friction_capacity_n >= self.required_n(accel_m_s2)
+        return self.fits() and self.friction_capacity_n >= self.required_n(accel_m_s2)
 
     @property
     def max_accel_m_s2(self) -> float:

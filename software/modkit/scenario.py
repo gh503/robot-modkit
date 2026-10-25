@@ -211,7 +211,9 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                 step(0.5)
                 gs = ct.GraspSpec(mass_kg=act.get("cube_mass", 0.05),
                                   mu=act.get("mu", 0.4),
-                                  grip_force_n=act.get("grip_force", 4.0))
+                                  grip_force_n=act.get("grip_force", 4.0),
+                                  cube_size_mm=act.get("cube_size", 40.0),
+                                  max_opening_mm=act.get("max_opening", 42.0))
                 meta["grasp"] = {
                     "capacity_n": round(gs.friction_capacity_n, 2),
                     "required_n": round(gs.required_n(), 2),
@@ -219,6 +221,11 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                 }
                 log.append(f"[{i}] grasp 摩擦 {gs.friction_capacity_n:.2f}N / "
                            f"需要 {gs.required_n():.2f}N")
+                if not gs.fits():
+                    log.append(f"[{i}] 方块 {gs.cube_size_mm:.0f}mm 超出夹爪开口 "
+                               f"{gs.max_opening_mm:.0f}mm")
+                    meta["grasp_slip"] = True
+                    return False
                 if not gs.holds():
                     log.append(f"[{i}] 抓取滑落（μ={gs.mu:.2f}）")
                     meta["grasp_slip"] = True

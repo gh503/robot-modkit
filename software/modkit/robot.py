@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from . import kinematics as kin
@@ -31,10 +32,12 @@ class Feedback:
 
 class Robot:
     def __init__(self, link, arm: kin.ArmGeometry | None = None,
-                 drive: kin.DriveGeometry | None = None):
+                 drive: kin.DriveGeometry | None = None, speed_unit: float = 1.0):
         self.link = link
         self.arm = arm or kin.ArmGeometry()
         self.drive = drive or kin.DriveGeometry()
+        # 速度寄存器 1 LSB 对应多少 deg/s：默认 1.0 是占位，真机必须先按 docs/06 标定
+        self.speed_unit = speed_unit
         self.odom = kin.OdomState()
 
     # ------------------------------------------------------------ 发现
@@ -122,6 +125,30 @@ class Robot:
         self.goto(4, deg, speed=300, acc=10)
 
     # ------------------------------------------------------------ 底盘
+    def set_wheel_speed(self, sid: int, mm_s: float,
+                        geom: kin.DriveGeometry | None = None,
+                        speed_unit: float | None = None) -> None:
+        """轮子恒速模式：写 0x2E，BIT15 为方向位。"""
+        geom = geom or self.drive
+        unit = self.speed_unit if speed_unit is None else speed_unit
+        deg_s = math.degrees(mm_s / geom.wheel_r)
+        mag = min(int(round(abs(deg_s) / max(unit, 1e-6))), 0x7FFF)
+        val = mag | (0x8000 if mm_s < 0 else 0)
+        payload = bytes([p.REG_GOAL_SPEED, val & 0xFF, val >> 8])
+        self.link.transact(p.encode(sid, p.WRITE, payload), sid, 0.05)
+
+    def drive_speed(self, v_mm_s: float, w_deg_s: float,
+              left_id: int = 5, right_id: int = 6) -> tuple[float, float]:
+        """车体速度 → 左右轮；返回实际下发的两个轮速。"""
+        left, right = kin.wheel_speeds(v_mm_s, w_deg_s, self.drive)
+        self.set_wheel_speed(left_id, left)
+        self.set_wheel_speed(right_id, right)
+        return left, right
+
+    def stop_wheels(self, left_id: int = 5, right_id: int = 6) -> None:
+        self.set_wheel_speed(left_id, 0.0)
+        self.set_wheel_speed(right_id, 0.0)
+
     def update_odom(self, left_id: int = 5, right_id: int = 6) -> kin.OdomState:
         return kin.update_odom(
             self.drive, self.odom,

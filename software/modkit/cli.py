@@ -290,7 +290,57 @@ def cmd_backlash(args) -> int:
     raise SystemExit("未知动作")
 
 
+def cmd_drive(args) -> int:
+    link = _make_link(args)
+    bot = Robot(link)
+    print(f"轮速 v={args.v}mm/s w={args.w}°/s，{args.seconds}s（真机请先确认方向）")
+    bot.drive_speed(args.v, args.w)
+    try:
+        time.sleep(args.seconds)
+    finally:
+        bot.stop_wheels()
+    if hasattr(link, "pose"):
+        print("仿真位姿", tuple(round(v, 1) for v in link.pose()))
+    return 0
+
+
 def cmd_nav(args) -> int:
+    if args.closed_loop:
+        if not args.sim:
+            sys.exit("真机的轮速单位/方向还没标定（docs/06 G7），先加 --sim 跑闭环")
+        from .bus import SimLink
+        link = SimLink(list(range(1, 7)), wheels=True)
+        bot = Robot(link)
+
+        def read_pose():
+            o = bot.update_odom()
+            return nv.Pose(o.x, o.y, o.yaw)
+
+        def set_speed(v, w):
+            bot.drive_speed(v, w)
+
+        if args.path == "square":
+            wps = nv.square_waypoints(args.size)
+        elif args.path == "line":
+            wps = [nv.Pose(args.size, 0.0, 0.0)]
+        else:
+            wps = []
+            for chunk in args.wp.split(";"):
+                if chunk.strip():
+                    wps.append(nv.Pose(*[float(v) for v in chunk.split(",")]))
+        print(f"{'段':>2}  {'目标':>18}  {'用时':>6}  {'误差':>12}  结果")
+        legs = []
+        for i, wp in enumerate(wps, 1):
+            r = nv.navigate(read_pose, set_speed, wp, dt=args.dt)
+            legs.append((wp, r))
+            print(f"{i:>2}  ({wp.x:6.0f},{wp.y:6.0f},{wp.theta:5.0f}°)  "
+                  f"{r.seconds:6.1f}s  {r.error_mm:6.1f}mm {r.error_deg:5.1f}°  "
+                  f"{'OK' if r.ok else 'FAIL'}")
+        ok = all(r.ok for _, r in legs)
+        print(f"终点 ({legs[-1][1].final.x:.1f}, {legs[-1][1].final.y:.1f}, "
+              f"{nv.wrap(legs[-1][1].final.theta):.1f}°)，{'全部到达' if ok else '未完成'}")
+        return 0 if ok else 1
+
     if args.path == "square":
         wps = nv.square_waypoints(args.size)
     elif args.path == "line":
@@ -428,7 +478,15 @@ def main(argv: list[str] | None = None) -> int:
     nvp.add_argument("--start", default="0,0,0")
     nvp.add_argument("--dt", type=float, default=0.02)
     nvp.add_argument("--out", default="nav_sim.json")
+    nvp.add_argument("--closed-loop", action="store_true",
+                     help="用里程计反馈闭环（目前仅 --sim）")
     nvp.set_defaults(func=cmd_nav)
+
+    dv = sub.add_parser("drive", help="轮子恒速（真机/仿真）")
+    dv.add_argument("--v", type=float, default=100.0, help="mm/s")
+    dv.add_argument("--w", type=float, default=0.0, help="deg/s")
+    dv.add_argument("--seconds", type=float, default=2.0)
+    dv.set_defaults(func=cmd_drive)
 
     args = ap.parse_args(argv)
     return args.func(args)

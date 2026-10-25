@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass, field
 
 from . import kinematics as kin
@@ -115,6 +116,33 @@ def drive_to(start: Pose, goal: Pose, cfg: NavConfig | None = None,
     err_deg = abs(wrap(goal.theta - plant.pose.theta))
     ok = err_mm <= max(cfg.pos_tol, 10.0) and err_deg <= max(cfg.ang_tol, 5.0)
     return NavResult(trace, plant.pose, t, err_mm, err_deg, ok)
+
+
+def navigate(read_pose, set_speed, goal: Pose, cfg: NavConfig | None = None,
+             dt: float = 0.05, max_seconds: float = 60.0,
+             sleep=time.sleep) -> NavResult:
+    """闭环：每 dt 读一次里程计，写一次轮速。真机与仿真共用。"""
+    cfg = cfg or NavConfig()
+    start = read_pose()
+    trace = [Pose(start.x, start.y, start.theta)]
+    t = 0.0
+    while t < max_seconds:
+        pose = read_pose()
+        v, w, done = goto_step(pose, goal, cfg)
+        if done:
+            set_speed(0.0, 0.0)
+            break
+        set_speed(v, w)
+        sleep(dt)
+        t += dt
+        p = read_pose()
+        trace.append(Pose(p.x, p.y, p.theta))
+    set_speed(0.0, 0.0)
+    final = read_pose()
+    err_mm = final.distance_to(goal)
+    err_deg = abs(wrap(goal.theta - final.theta))
+    ok = err_mm <= max(cfg.pos_tol, 12.0) and err_deg <= max(cfg.ang_tol, 6.0)
+    return NavResult(trace, final, t, err_mm, err_deg, ok)
 
 
 def follow(start: Pose, waypoints: list[Pose], cfg: NavConfig | None = None,

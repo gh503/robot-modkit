@@ -7,9 +7,11 @@
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
 
+from . import kinematics as kin
 from . import protocol as p
 
 
@@ -74,23 +76,64 @@ class SerialLink:
 class SimLink:
     """仿真：内存里的假舵机。用来在没有硬件时跑通全部上位机流程。"""
 
-    def __init__(self, ids: list[int] | None = None):
+    def __init__(self, ids: list[int] | None = None, drive: kin.DriveGeometry | None = None,
+                 speed_unit: float = 1.0, wheels: bool = False,
+                 clock=time.monotonic):
         self.mem: dict[int, bytearray] = {}
         for sid in ids or [1, 2, 3, 4]:
             m = bytearray(80)
             m[p.REG_ID] = sid
-            m[p.REG_PRESENT_POS] = 2048 & 0xFF
-            m[p.REG_PRESENT_POS + 1] = 2048 >> 8
+            center = 0 if (wheels and sid in (5, 6)) else 2048
+            m[p.REG_PRESENT_POS] = center & 0xFF
+            m[p.REG_PRESENT_POS + 1] = center >> 8
             m[p.REG_PRESENT_VOLTAGE] = 120   # 12.0V
             m[p.REG_PRESENT_TEMP] = 32
             self.mem[sid] = m
         self.command_log: list[tuple[float, bytes]] = []
+        # 轮子模型：只有显式打开才动，避免影响原有"位置立即跟随"的测试
+        self.drive = drive or kin.DriveGeometry()
+        self.speed_unit = speed_unit
+        self.wheels = wheels
+        self._clock = clock
+        self._last = clock()
+        self._wheel_mm_s: dict[int, float] = {5: 0.0, 6: 0.0}
+        self._tick_f: dict[int, float] = {5: 0.0, 6: 0.0}
+        self._x = self._y = self._yaw = 0.0
+        self._last_pose = (0.0, 0.0, 0.0)
+
+    # ------------------------------------------------------------ 轮子模型
+    def _advance(self) -> None:
+        if not self.wheels:
+            return
+        now = self._clock()
+        dt = now - self._last
+        self._last = now
+        if dt <= 0:
+            return
+        vl, vr = self._wheel_mm_s.get(5, 0.0), self._wheel_mm_s.get(6, 0.0)
+        v = (vl + vr) / 2.0
+        w = math.degrees((vr - vl) / self.drive.track)
+        mid = math.radians(self._yaw + w * dt / 2.0)
+        self._x += v * math.cos(mid) * dt
+        self._y += v * math.sin(mid) * dt
+        self._yaw = (self._yaw + w * dt + 180.0) % 360.0 - 180.0
+        for sid, d in ((5, vl * dt), (6, vr * dt)):
+            self._tick_f[sid] += d / self.drive.mm_per_tick
+            raw = int(round(self._tick_f[sid]))
+            self.mem[sid][p.REG_PRESENT_POS] = raw & 0xFF
+            self.mem[sid][p.REG_PRESENT_POS + 1] = (raw >> 8) & 0xFF
+        self._last_pose = (self._x, self._y, self._yaw)
+
+    def pose(self) -> tuple[float, float, float]:
+        self._advance()
+        return self._last_pose
 
     def transact(self, frame: bytes, expect_id: int, timeout: float = 0.05) -> p.Frame:
         if frame[:2] != b"\xff\xff" or len(frame) < 6:
             raise LinkError("仿真链路收到畸形帧")
         sid, plen, instr = frame[2], frame[3], frame[4]
         params = frame[5 : 3 + plen]
+        self._advance()
         self.command_log.append((time.monotonic(), frame))
 
         if instr == p.PING:
@@ -128,6 +171,13 @@ class SimLink:
         for i, b in enumerate(data):
             if addr + i < len(m):
                 m[addr + i] = b
+        if addr == p.REG_GOAL_SPEED and sid in self._wheel_mm_s:
+            val = data[0] | (data[1] << 8) if len(data) >= 2 else 0
+            mag = val & 0x7FFF
+            deg_s = mag * self.speed_unit
+            mm_s = math.radians(deg_s) * self.drive.wheel_r
+            self._wheel_mm_s[sid] = -mm_s if val & 0x8000 else mm_s
+            return
         # 简化模型：目标位置写入后，当前位置立即跟随
         if addr <= p.REG_GOAL_POS < addr + len(data):
             m[p.REG_PRESENT_POS] = m[p.REG_GOAL_POS]

@@ -61,6 +61,9 @@ def test_calibrated_odometry_matches_measured(tmp_path):
     cal = oc.OdomCal()
     cal.apply_straight(20000, 1000.0)
     g = cal.geometry()
-    st = kin.update_odom(g, kin.OdomState(), 0, 0)
-    st = kin.update_odom(g, st, 20000, 20000)
+    st = kin.OdomState()
+    # 按 50Hz 分段读：一次跳 20000 格会超过半圈，滚动计数无法判断方向
+    for i in range(1, 21):
+        t = 1000 * i
+        st = kin.update_odom(g, st, t, t)
     assert abs(st.x - 1000.0) < 1.0

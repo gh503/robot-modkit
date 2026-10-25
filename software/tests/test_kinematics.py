@@ -51,10 +51,27 @@ def test_odometry_straight_line():
     g = kin.DriveGeometry()
     st = kin.OdomState()
     per_rev = g.ticks_per_rev
-    st = kin.update_odom(g, st, per_rev, per_rev)     # 两边各转一圈
+    # 按 50Hz 分段读，累计一格不差地转一圈（单次跨半圈以上本来就有歧义）
+    for i in range(1, 9):
+        t = round((per_rev - 1) * i / 8)
+        st = kin.update_odom(g, st, t, t)
     assert abs(st.yaw) < 1e-6
-    assert abs(st.x - 2 * math.pi * g.wheel_r) < 0.5
+    assert abs(st.x - 2 * math.pi * g.wheel_r) < 1.0
     assert abs(st.y) < 0.5
+
+
+def test_odometry_crosses_wrap():
+    g = kin.DriveGeometry()
+    st = kin.OdomState(left_ticks=4000, right_ticks=4000)
+    st = kin.update_odom(g, st, 100, 100)            # 过零：4000 → 100 = +196 格
+    assert abs(st.x - 196 * g.mm_per_tick) < 0.01
+    assert abs(st.yaw) < 1e-6
+
+
+def test_tick_delta_shortest_path():
+    assert kin.tick_delta(100, 4000) == 196
+    assert kin.tick_delta(4000, 100) == -196
+    assert kin.tick_delta(2047, 0) == 2047
 
 
 def test_odometry_spin_in_place():

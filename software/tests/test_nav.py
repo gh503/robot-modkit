@@ -5,6 +5,30 @@ import math
 import pytest
 
 from modkit import nav
+from modkit.bus import SimLink
+from modkit.robot import Robot
+
+
+class FakeClock:
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+    def sleep(self, dt):
+        self.t += dt
+
+
+def sim_bot():
+    clk = FakeClock()
+    link = SimLink(list(range(1, 7)), wheels=True, clock=clk)
+    return Robot(link), clk
+
+
+def read(bot):
+    o = bot.update_odom()
+    return nav.Pose(o.x, o.y, o.yaw)
 
 
 def test_wrap():
@@ -48,6 +72,43 @@ def test_timeout_reports_failure():
 def test_done_at_goal():
     v, w, done = nav.goto_step(nav.Pose(10, 10, 0), nav.Pose(10, 10, 0))
     assert done and v == 0 and w == 0
+
+
+def test_simlink_wheels_move_and_odom():
+    bot, clk = sim_bot()
+    bot.drive_speed(100, 0)
+    r = nav.navigate(lambda: read(bot), bot.drive_speed, nav.Pose(200, 0, 0),
+                     sleep=clk.sleep)
+    assert r.ok
+    assert r.error_mm < 12
+    assert abs(bot.odom.y) < 1
+
+
+def test_closed_loop_square():
+    bot, clk = sim_bot()
+    pose = lambda: read(bot)
+    ok = True
+    for wp in nav.square_waypoints(250):
+        r = nav.navigate(pose, bot.drive_speed, wp, sleep=clk.sleep)
+        ok = ok and r.ok
+    assert ok
+    assert abs(bot.odom.x) < 15 and abs(bot.odom.y) < 15
+
+
+def test_navigate_timeout_stops():
+    bot, clk = sim_bot()
+
+    class Dead:
+        def __init__(self):
+            self.p = nav.Pose()
+
+        def __call__(self):
+            return self.p
+
+    r = nav.navigate(Dead(), bot.drive_speed, nav.Pose(5000, 0, 0),
+                     max_seconds=0.5, sleep=clk.sleep)
+    assert not r.ok
+    assert r.error_mm > 1000
 
 
 def test_wheel_speeds_straight_and_turn():

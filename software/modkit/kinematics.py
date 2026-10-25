@@ -164,14 +164,19 @@ class OdomState:
     right_ticks: int = 0
 
 
+def tick_delta(new: int, old: int, ticks_per_rev: int = 4096) -> int:
+    """位置计数是 0..4095 循环的，直接相减会在过零时跳 4096。"""
+    return (new - old + ticks_per_rev // 2) % ticks_per_rev - ticks_per_rev // 2
+
+
 def update_odom(geom: DriveGeometry, st: OdomState, left_ticks: int, right_ticks: int) -> OdomState:
     """增量式里程计（中点法）。输入是舵机反馈的累计位置计数。
 
     注意：轮子用"恒速模式"驱动时，位置计数仍然可读 —— 这正是用总线舵机当驱动轮的
     最大好处：不需要额外编码器。
     """
-    dl = (left_ticks - st.left_ticks) * geom.mm_per_tick
-    dr = (right_ticks - st.right_ticks) * geom.mm_per_tick
+    dl = tick_delta(left_ticks, st.left_ticks, geom.ticks_per_rev) * geom.mm_per_tick
+    dr = tick_delta(right_ticks, st.right_ticks, geom.ticks_per_rev) * geom.mm_per_tick
     ds = (dl + dr) / 2.0
     dyaw = math.degrees((dr - dl) / geom.track)
 

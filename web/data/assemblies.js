@@ -246,6 +246,128 @@ window.MODKIT_ASSEMBLIES = {
    }
   ]
  },
+ "m1_budget": {
+  "name": "modkit-m1-budget",
+  "description": "预算版：240 底盘 + 偏航/肩 + 固定上臂 + 40mm 夹爪；两关节定点抓放，目标 ≤¥1000。",
+  "budget_cny": 1000,
+  "payload_g": 100,
+  "max_accel_m_s2": 0.5,
+  "components": [
+   {
+    "id": "chassis",
+    "type": "frame.chassis_240"
+   },
+   {
+    "id": "drive_l",
+    "type": "drive.wheel_65",
+    "parent": "chassis",
+    "port": "drive_left",
+    "servo_id": 4
+   },
+   {
+    "id": "drive_r",
+    "type": "drive.wheel_65",
+    "parent": "chassis",
+    "port": "drive_right",
+    "servo_id": 5
+   },
+   {
+    "id": "caster_f",
+    "type": "drive.caster",
+    "parent": "chassis",
+    "port": "caster_front"
+   },
+   {
+    "id": "caster_r",
+    "type": "drive.caster",
+    "parent": "chassis",
+    "port": "caster_rear"
+   },
+   {
+    "id": "esp32",
+    "type": "electronics.esp32",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     60,
+     -60
+    ]
+   },
+   {
+    "id": "buck",
+    "type": "electronics.buck_5v",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     80,
+     -20
+    ]
+   },
+   {
+    "id": "pwr",
+    "type": "power.adapter_12v5a",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     -60,
+     -60
+    ]
+   },
+   {
+    "id": "estop",
+    "type": "power.estop",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     -60,
+     60
+    ]
+   },
+   {
+    "id": "yaw",
+    "type": "joint.yaw",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     20,
+     0
+    ],
+    "servo_id": 1
+   },
+   {
+    "id": "a1",
+    "type": "adapter.disc_grid",
+    "parent": "yaw",
+    "port": "out"
+   },
+   {
+    "id": "shoulder",
+    "type": "joint.pitch",
+    "parent": "a1",
+    "port": "out",
+    "servo_id": 2
+   },
+   {
+    "id": "a2",
+    "type": "adapter.disc_grid",
+    "parent": "shoulder",
+    "port": "out"
+   },
+   {
+    "id": "upper",
+    "type": "link.beam_100",
+    "parent": "a2",
+    "port": "out"
+   },
+   {
+    "id": "gripper",
+    "type": "tool.gripper_40",
+    "parent": "upper",
+    "port": "out",
+    "servo_id": 3
+   }
+  ]
+ },
  "mini_rover": {
   "name": "modkit-mini-rover",
   "description": "160×140 小差速底盘 + ESP32 + ToF；电池/台面电源离板，先验证移动平台接口。",

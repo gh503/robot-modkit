@@ -90,6 +90,7 @@ button{cursor:pointer}
 .validate-pill{font:10.5px var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 8px;
   background:var(--surface-2);color:var(--muted);white-space:nowrap}
 .validate-pill.ok{color:var(--ok);border-color:#b9dfc9;background:#effaf3}
+.validate-pill.warn{color:var(--warn);border-color:#ecd3aa;background:#fff9ed}
 .validate-pill.err{color:var(--bad);border-color:#ecc3c0;background:#fff4f3}
 
 .viewport{position:relative;flex:1;min-height:320px;border:1px solid var(--line);border-radius:var(--radius);

@@ -62,6 +62,7 @@ def test_core_presets_match_python_counts():
     """)
     expect = {
         "m1": (18, 1853.8, 1127.4),
+        "m1_budget": (15, 1649.0, 968.0),
         "mini_rover": (9, 843.0, 653.0),
         "pan_tilt": (9, 892.0, 506.0),
         "arm_4dof": (14, 1430.8, 869.4),
@@ -75,6 +76,20 @@ def test_core_presets_match_python_counts():
         assert r["n"] == n
         assert abs(r["mass"] - mass) < 0.2
         assert abs(r["cost"] - cost) < 0.2
+
+
+def test_budget_preset_under_1000():
+    out = run_core("""
+      const a = window.MODKIT_ASSEMBLIES.m1_budget;
+      const r = A.validate(a);
+      return { ok: r.ok, cost: r.totalCost, budget: a.budget_cny,
+               n: r.instances.length, warnings: r.issues.filter(i => i.level === 'warn').length };
+    """)
+    assert out["ok"], out
+    assert out["cost"] < 1000
+    assert out["budget"] == 1000
+    assert out["n"] == 15
+    assert out["warnings"] >= 1
 
 
 def test_tool_dual_mount_allows_swap():
@@ -121,4 +136,5 @@ def test_design_html_hooks():
                     "export-csv", "export-stl", "export-svg", "export-step",
                     "export-step-zip", "import-design", "restore-design"):
         assert 'id="%s"' % node_id in html, node_id
+    assert 'value="m1_budget"' in html
     assert "assembly-core.js" in html and "designer.js" in html

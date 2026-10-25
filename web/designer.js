@@ -29,6 +29,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
+  var STUDIO_VERSION = "1.7.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -383,7 +384,9 @@
   function updateHud() {
     if (!state.report) { $("hud").textContent = "—"; return; }
     var r = state.report;
+    var budget = state.assembly && state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
     $("hud").textContent = r.instances.length + " 组件 · " + Math.round(r.totalMass) + "g · ¥" + Math.round(r.totalCost) +
+      (r.totalCost > budget ? " · 超预算 ¥" + Math.round(r.totalCost - budget) : " · 余 ¥" + Math.round(budget - r.totalCost)) +
       (r.stability && r.stability.margin != null ? " · 支撑余量 " + r.stability.margin.toFixed(1) + "mm" : "");
   }
 
@@ -409,6 +412,7 @@
     if (!asm) { toast("没有预设 " + name, "err"); return; }
     state.assembly = clone(asm);
     if (!state.assembly.name) state.assembly.name = name;
+    if (state.assembly.budget_cny == null) state.assembly.budget_cny = 1000;
     state.selected = state.assembly.components.length ? state.assembly.components[0].id : null;
     state.angles = {}; state.playing = false; state.fitPending = true;
     $("preset").value = P[name] ? name : "m1";
@@ -434,7 +438,7 @@
   }
   function newDesign() {
     state.assembly = {
-      name: "未命名装配", description: "从底盘开始，自由添加组件。",
+      name: "未命名装配", budget_cny: 1000, description: "从底盘开始，自由添加组件。",
       components: [{ id: "chassis", type: "frame.chassis_160", parent: null, child_port: "top", at: [0, 0], spin: 0 }]
     };
     state.selected = "chassis"; state.angles = {}; state.playing = false; state.fitPending = true;
@@ -551,6 +555,7 @@
   }
   function revalidate() {
     if (!state.assembly) return;
+    if (state.assembly.budget_cny == null) state.assembly.budget_cny = 1000;
     // 保持选择有效
     if (state.selected && !rawById(state.selected)) state.selected = state.assembly.components[0] ? state.assembly.components[0].id : null;
     try {
@@ -747,11 +752,14 @@
     var r = state.report;
     var errs = r ? r.issues.filter(function (x) { return x.level === "error"; }).length : 0;
     var warns = r ? r.issues.filter(function (x) { return x.level === "warn"; }).length : 0;
+    var budget = state.assembly && state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
+    var over = !!(r && r.totalCost > budget);
     var pill = $("validate-pill");
-    pill.className = "validate-pill " + (errs ? "err" : (r ? "ok" : ""));
-    pill.textContent = !r ? "未校验" : errs ? ("FAIL · " + errs + " 错误") : (warns ? "PASS · " + warns + " 警告" : "PASS");
+    pill.className = "validate-pill " + (errs ? "err" : (r ? (warns || over ? "warn" : "ok") : ""));
+    pill.textContent = !r ? "未校验" : errs ? ("FAIL · " + errs + " 错误") :
+      ((warns ? "PASS · " + warns + " 警告" : "PASS") + (over ? " · 超预算 ¥" + Math.round(r.totalCost - budget) : ""));
     var top = $("top-state"), txt = $("top-state-text");
-    top.className = "status-pill " + (errs ? "err" : (warns ? "warn" : "ok"));
+    top.className = "status-pill " + (errs ? "err" : (warns || over ? "warn" : "ok"));
     txt.textContent = !r ? "未校验" : errs ? (errs + " 个错误") : "装配可求解";
     $("sim-state").textContent = state.playing ? ("运行中 · " + state.speed.toFixed(1) + "× · 运动学示意") : "待机 · 只做运动学示意";
     if (!state.playing) {
@@ -764,10 +772,13 @@
     var r = state.report;
     if (!r) { $("metrics").innerHTML = ""; $("safety-note").textContent = ""; return; }
     var p = r.power, st = r.stability;
+    var budget = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
+    var over = r.totalCost > budget;
     var powerOk = p && p.supply > 0 && p.planning <= p.supply;
     var html = '<div class="metrics">' +
       '<div class="metric"><span>总质量</span><b>' + Math.round(r.totalMass) + ' g</b></div>' +
       '<div class="metric"><span>BOM 估算</span><b>¥' + Math.round(r.totalCost) + '</b></div>' +
+      '<div class="metric' + (over ? " bad" : "") + '"><span>预算余量</span><b>' + (over ? "超 ¥" + Math.round(r.totalCost - budget) : "余 ¥" + Math.round(budget - r.totalCost)) + '</b></div>' +
       '<div class="metric' + (powerOk ? "" : (p && p.supply ? " warn" : " bad")) + '"><span>规划电流</span><b>' + (p ? p.planning.toFixed(2) : "—") + ' A</b></div>' +
       '<div class="metric"><span>电源</span><b>' + (p && p.supply ? p.supply.toFixed(1) + ' A' : "—") + '</b></div>' +
       '<div class="metric' + (st && st.margin != null && st.margin < 0 ? " bad" : (st && st.margin != null && st.margin < 10 ? " warn" : "")) + '"><span>支撑余量</span><b>' + (st && st.margin != null ? st.margin.toFixed(1) + ' mm' : "—") + '</b></div>' +
@@ -776,12 +787,20 @@
       '<span>位置关节</span><span>' + r.instances.filter(function (i) { return i.joint && i.joint.mode === "position"; }).length + '</span>' +
       '<span>重心</span><span>' + (st && st.com ? st.com.map(function (v) { return v.toFixed(1); }).join(", ") : "—") + '</span>' +
       '<span>倾覆角估算</span><span>' + (st && st.tip != null ? st.tip.toFixed(1) + "°" : "—") + '</span></div>';
-    html += '<div class="form" style="margin-top:7px"><div class="full"><label>工具载荷 / payload (g)</label>' +
-      '<input id="payload" type="number" min="0" step="10" value="' + (r.payload || 0) + '"></div></div>';
+    html += '<div class="form" style="margin-top:7px"><div><label>工具载荷 / payload (g)</label>' +
+      '<input id="payload" type="number" min="0" step="10" value="' + (r.payload || 0) + '"></div>' +
+      '<div><label>预算 / budget (¥)</label><input id="budget" type="number" min="0" step="50" value="' + budget + '"></div></div>';
     $("metrics").innerHTML = html;
     var pi = $("payload");
     if (pi) pi.addEventListener("change", function () {
       state.assembly.payload_g = Math.max(0, parseFloat(pi.value) || 0);
+      revalidate();
+    });
+    var bi = $("budget");
+    if (bi) bi.addEventListener("change", function () {
+      var v = parseFloat(bi.value);
+      if (!isFinite(v) || v < 0) v = 1000;
+      state.assembly.budget_cny = v;
       revalidate();
     });
     $("safety-note").innerHTML = '<b>安全边界</b>：网页只做装配/运动学示意，不是动力学、不是网格碰撞，也不会写舵机。' +
@@ -808,7 +827,11 @@
     });
     html += '</tbody>';
     $("bom").innerHTML = html;
-    $("bom-note").innerHTML = '合计 <b>¥' + Math.round(r.totalCost) + '</b>、约 <b>' + Math.round(r.totalMass) + 'g</b>。这是组件库保守估算，不是供应商报价；打印件/线材/紧固件按 BOM 行计。';
+    var budget = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
+    var over = r.totalCost > budget;
+    $("bom-note").innerHTML = '合计 <b>¥' + Math.round(r.totalCost) + '</b>、约 <b>' + Math.round(r.totalMass) + 'g</b>；预算 <b>¥' + Math.round(budget) + '</b>，' +
+      (over ? '<b style="color:var(--bad)">超 ¥' + Math.round(r.totalCost - budget) + '</b>' : '<b style="color:var(--ok)">余 ¥' + Math.round(budget - r.totalCost) + '</b>') +
+      '。这是组件库保守估算，不是供应商报价；打印件/线材/紧固件按 BOM 行计。';
   }
 
   function renderJoints() {
@@ -864,7 +887,7 @@
   function exportJSON() {
     var data = clone(state.assembly);
     data.generator = "modkit Studio";
-    data.version = "1.6.0";
+    data.version = STUDIO_VERSION;
     data.exported = new Date().toISOString();
     download(designFileName("json"), new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
     toast("已导出装配 JSON；可交给 modkit assemble plan", "ok");

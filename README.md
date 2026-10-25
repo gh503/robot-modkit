@@ -34,7 +34,7 @@
 | 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 测试（协议 41 + 底盘 30 + 电源 6） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
 | 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **147 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
-| 仿真：整机多视图 + 抓取动画 + 底盘闭环 | ✅ 可用 | 主图/四视图/爆炸图 + 30 帧 GIF；闭环判据 7mm / 0.1° 全过 |
+| 仿真：三维视图 + **数字孪生** | ✅ 可用 | 8 个硬件场景全过（舵机/电池/打滑/丢帧/全栈任务） |
 | 打印校准件 + 三张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_A/B/C.stl`、jigs 三件套 |
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
 | 整机实测 | ⬜ 硬件阻塞 | 0/5 个物理闸门；顺序见 [docs/42](docs/42-完成度审计.md) |
@@ -49,6 +49,9 @@
 | 生成高质量四视图 / 爆炸图 | `make -C sim shots`（需本机有 Chrome） |
 | 抓取动画 GIF | `make -C sim grasp` 或 `make -C sim shots` |
 | 底盘闭环仿真 | `make -C sim drive` |
+| **硬件仿真**（舵机/电池/丢帧） | `modkit simrun --all sim/scenarios` |
+| 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
+| 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
 | 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |
 | 拼打印板 | `cd cad && python plate.py` → `plate_A/B/C.stl` |
 

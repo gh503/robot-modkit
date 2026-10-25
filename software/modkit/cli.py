@@ -25,6 +25,8 @@ from . import selftest as st
 from . import camsim as cs
 from . import scenario as sn
 from . import simserver as ss
+from . import identify as ident
+from . import simsweep as sw
 from . import speedcal as sc
 from . import kinematics as kin
 from . import nav as nv
@@ -337,6 +339,51 @@ def cmd_camsim(args) -> int:
 def cmd_simui(args) -> int:
     ss.main(port=args.port, open_browser=args.open)
     return 0
+
+
+def cmd_simsweep(args) -> int:
+    scene = sn.load(args.scenario)
+    r = sw.run_sweep(scene, n=args.n, seed=args.seed, profile=args.profile)
+    print(f"场景 {r['scenario'] or args.scenario}")
+    print(f"profile={r['profile']} seed={r['seed']} n={r['n']}  "
+          f"通过 {r['passed']}/{r['n']} = {r['pass_rate'] * 100:.1f}%")
+    e = r["error_mm"]
+    if e["p50"] is not None:
+        print(f"终点误差 mm：p50 {e['p50']}  p95 {e['p95']}  max {e['max']}")
+    bad = [x for x in r["runs"] if not x["ok"]][:5]
+    for x in bad:
+        print(f"  #{x['i']} slip={x['params']['slip']:.3f} "
+              f"ocv={x['params']['ocv']:.2f} err={x['error_mm']}  {x['why']}")
+    if args.out:
+        pathlib.Path(args.out).write_text(
+            json.dumps(r, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"已写入 {args.out}")
+    if args.min_pass and r["pass_rate"] < args.min_pass:
+        print(f"未达最低通过率 {args.min_pass:.0%}")
+        return 1
+    return 0
+
+
+def cmd_identify(args) -> int:
+    samples = tm.read_log(args.log)
+    rep = ident.report(samples)
+    print(f"样本 {rep['samples']} 条")
+    if rep["encoder"]:
+        e = rep["encoder"]
+        print(f"编码器：{e['value']:.5f} deg/LSB（R² {e['r2']:.3f}, {e['n']} 对）")
+        print(f"  理论值 360/4096 = {360/4096:.5f}；偏差 "
+              f"{(e['value'] / (360/4096) - 1) * 100:+.2f}%")
+    if rep["battery"]:
+        b = rep["battery"]
+        print(f"电池：OCV≈{b['ocv_v']:.2f}V，内阻≈{b['resistance_ohm']:.3f}Ω"
+              f"（R² {b['r2']:.3f}, {b['n']} 点）")
+    for n in rep["notes"]:
+        print("  ! " + n)
+    if args.json:
+        pathlib.Path(args.json).write_text(
+            json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"已写入 {args.json}")
+    return 0 if (rep["encoder"] or rep["battery"]) else 1
 
 
 def cmd_simrun(args) -> int:
@@ -752,6 +799,20 @@ def main(argv: list[str] | None = None) -> int:
     csp.add_argument("--seed", type=int, default=0)
     csp.add_argument("--detect", action="store_true")
     csp.set_defaults(func=cmd_camsim)
+
+    ident_p = sub.add_parser("identify", help="从遥测 CSV 反推编码器/电池参数")
+    ident_p.add_argument("--log", required=True)
+    ident_p.add_argument("--json")
+    ident_p.set_defaults(func=cmd_identify)
+
+    sweep = sub.add_parser("simsweep", help="蒙特卡洛参数扰动")
+    sweep.add_argument("--scenario", required=True)
+    sweep.add_argument("-n", type=int, default=30)
+    sweep.add_argument("--seed", type=int, default=0)
+    sweep.add_argument("--profile", choices=sw.PROFILES, default="mild")
+    sweep.add_argument("--min-pass", type=float, default=0.0)
+    sweep.add_argument("--out")
+    sweep.set_defaults(func=cmd_simsweep)
 
     ui = sub.add_parser("simui", help="交互式仿真工作台（浏览器）")
     ui.add_argument("--port", type=int, default=8765)

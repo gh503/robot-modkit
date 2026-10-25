@@ -1,12 +1,14 @@
-"""把 STL 排成三张 220×220 打印板（对应 SO-ARM100 "预排好的一张板" 的做法）。
+"""按套数排 220×220 打印板。
 
-为什么手排而不是自动装箱：
-  · 底盘 120×200，两张板必然各占一张 —— 自动装箱反而会排出 5 张板
-  · 预排结果固定，便于核对"这次打的和我上次打的一样"
-  · 排完仍然断言：都在床内、互不重叠、高度不超、间隙 ≥ 4mm
+默认用 pack.py 的 MaxRects 排**全部 27 件/套**（含 4 个关节底座/盖/盘等重复件），
+输出 cad/out/plate_01..N.stl；`--legacy` 才生成旧的三张 A/B/C 手排示意。
 
-用法：cd cad && ../.venv/bin/python plate.py
-产物：cad/out/plate_A.stl / plate_B.stl / plate_C.stl
+旧 A/B/C 只有 13 个唯一件，漏掉重复件，不能用于整机生产（v1.1 修正）。
+
+用法：
+  cd cad && ../.venv/bin/python plate.py --copies 1
+  cd cad && ../.venv/bin/python plate.py --copies 3
+  cd cad && ../.venv/bin/python plate.py --legacy   # 仅示意
 """
 
 from __future__ import annotations
@@ -49,7 +51,7 @@ PLATES: dict[str, list[tuple[str, float, float]]] = {
 def batch_plan(copies: int) -> dict:
     """按套数估排产：件数 → 面积 → 需要几张板、多少料/机时。
 
-    注意：`plate_A/B/C.stl` 是"一套"的排法，适合单台。
+    注意：legacy 的 `plate_A/B/C.stl` 只有 13 个唯一件，不能用于整机。
     批量时按面积重排（同样的床，塞更多小件），这里只给面积与张数估算。
     """
     mfg = json.loads((OUT / "manufacturing.json").read_text(encoding="utf-8"))
@@ -84,7 +86,7 @@ def batch_plan(copies: int) -> dict:
     }
 
 
-def main():
+def legacy_main():
     copies = 1
     if "--copies" in sys.argv:
         copies = int(sys.argv[sys.argv.index("--copies") + 1])
@@ -141,5 +143,16 @@ def main():
           f"（与 docs/16 一致）；批量 {copies} 台有失败重打与换料损耗，建议 +8%")
 
 
+def main():
+    copies = 1
+    if "--copies" in sys.argv:
+        copies = int(sys.argv[sys.argv.index("--copies") + 1])
+    if "--legacy" in sys.argv:
+        return legacy_main()
+    import pack
+    outdir = OUT if copies == 1 else OUT / "batch" / str(copies)
+    return pack.main(copies, outdir)
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

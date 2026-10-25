@@ -67,6 +67,8 @@ jobs:
         run: cd cad && python cost.py
       - name: 排产估算（5 套）
         run: cd cad && python plate.py --copies 5
+      - name: 按数量排板（3 套）
+        run: cd cad && python pack.py --copies 3
       - name: 工程图（13 页 PDF）
         run: cd cad && python drawings.py
       - name: 设计校核（力矩/刚度/公差/驱动）

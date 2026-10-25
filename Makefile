@@ -17,6 +17,7 @@ cad:
 	cd cad && ../$(PY) verify_design.py
 	cd cad && ../$(PY) drawings.py
 	cd cad && ../$(PY) plate.py --copies 5
+	cd cad && ../$(PY) pack.py --copies 3
 	cd cad && ../$(PY) harness.py
 	cd cad && ../$(PY) design_space.py
 	cd cad && ../$(PY) routing.py

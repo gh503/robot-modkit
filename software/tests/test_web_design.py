@@ -116,6 +116,17 @@ def test_budget_optimizer_finds_two_joint_variant():
     assert "gripper" in out["new_names"]
 
 
+def test_optimizer_markdown_report():
+    out = run_core("""
+      const cs = B.suggest(window.MODKIT_ASSEMBLIES.m1);
+      return { md: B.reportMarkdown(cs, 1127.4, 'm1'), n: cs.length };
+    """)
+    assert out["n"] >= 2
+    assert out["md"].startswith("# 预算优化：m1")
+    assert "去掉肘关节" in out["md"]
+    assert "单步候选" in out["md"]
+
+
 def test_tool_dual_mount_allows_swap():
     out = run_core("""
       const a = JSON.parse(JSON.stringify(window.MODKIT_ASSEMBLIES.m1));
@@ -161,4 +172,6 @@ def test_design_html_hooks():
                     "export-step-zip", "import-design", "restore-design"):
         assert 'id="%s"' % node_id in html, node_id
     assert 'value="m1_budget"' in html
+    assert 'id="optimize"' in html and 'id="export-optimizer"' in html
+    assert 'id="undo"' in html and 'id="redo"' in html
     assert "assembly-core.js" in html and "designer.js" in html

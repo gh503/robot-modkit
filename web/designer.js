@@ -21,7 +21,8 @@
   };
   var state = {
     assembly: null, report: null, selected: null, replaceMode: false,
-    angles: {}, playing: false, playStart: 0, speed: 1, dirty: false, optimizer: null
+    angles: {}, playing: false, playStart: 0, speed: 1, dirty: false, optimizer: null,
+    history: [], historyIndex: -1, historyLimit: 40
   };
   var view = {
     scene: null, camera: null, renderer: null, controls: null, root: null,
@@ -29,7 +30,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.9.0";
+  var STUDIO_VERSION = "1.10.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -413,6 +414,7 @@
     state.assembly = clone(asm);
     if (!state.assembly.name) state.assembly.name = name;
     if (state.assembly.budget_cny == null) state.assembly.budget_cny = 1000;
+    pushHistory("载入预设 " + name);
     state.selected = state.assembly.components.length ? state.assembly.components[0].id : null;
     state.angles = {}; state.playing = false; state.fitPending = true;
     $("preset").value = P[name] ? name : "m1";
@@ -430,6 +432,7 @@
         state.selected = data.components[0].id;
         state.angles = {}; state.playing = false; state.fitPending = true;
         $("preset").value = "";
+        pushHistory("导入装配");
         revalidate();
         toast("已导入装配：" + (data.name || "未命名"), "ok");
       } catch (e) { toast("导入失败：" + e.message, "err"); }
@@ -443,6 +446,7 @@
     };
     state.selected = "chassis"; state.angles = {}; state.playing = false; state.fitPending = true;
     $("preset").value = "";
+    pushHistory("新建空白装配");
     revalidate(); toast("已新建空白装配：chassis", "ok");
   }
 
@@ -493,6 +497,7 @@
       var root = { id: uniqueId(type), type: type, parent: null, child_port: "mount", at: [0, 0], spin: 0 };
       state.assembly.components.push(root);
       state.selected = root.id; state.fitPending = true;
+      pushHistory("添加 " + type);
       revalidate(); toast("已创建根组件 " + root.id, "ok"); return;
     }
     var parentRaw = rawById(state.selected);
@@ -508,6 +513,7 @@
     state.assembly.components.push(inst);
     state.selected = inst.id;
     state.fitPending = true;
+    pushHistory("添加 " + type);
     revalidate();
     toast("已添加 " + inst.id + " → " + parentRaw.id + "." + pair.pp.name, "ok");
   }
@@ -523,6 +529,7 @@
     state.replaceMode = false;
     updatePaletteHint();
     state.fitPending = true;
+    pushHistory("替换为 " + type);
     revalidate();
     toast("已替换为 " + type, "ok");
   }
@@ -535,6 +542,7 @@
     state.assembly.components = state.assembly.components.filter(function (c) { return ids.indexOf(c.id) < 0; });
     state.selected = parent && rawById(parent) ? parent : (state.assembly.components[0] ? state.assembly.components[0].id : null);
     state.fitPending = true;
+    pushHistory("删除选中组件");
     revalidate();
   }
 
@@ -550,9 +558,56 @@
       state.selected = data.components[0].id;
       state.angles = {}; state.playing = false; state.fitPending = true;
       $("preset").value = "";
+      pushHistory("恢复本地草稿");
       revalidate(); toast("已恢复上次本地草稿", "ok");
     } catch (e) { toast("恢复失败：" + e.message, "err"); }
   }
+  function pushHistory(label) {
+    if (!state.assembly) return;
+    var snap = clone(state.assembly);
+    if (state.historyIndex >= 0) {
+      var prev = state.history[state.historyIndex];
+      if (prev && JSON.stringify(prev.assembly) === JSON.stringify(snap)) return;
+    }
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push({ label: label || "编辑", assembly: snap });
+    if (state.history.length > state.historyLimit) state.history.shift();
+    state.historyIndex = state.history.length - 1;
+    renderHistory();
+  }
+
+  function renderHistory() {
+    var u = $("undo"), r = $("redo");
+    if (u) u.disabled = state.historyIndex <= 0;
+    if (r) r.disabled = state.historyIndex < 0 || state.historyIndex >= state.history.length - 1;
+    if (u) u.title = state.historyIndex > 0 ? ("撤销：" + state.history[state.historyIndex].label + " (Ctrl+Z)") : "没有可撤销的编辑";
+    if (r) r.title = state.historyIndex >= 0 && state.historyIndex < state.history.length - 1
+      ? ("重做：" + state.history[state.historyIndex + 1].label + " (Ctrl+Shift+Z)") : "没有可重做的编辑";
+  }
+
+  function restoreHistory(index) {
+    var entry = state.history[index];
+    if (!entry) return;
+    state.historyIndex = index;
+    state.assembly = clone(entry.assembly);
+    state.optimizer = null; state.angles = {}; state.playing = false; state.fitPending = true;
+    if (state.selected && !rawById(state.selected)) {
+      state.selected = state.assembly.components.length ? state.assembly.components[0].id : null;
+    }
+    revalidate();
+    toast((index < state.history.length - 1 ? "已撤销：" : "已重做：") + entry.label, "ok");
+  }
+
+  function undo() {
+    if (state.historyIndex <= 0) return;
+    restoreHistory(state.historyIndex - 1);
+  }
+
+  function redo() {
+    if (state.historyIndex < 0 || state.historyIndex >= state.history.length - 1) return;
+    restoreHistory(state.historyIndex + 1);
+  }
+
   function revalidate() {
     if (!state.assembly) return;
     if (state.assembly.budget_cny == null) state.assembly.budget_cny = 1000;
@@ -722,6 +777,7 @@
       raw.joint = ov;
     }
     state.fitPending = true;
+    pushHistory("修改组件参数");
     revalidate();
     toast("参数已应用", "ok");
   }
@@ -747,6 +803,7 @@
     renderOptimizer();
     renderJoints();
     renderExportState();
+    renderHistory();
     updateHud();
   }
 
@@ -880,6 +937,14 @@
     toast(state.optimizer.length ? ("生成 " + state.optimizer.length + " 个可验证候选") : "没有可验证的降本候选", state.optimizer.length ? "ok" : "");
   }
 
+  function exportOptimizerReport() {
+    if (!state.optimizer) { toast("先生成候选，再导出报告", ""); return; }
+    var md = window.MODKIT_BUDGET.reportMarkdown(state.optimizer, state.report ? state.report.totalCost : 0,
+      state.assembly ? state.assembly.name : "design");
+    download(designFileName("budget.md"), new Blob([md], { type: "text/markdown;charset=utf-8" }));
+    toast("已导出预算优化报告（Markdown）", "ok");
+  }
+
   function applyOptimizer(id) {
     if (!state.assembly || !state.optimizer) return;
     var c = null;
@@ -891,6 +956,7 @@
     next.name = (next.name || "design").replace(/-opt$/, "") + "-opt";
     next.description = "预算优化：应用「" + c.title + "」。" + (next.description || "");
     state.assembly = next;
+    pushHistory("预算优化：" + c.title);
     state.optimizer = null;
     state.angles = {}; state.playing = false; state.fitPending = true;
     if (!next.components.some(function (x) { return x.id === state.selected; })) {
@@ -1140,6 +1206,8 @@
     $("search").addEventListener("input", renderPalette);
     $("preset").addEventListener("change", function () { loadPreset($("preset").value); });
     $("new-design").addEventListener("click", newDesign);
+    $("undo").addEventListener("click", undo);
+    $("redo").addEventListener("click", redo);
     $("import-design").addEventListener("click", function () { $("import-file").click(); });
     $("import-file").addEventListener("change", function () { importDesign($("import-file").files[0]); $("import-file").value = ""; });
     $("restore-design").addEventListener("click", restoreLocal);
@@ -1166,6 +1234,7 @@
       $("tab-btn-" + k).addEventListener("click", function () { showTab(k); });
     });
     $("optimize").addEventListener("click", runOptimizer);
+    $("export-optimizer").addEventListener("click", exportOptimizerReport);
     $("export-json").addEventListener("click", exportJSON);
     $("export-csv").addEventListener("click", exportCSV);
     $("export-stl").addEventListener("click", exportSTL);
@@ -1173,6 +1242,14 @@
     $("export-step").addEventListener("click", exportSTEP);
     $("export-step-zip").addEventListener("click", exportStepZip);
     $("copy-command").addEventListener("click", copyCommand);
+    document.addEventListener("keydown", function (e) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      var tag = (e.target && e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      var k = String(e.key || "").toLowerCase();
+      if (k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+      else if (k === "y") { e.preventDefault(); redo(); }
+    });
     $("loading").style.display = "none";
     var q = new URLSearchParams(location.search);
     var preset = q.get("preset");
@@ -1193,6 +1270,7 @@
     deleteSelected: deleteSelected, revalidate: revalidate, loadPreset: loadPreset,
     applyMotion: applyMotion, exportSTL: exportSTL, exportJSON: exportJSON,
     exportStepZip: exportStepZip, fitCamera: fitCamera,
-    optimize: runOptimizer, applyOptimization: applyOptimizer
+    optimize: runOptimizer, applyOptimization: applyOptimizer,
+    exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo
   };
 })();

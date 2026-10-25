@@ -55,6 +55,8 @@
         <option value="sensor_tower">传感器塔</option>
       </select>
       <button class="btn" id="new-design">新建</button>
+      <button class="btn" id="undo" disabled aria-label="撤销" title="撤销 (Ctrl+Z)">↶</button>
+      <button class="btn" id="redo" disabled aria-label="重做" title="重做 (Ctrl+Shift+Z)">↷</button>
       <button class="btn" id="import-design">导入</button>
       <button class="btn" id="restore-design">恢复</button>
       <input id="import-file" type="file" accept=".json,application/json" hidden>
@@ -133,6 +135,7 @@
         <h2>预算优化</h2>
         <div class="opt-head">
           <button class="btn primary" id="optimize">生成降本候选</button>
+          <button class="btn" id="export-optimizer">导出报告</button>
           <span class="note" id="optimizer-note">候选会逐个重新校验；不会自动应用。</span>
         </div>
         <div id="optimizer"></div>

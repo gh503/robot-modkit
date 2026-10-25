@@ -196,7 +196,30 @@
       return clone(cand.assembly);
     }
 
-    return { SUBSTITUTIONS: SUBSTITUTIONS, suggest: suggest, apply: apply, clampAt: clampAt };
+    function reportMarkdown(cands, baseCost, title) {
+      function md(v) { return String(v == null ? "" : v).replace(/\|/g, "\\|").replace(/\n/g, " "); }
+      var lines = ["# 预算优化：" + md(title || "装配"), "",
+                   "当前 BOM：¥" + Number(baseCost).toFixed(1), ""];
+      if (!cands || !cands.length) {
+        lines.push("没有找到既省钱又能通过校验的单步候选。");
+        return lines.join("\n") + "\n";
+      }
+      lines.push("| # | 候选 | 省 ¥ | 应用后 ¥ | 组件/关节 | 风险 | 代价 |");
+      lines.push("|---:|---|---:|---:|---|---|---|");
+      cands.forEach(function (c, i) {
+        lines.push("| " + (i + 1) + " | " + md(c.title) + " | " + Number(c.saving).toFixed(1) +
+          " | " + Number(c.cost).toFixed(1) + " | " + c.components + "/" + c.joints +
+          " | " + md(c.risk) + " | " + md(c.tradeoff) + " |");
+        if (c.changes && c.changes.length) {
+          lines.push("| | " + c.changes.map(md).join("<br>") + " | | | | | |");
+        }
+      });
+      lines.push("", "> 单步候选，不是全局最优；候选都重新通过装配校验。", "");
+      return lines.join("\n") + "\n";
+    }
+
+    return { SUBSTITUTIONS: SUBSTITUTIONS, suggest: suggest, apply: apply,
+             reportMarkdown: reportMarkdown, clampAt: clampAt };
   }
 
   if (typeof module !== "undefined" && module.exports) module.exports = create;

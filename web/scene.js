@@ -49,6 +49,41 @@ window.MODKIT_SCENE = {
   "left": 5,
   "right": 6
  },
+ "safety": {
+  "source": "design",
+  "limits": {
+   "yaw": [
+    -120.0,
+    120.0
+   ],
+   "shoulder": [
+    -25.0,
+    100.0
+   ],
+   "elbow": [
+    -150.0,
+    5.0
+   ],
+   "gripper": [
+    0.0,
+    1.0
+   ]
+  },
+  "max_step": {
+   "yaw": 45.0,
+   "shoulder": 45.0,
+   "elbow": 60.0,
+   "gripper": 0.5
+  },
+  "temp_warn_c": 45,
+  "temp_max_c": 55,
+  "voltage_warn_v": 10.8,
+  "voltage_min_v": 10.2,
+  "torque_limit": 600,
+  "current_limit": 384,
+  "acc": 30,
+  "speed": 300
+ },
  "keyframes": [
   {
    "yaw": 0,

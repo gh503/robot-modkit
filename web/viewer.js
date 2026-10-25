@@ -16,6 +16,8 @@
     return;
   }
   var P = S.params, L = S.limits;
+  var SAFE = S.safety || {};
+  var DEG = 0.087890625;
 
   function $(id) { return document.getElementById(id); }
   function setStatus(text, kind) {
@@ -241,11 +243,27 @@
   // ------------------------------------------------------------------ 状态
   var state = {
     yaw: 0, shoulder: 35, elbow: -55, jaw: 1,
-    playing: false, t: 0, held: false, follow: false
+    playing: false, t: 0, held: false, follow: false,
+    cal: {}, calibrated: false
   };
 
   function gapMm(jaw) {
     return P.jawOpen * jaw + P.jawClosed * (1 - jaw);
+  }
+
+  function envelopeProblem(yawDeg, shoulderDeg, elbowDeg) {
+    var sh = THREE.MathUtils.degToRad(shoulderDeg);
+    var el = THREE.MathUtils.degToRad(shoulderDeg + elbowDeg);
+    var tx = P.l1 * Math.cos(sh) + P.l2 * Math.cos(el) + P.gripperLen * Math.cos(el);
+    var tz = P.l1 * Math.sin(sh) + P.l2 * Math.sin(el) + P.gripperLen * Math.sin(el);
+    var z = P.baseH + tz, d = Math.abs(tx);
+    if (Math.abs(yawDeg) > 120.5) return "偏航超出 ±120°";
+    if (shoulderDeg < -25.5 || shoulderDeg > 100.5) return "肩角超出设计包络";
+    if (elbowDeg < -150.5 || elbowDeg > 5.5) return "肘角超出设计包络";
+    if (z < 12) return "指尖低于桌面安全线";
+    if (z < 130 && d < 72) return "指尖进入底座避让区";
+    if (elbowDeg < -140 && shoulderDeg < 10 && d < 95) return "肩肘折叠过深";
+    return "";
   }
 
   function applyState() {
@@ -276,6 +294,8 @@
     $("v-shoulder").textContent = state.shoulder.toFixed(0) + "°";
     $("v-elbow").textContent = state.elbow.toFixed(0) + "°";
     $("v-jaw").textContent = gap.toFixed(0) + " mm";
+    var warn = envelopeProblem(state.yaw, state.shoulder, state.elbow);
+    if ($("fk-warn")) $("fk-warn").textContent = warn ? "⚠ " + warn : "";
 
     if (state.held) {
       var tip = new THREE.Vector3(P.gripperLen, 0, 0);
@@ -388,7 +408,9 @@
   // ------------------------------------------------------------------ Web Serial
   // 寄存器：0x28 扭矩使能、0x2A 目标位置(2)+时间(2)+速度(2)、0x38 反馈 8 字节
   // 0x41 状态位（故障）。读 0x38 拿不到故障位，必须单独读。
-  var REG_TORQUE = 0x28, REG_GOAL = 0x2A, REG_FB = 0x38, REG_STATUS = 0x41;
+  var REG_TORQUE = 0x28, REG_GOAL = 0x2A, REG_ACC = 0x29;
+  var REG_CURRENT_LIMIT = 0x1C, REG_TORQUE_LIMIT = 0x30;
+  var REG_FB = 0x38, REG_STATUS = 0x41;
   var JOINTS = [
     ["yaw", "偏航"], ["shoulder", "肩"], ["elbow", "肘"], ["gripper", "夹爪"]
   ];
@@ -398,7 +420,8 @@
   var fb = {};                    // name -> {pos, speed, load, volts, temp, status, seen}
 
   JOINTS.forEach(function (j) {
-    fb[j[0]] = { pos: null, speed: 0, load: 0, volts: null, temp: null, status: 0, seen: false };
+    fb[j[0]] = { pos: null, speed: 0, load: 0, volts: null, temp: null, status: 0,
+                 seen: false, t: 0 };
   });
 
   function toast(msg, kind) {
@@ -415,10 +438,16 @@
       el.textContent = text || (connected ? "已连接" : "未连接");
       el.className = "pill " + (connected ? "ok" : "");
     }
-    ["serial-disconnect", "serial-torque", "serial-send", "serial-follow", "serial-record"]
-      .forEach(function (id) { if ($(id)) $(id).disabled = !connected; });
+    ["serial-disconnect", "serial-torque", "serial-send", "serial-follow", "serial-record",
+     "preflight-run"].forEach(function (id) { if ($(id)) $(id).disabled = !connected; });
+    if ($("load-cal")) $("load-cal").disabled = false;
     var es = $("serial-estop");
     if (es) { es.disabled = !connected; es.classList.toggle("show", !!connected); }
+    if (!connected) {
+      if ($("preflight-state")) { $("preflight-state").textContent = "未连接"; $("preflight-state").className = "pill"; }
+      if ($("preflight-note")) $("preflight-note").textContent =
+        "连接后自动读 4 轴反馈；温度、电压、故障位或限位任一不过，禁止下发。";
+    }
   }
   setSerialState(false);
 
@@ -500,14 +529,25 @@
   }
 
   function setTorque(on) {
-    if (!writer) { log("先连接串口", "err"); return; }
+    if (!writer) { log("先连接串口", "err"); return false; }
+    if (on) {
+      var rep = healthIssues();
+      if (rep.issues.length) {
+        paintPreflight(rep);
+        log("拒绝使能：" + rep.issues.join("；"), "err");
+        toast("拒绝使能：先处理预检问题", "err");
+        return false;
+      }
+      applyLimits();
+    }
     JOINTS.forEach(function (j) {
-      send(frame(S.ids[j[0]], 0x03, [REG_TORQUE, on ? 1 : 0]), null, true);
+      send(frame(servoId(j[0]), 0x03, [REG_TORQUE, on ? 1 : 0]), null, true);
     });
     torqueOn = on;
     $("serial-torque").textContent = on ? "卸力" : "使能扭矩";
     $("serial-torque").className = on ? "action danger" : "action";
     log(on ? "已使能扭矩（保持当前位置）" : "已卸力", on ? "ok" : "");
+    return true;
   }
 
   async function connect() {
@@ -532,6 +572,7 @@
       log("串口已连接，1Mbps 8N1；先「使能扭矩」再下发", "ok");
       toast("串口已连接", "ok");
       readLoop();
+      setTimeout(runPreflight, 250);
     } catch (e) {
       if (port) { try { await port.close(); } catch (err) {} }
       port = null; writer = null;
@@ -566,7 +607,7 @@
   function onFrame(f) {
     var id = f[2], instr = f[4], params = f.slice(5, f.length - 1);
     var name = null;
-    JOINTS.forEach(function (j) { if (S.ids[j[0]] === id) name = j[0]; });
+    JOINTS.forEach(function (j) { if (servoId(j[0]) === id) name = j[0]; });
     if (!name) return;
 
     if (instr === 0x00 && params.length >= 8) {
@@ -579,13 +620,13 @@
       o.volts = params[6] / 10;
       o.temp = params[7];
       o.seen = true;
+      o.t = Date.now();
       renderRow(name);
       if (recording) pushCsv(name);
       if (state.follow) {
-        var deg = (o.pos - 2048) * 0.087890625;
-        if (name === "yaw") { state.yaw = deg; state.playing = false; applyState(); }
-        else if (name === "shoulder") { state.shoulder = deg; state.playing = false; applyState(); }
-        else if (name === "elbow") { state.elbow = deg; state.playing = false; applyState(); }
+        state[name === "gripper" ? "jaw" : name] = jointOfServo(name, (o.pos - 2048) * DEG);
+        state.playing = false;
+        applyState();
       }
     } else if (instr === 0x00 && params.length >= 1) {
       // 0x41 状态位（读 1 字节时返回）
@@ -624,22 +665,67 @@
     }
   }
 
-  function targetOf(name) {
-    if (name === "gripper") return 180 - 60 * (1 - state.jaw);
-    return state[name];
+  // ---------------------------------------------------------- 关节安全映射
+  function calOf(name) { return state.cal[name] || null; }
+  function servoId(name) { return (calOf(name) && calOf(name).id) || S.ids[name]; }
+  function jointTargetOf(name) { return name === "gripper" ? state.jaw : state[name]; }
+
+  // ticks(offsetDeg) 的输入是“相对舵机 180° 的偏移”，不是绝对角度。
+  // 标定文件里的 zero_ticks 是绝对 tick，所以这里先换算成偏移，避免把 180° 加两次。
+  function servoOffsetOf(name, value) {
+    var c = calOf(name);
+    if (c) return (c.zero + c.dir * value * c.tpu) * DEG - 180;
+    if (name === "gripper") return -60 * (1 - value);  // 120..180° → -60..0
+    if (name === "elbow") return -value;               // 肘向内为负，计数反向
+    return value;
+  }
+
+  function jointOfServo(name, offsetDeg) {
+    var c = calOf(name);
+    if (c) return c.dir * (((offsetDeg + 180) / DEG) - c.zero) / c.tpu;
+    if (name === "gripper") return Math.max(0, Math.min(1, (offsetDeg + 60) / 60));
+    if (name === "elbow") return -offsetDeg;
+    return offsetDeg;
+  }
+
+  function limitsOf(name) {
+    var c = calOf(name);
+    if (c) return [c.min, c.max];
+    if (SAFE.limits && SAFE.limits[name]) return SAFE.limits[name];
+    if (name === "gripper") return [0, 1];
+    return L[name] || [-180, 180];
+  }
+
+  function maxStepOf(name) {
+    return (SAFE.max_step && SAFE.max_step[name]) || 45;
+  }
+
+  function gapOf(jaw) { return P.jawOpen * jaw + P.jawClosed * (1 - jaw); }
+  function fmtJoint(name, v) {
+    return name === "gripper" ? gapOf(v).toFixed(0) + " mm" : v.toFixed(1) + "°";
+  }
+  function fmtErr(name, e) {
+    return name === "gripper"
+      ? (e * (P.jawOpen - P.jawClosed)).toFixed(1) + " mm"
+      : e.toFixed(1) + "°";
+  }
+  function fmtStep(name, v) {
+    return name === "gripper" ? v.toFixed(2) : v.toFixed(1) + "°";
   }
 
   function renderRow(name) {
     var o = fb[name];
     if (!o.seen) return;
-    var deg = (o.pos - 2048) * 0.087890625;
-    var target = targetOf(name);
-    var err = deg - target;
-    $("t-" + name).textContent = target.toFixed(1) + "°";
-    $("a-" + name).textContent = deg.toFixed(1) + "°";
+    var servo = (o.pos - 2048) * DEG;
+    var actual = jointOfServo(name, servo);
+    var target = jointTargetOf(name);
+    var err = actual - target;
+    $("t-" + name).textContent = fmtJoint(name, target);
+    $("a-" + name).textContent = fmtJoint(name, actual);
     var e = $("e-" + name);
-    e.textContent = err.toFixed(1) + "°";
-    e.className = Math.abs(err) > 5 ? "bad" : (Math.abs(err) > 1.5 ? "warn" : "");
+    var errShown = name === "gripper" ? err * (P.jawOpen - P.jawClosed) : err;
+    e.textContent = fmtErr(name, err);
+    e.className = Math.abs(errShown) > 5 ? "bad" : (Math.abs(errShown) > 1.5 ? "warn" : "");
     var c = $("c-" + name);
     c.textContent = o.temp + "℃";
     c.className = o.temp >= 55 ? "bad" : (o.temp >= 45 ? "warn" : "");
@@ -649,8 +735,8 @@
 
   function poll() {
     JOINTS.forEach(function (j) {
-      send(frame(S.ids[j[0]], 0x02, [REG_FB, 8]), null, true);
-      send(frame(S.ids[j[0]], 0x02, [REG_STATUS, 1]), null, true);
+      send(frame(servoId(j[0]), 0x02, [REG_FB, 8]), null, true);
+      send(frame(servoId(j[0]), 0x02, [REG_STATUS, 1]), null, true);
     });
   }
 
@@ -664,8 +750,151 @@
     pollTimer = null;
   }
 
+  // ---------------------------------------------------------- 预检与联锁
+  function healthIssues() {
+    var issues = [], warnings = [];
+    JOINTS.forEach(function (j) {
+      var name = j[0], o = fb[name], lim = limitsOf(name);
+      if (!o.seen) { issues.push(name + " 无反馈"); return; }
+      if (Date.now() - o.t > 2500) issues.push(name + " 反馈超过 2.5s 未更新");
+      if (o.temp == null || o.volts == null || o.pos == null) {
+        issues.push(name + " 反馈字段不完整");
+        return;
+      }
+      if (o.status) issues.push(name + " 故障位 0x" + o.status.toString(16));
+      if (o.temp >= (SAFE.temp_max_c || 55)) issues.push(name + " 温度 " + o.temp + "℃");
+      else if (o.temp >= (SAFE.temp_warn_c || 45)) warnings.push(name + " 温度 " + o.temp + "℃ 偏高");
+      if (o.volts <= (SAFE.voltage_min_v || 10.2)) issues.push(name + " 电压 " + o.volts.toFixed(1) + "V");
+      else if (o.volts <= (SAFE.voltage_warn_v || 10.8)) warnings.push(name + " 电压 " + o.volts.toFixed(1) + "V 偏低");
+      var cur = jointOfServo(name, (o.pos - 2048) * DEG);
+      if (cur < lim[0] - 0.5 || cur > lim[1] + 0.5) {
+        warnings.push(name + " 当前 " + fmtJoint(name, cur) + " 超出包络 [" +
+          fmtJoint(name, lim[0]) + ", " + fmtJoint(name, lim[1]) + "]");
+      }
+    });
+    return { issues: issues, warnings: warnings };
+  }
+
+  function paintPreflight(rep, prefix) {
+    var st = $("preflight-state"), note = $("preflight-note");
+    if (!st || !note) return;
+    if (rep.issues.length) {
+      st.textContent = "阻止";
+      st.className = "pill err";
+      note.textContent = "禁止下发：" + rep.issues.join("；");
+    } else {
+      st.textContent = rep.warnings.length ? "通过（有警告）" : "通过";
+      st.className = "pill " + (rep.warnings.length ? "warn" : "ok");
+      note.textContent = (prefix || "4 轴反馈正常，可以小步下发。") +
+        (rep.warnings.length ? " 注意：" + rep.warnings.join("；") : "");
+    }
+  }
+
+  function runPreflight() {
+    if (!writer) { toast("先连接串口", "err"); return false; }
+    var st = $("preflight-state");
+    if (st) { st.textContent = "检查中…"; st.className = "pill"; }
+    startPolling();
+    poll();
+    setTimeout(function () {
+      var rep = healthIssues();
+      paintPreflight(rep);
+      if (rep.issues.length) {
+        log("预检阻止：" + rep.issues.join("；"), "err");
+        toast("预检未通过，禁止运动", "err");
+      } else {
+        log("预检通过" + (rep.warnings.length ? "（有警告）" : ""), "ok");
+        toast("预检通过", "ok");
+      }
+    }, 650);
+    return true;
+  }
+
+  function guardMotion() {
+    var rep = healthIssues();
+    var geom = envelopeProblem(state.yaw, state.shoulder, state.elbow);
+    if (geom) rep.issues.push("几何包络：" + geom);
+    JOINTS.forEach(function (j) {
+      var name = j[0], target = jointTargetOf(name), o = fb[name];
+      if (!isFinite(target)) { rep.issues.push(name + " 目标不是有限数"); return; }
+      var lim = limitsOf(name);
+      if (target < lim[0] - 1e-9 || target > lim[1] + 1e-9) {
+        rep.issues.push(name + " 目标 " + fmtJoint(name, target) + " 超出包络");
+      }
+      if (!o.seen) return;
+      var cur = jointOfServo(name, (o.pos - 2048) * DEG);
+      var delta = Math.abs(target - cur);
+      if (delta > maxStepOf(name) + 1e-9) {
+        rep.issues.push(name + " 单步跳变 " + fmtStep(name, delta) + " > " +
+          fmtStep(name, maxStepOf(name)));
+      }
+    });
+    paintPreflight(rep, "联锁通过；仍请一只手放在主电开关上。");
+    if (rep.issues.length) {
+      log("联锁阻止：" + rep.issues.join("；"), "err");
+      toast("联锁阻止：" + rep.issues[0], "err");
+      return false;
+    }
+    return true;
+  }
+
+  function applyLimits() {
+    var t = SAFE.torque_limit || 600, c = SAFE.current_limit || 384, a = SAFE.acc || 30;
+    JOINTS.forEach(function (j) {
+      var sid = servoId(j[0]);
+      send(frame(sid, 0x03, [REG_TORQUE_LIMIT, t & 0xff, t >> 8]), null, true);
+      send(frame(sid, 0x03, [REG_CURRENT_LIMIT, c & 0xff, c >> 8]), null, true);
+      send(frame(sid, 0x03, [REG_ACC, a & 0xff]), null, true);
+    });
+  }
+
+  function loadCalibration(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var d = JSON.parse(reader.result), js = d.joints || {}, n = 0;
+        ["yaw", "shoulder", "elbow"].forEach(function (name) {
+          var j = js[name];
+          if (!j) return;
+          if (!isFinite(j.zero_ticks) || !isFinite(j.min_deg) || !isFinite(j.max_deg) ||
+              !isFinite(j.servo_id) || j.servo_id < 1 || j.zero_ticks < 0 || j.zero_ticks > 4095 ||
+              (j.dir !== 1 && j.dir !== -1) || j.min_deg >= j.max_deg) {
+            throw new Error(name + " 标定字段非法");
+          }
+          state.cal[name] = { min: +j.min_deg, max: +j.max_deg, zero: +j.zero_ticks,
+                              dir: +j.dir, tpu: 1 / DEG, id: +j.servo_id };
+          n++;
+        });
+        if (!n) throw new Error("没有 yaw/shoulder/elbow 标定");
+        state.calibrated = true;
+        JOINTS.forEach(function (j) {
+          var name = j[0], el = $("s-" + (name === "gripper" ? "jaw" : name));
+          if (!el || name === "gripper") return;
+          var lim = limitsOf(name);
+          el.min = lim[0]; el.max = lim[1];
+          el.value = Math.max(lim[0], Math.min(lim[1], +el.value));
+          state[name] = +el.value;
+        });
+        applyState();
+        if ($("preflight-state")) { $("preflight-state").textContent = "未检查"; $("preflight-state").className = "pill"; }
+        if ($("preflight-note")) $("preflight-note").textContent = "已载入标定；请重新预检。";
+        log("已载入标定：" + n + " 轴，限位/零位来自文件", "ok");
+        toast("标定已载入", "ok");
+      } catch (e) {
+        log("标定读取失败：" + e.message, "err");
+        toast("标定读取失败：" + e.message, "err");
+      }
+    };
+    reader.readAsText(file);
+  }
+
   $("serial-connect").addEventListener("click", connect);
   $("serial-disconnect").addEventListener("click", disconnect);
+  if ($("preflight-run")) $("preflight-run").addEventListener("click", runPreflight);
+  if ($("load-cal")) $("load-cal").addEventListener("click", function () { $("cal-file").click(); });
+  if ($("cal-file")) $("cal-file").addEventListener("change", function (e) {
+    if (e.target.files && e.target.files[0]) loadCalibration(e.target.files[0]);
+  });
   $("serial-torque").addEventListener("click", function () {
     guardSafety(function () { setTorque(!torqueOn); });
   });
@@ -673,7 +902,7 @@
   $("serial-estop").addEventListener("click", function () {
     if (!writer) { log("未连接：急停请直接关主电源", "err"); return; }
     JOINTS.forEach(function (j) {
-      send(frame(S.ids[j[0]], 0x03, [REG_TORQUE, 0]), "卸力 ID " + S.ids[j[0]]);
+      send(frame(servoId(j[0]), 0x03, [REG_TORQUE, 0]), "卸力 ID " + servoId(j[0]));
     });
     torqueOn = false;
     state.follow = false;
@@ -695,27 +924,30 @@
 
   $("serial-send").addEventListener("click", function () {
     if (!writer) { log("未连接", "err"); return; }
+    if (!guardMotion()) return;
     guardSafety(function () {
-      if (!torqueOn) {
-        setTorque(true);
-        log("下发前自动使能扭矩；若姿态差很多请先手动摆近", "ok");
-      }
+      var wasOff = !torqueOn;
+      if (wasOff && !setTorque(true)) return;
+      if (wasOff) log("下发前自动使能扭矩；若姿态差很多请先手动摆近", "ok");
+      applyLimits();
+      var speed = SAFE.speed || 300;
       JOINTS.forEach(function (j) {
-        var name = j[0], t = ticks(targetOf(name));
+        var name = j[0], t = ticks(servoOffsetOf(name, jointTargetOf(name)));
         // 0x2A 起 6 字节：位置(2) + 时间(2) + 速度(2)。时间 0 = 用速度控制
-        send(frame(S.ids[name], 0x03, [REG_GOAL, t & 0xff, t >> 8, 0, 0, 0xE8, 0x03]),
+        send(frame(servoId(name), 0x03, [REG_GOAL, t & 0xff, t >> 8, 0, 0, speed & 0xff, speed >> 8]),
              null, true);
       });
-      log("已下发 4 轴目标（速度 1000）", "ok");
+      log("已下发 4 轴目标（速度 " + speed + "，转矩/电流/加速度限制已写）", "ok");
       toast("已下发姿态", "ok");
       startPolling();
     });
   });
 
   function pushCsv(name) {
-    var o = fb[name], deg = (o.pos - 2048) * 0.087890625;
-    csv.push([Date.now(), name, S.ids[name], targetOf(name).toFixed(2), deg.toFixed(2),
-              (deg - targetOf(name)).toFixed(2), o.temp, o.volts.toFixed(1),
+    var o = fb[name], actual = jointOfServo(name, (o.pos - 2048) * DEG);
+    var target = jointTargetOf(name);
+    csv.push([Date.now(), name, servoId(name), target.toFixed(3), actual.toFixed(3),
+              (actual - target).toFixed(3), o.temp, o.volts.toFixed(1),
               o.load, o.status].join(","));
   }
 
@@ -748,11 +980,11 @@
       $("serial-state").className = "pill warn";
       demoTimer = setInterval(function () {
         JOINTS.forEach(function (j) {
-          var name = j[0], t = targetOf(name);
+          var name = j[0], t = servoOffsetOf(name, jointTargetOf(name));
           var o = fb[name];
-          o.pos = ticks(t + Math.sin(Date.now() / 700 + S.ids[name]) * 0.6);
-          o.volts = 11.9; o.temp = 38 + (S.ids[name] % 3);
-          o.load = 30; o.status = 0; o.seen = true;
+          o.pos = ticks(t + Math.sin(Date.now() / 700 + servoId(name)) * 0.6);
+          o.volts = 11.9; o.temp = 38 + (servoId(name) % 3);
+          o.load = 30; o.status = 0; o.seen = true; o.t = Date.now();
           renderRow(name);
         });
       }, 250);

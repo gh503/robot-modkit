@@ -38,6 +38,21 @@ scene = {
         "elbow": [-150.0, 5.0],
     },
     "ids": {"yaw": 1, "shoulder": 2, "elbow": 3, "gripper": 4, "left": 5, "right": 6},
+    # 与 software/modkit/safety.py 的默认策略逐项对齐；网页用它做 fail-closed 预检。
+    "safety": {
+        "source": "design",
+        "limits": {
+            "yaw": [-M.arm_geometry().yaw_limit, M.arm_geometry().yaw_limit],
+            "shoulder": [-25.0, 100.0],
+            "elbow": [-150.0, 5.0],
+            "gripper": [0.0, 1.0],
+        },
+        "max_step": {"yaw": 45.0, "shoulder": 45.0, "elbow": 60.0, "gripper": 0.5},
+        "temp_warn_c": 45, "temp_max_c": 55,
+        "voltage_warn_v": 10.8, "voltage_min_v": 10.2,
+        "torque_limit": 600, "current_limit": 384,
+        "acc": 30, "speed": 300,
+    },
     "keyframes": sequence.keyframes(),
 }
 

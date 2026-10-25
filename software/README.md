@@ -13,6 +13,8 @@ python3 -m venv .venv && ./.venv/bin/pip install -e software
 ```bash
 # 1) 仿真：验证环境和逻辑
 ./.venv/bin/python -m modkit.cli --sim scan
+./.venv/bin/python -m modkit.cli --sim preflight --expect 1,2,3,4,5,6
+./.venv/bin/python -m modkit.cli envelope --x 150 --y 0 --z 150
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150
 
 # 2) 真机：串口
@@ -34,8 +36,10 @@ print(bot.scan(), bot.feedback(1))
 | `protocol.py` | 帧编解码、寄存器地址、角度换算 | `tests/test_protocol.py`（含官方示例逐字节复现） |
 | `bus.py` | `SerialLink`（真机，含回声处理）/ `SimLink`（仿真） | `tests/test_robot_sim.py` |
 | `kinematics.py` | 臂正逆解、关节计数换算、差速里程计 | `tests/test_kinematics.py` |
-| `robot.py` | 高层动作：扫描/反馈/到点/同步动作 | 同上 |
-| `cli.py` | 命令行 | 同上 |
+| `robot.py` | 高层动作：扫描/反馈/到点/同步动作；`*_checked` 安全版本 | 同上 |
+| `safety.py` | 软限位、单步、温度/电压/故障、寄存器限制 | `tests/test_safety.py` |
+| `envelope.py` | 桌面/底座/折叠/工作空间几何包络 | `tests/test_envelope.py` |
+| `cli.py` | 命令行（含 `preflight` / `envelope`） | 同上 |
 
 ## 跑测试
 

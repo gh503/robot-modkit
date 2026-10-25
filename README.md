@@ -13,8 +13,9 @@
 ![关节模块装配预览](docs/images/assembly.png)
 
 **在线看：<https://gh503.github.io/robot-modkit/>** —— 浏览器里拖动滑杆改关节角、播放抓取动画，
-也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。界面在 v1.3 做了产品级重做：
-模型探索 / 真机调试分栏、键盘快捷键、安全确认、移动端布局；工作台是三标签 + 单视图切换。
+也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。v1.4 在界面上加了**运动预检与
+fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不过，拒绝下发；标定文件可覆盖
+零位/方向/限位。物理闸门仍是 0/5，界面通过不等于实物通过。
 
 [![实时查看器](docs/images/viewer.png)](https://gh503.github.io/robot-modkit/)
 
@@ -34,7 +35,7 @@
 | 生产：检验/追溯/包装 | ✅ 可用 | 27 件逐件检验表；20 条需求追溯（16 已验证）；箱规与跌落判据 |
 | 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 单测 + **5 个在环场景**（119 断言） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **212 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
+| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **233 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架/安全预检）；无硬件可跑全流程 |
 | 仿真：三维视图 + **数字孪生** | ✅ 可用 | 16 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
 | 打印校准件 + 四张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_01..04.stl`（27 件）、jigs 三件套 |
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
@@ -44,6 +45,7 @@
 | **v1.1 五项增强** | ✅ 已验收 | 畸变/手眼、接触动态、3D、排板、编辑器；见 [docs/58](docs/58-v1.1验收.md) |
 | **v1.2 交付硬化** | ✅ 已验收 | bring-up 证据、协议异常流、发布校验和；见 [docs/60](docs/60-v1.2验收.md) |
 | **v1.3 产品级 UI** | ✅ 已验收 | 工作台/查看器重做、键盘与安全确认、移动端；见 [docs/61](docs/61-v1.3-UI优化.md) |
+| **v1.4 预硬件安全** | ✅ 离线验收 | 软限位/单步/温度/电压/故障联锁、几何包络、`preflight`、到货执行单；物理仍 0/5；见 [docs/64](docs/64-v1.4-预硬件验收.md) |
 
 > 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
 
@@ -66,6 +68,9 @@
 | **3D 实时 / 场景编辑** | `modkit simui`，四宫格 3D + JSON 编辑器；见 [docs/56](docs/56-工作台3D实时视图.md)、[57](docs/57-场景编辑器与回归基线.md) |
 | **回归基线** | `modkit simdiff --baseline ... --current ...` |
 | **硬件 bring-up** | `modkit --port ... bringup --action check`（只读）；11 步证据见 [docs/59](docs/59-硬件bringup记录.md) |
+| **运动预检/联锁** | `modkit --sim preflight` 或 `modkit --port ... preflight --write-limits`；见 [docs/63](docs/63-硬件到货执行单.md) |
+| **离线姿态包络** | `modkit envelope --x 100 --y 0 --z 120`；桌面/底座/折叠越界返回 2 |
+| **物理约束台账** | 逐项覆盖与缺口见 [docs/62](docs/62-物理约束台账.md) |
 | 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
 | 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
 | 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |
@@ -147,10 +152,12 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 ## 版本
 
-当前 **v1.3.0**：v1.3 把工作台与在线查看器做成产品级界面（信息架构、状态机、快捷键、
-安全确认、移动端、可访问性）。实物未装配，物理闸门 0/5。边界见 [docs/52](docs/52-v1.0完成声明.md)、
-[58](docs/58-v1.1验收.md)、[60](docs/60-v1.2验收.md)、[61](docs/61-v1.3-UI优化.md)，
-完整变更见 [CHANGELOG.md](CHANGELOG.md)，打包在 [Releases](https://github.com/gh503/robot-modkit/releases)。
+当前 **v1.4.0**：预硬件安全与调试收口——Python/查看器双侧软限位、单步、温度/电压/故障
+联锁，桌面/底座/折叠几何包络，`preflight` 与 `envelope` 命令，标定文件覆盖，
+以及 D0–D14 到货执行单。实物未采购/未装配，物理闸门 **0/5**。边界见
+[docs/52](docs/52-v1.0完成声明.md)、[58](docs/58-v1.1验收.md)、[60](docs/60-v1.2验收.md)、
+[61](docs/61-v1.3-UI优化.md)、[64](docs/64-v1.4-预硬件验收.md)，逐项约束见
+[docs/62](docs/62-物理约束台账.md)，完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可
 

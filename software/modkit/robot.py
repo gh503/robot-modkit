@@ -80,6 +80,12 @@ class Robot:
         return p.u16(f.params[0], f.params[1])
 
     # ------------------------------------------------------------ 写
+    def set_register(self, sid: int, reg: int, data: bytes) -> None:
+        """写任意寄存器；安全限制与调试命令共用。"""
+        self.link.transact(
+            p.encode(sid, p.WRITE, bytes([reg]) + bytes(data)), sid, 0.05
+        )
+
     def set_torque(self, sid: int, on: bool) -> None:
         self.link.transact(
             p.encode(sid, p.WRITE, bytes([p.REG_TORQUE_ENABLE, 1 if on else 0])), sid, 0.05
@@ -90,10 +96,50 @@ class Robot:
         payload = bytes(
             [p.REG_GOAL_POS, ticks & 0xFF, ticks >> 8, 0, 0, speed & 0xFF, speed >> 8]
         )
-        self.link.transact(p.encode(sid, p.WRITE, payload), sid, 0.05)
+        # 先写加速度，再给目标；避免目标先动、加速度后到。
         self.link.transact(
             p.encode(sid, p.WRITE, bytes([p.REG_ACC, acc])), sid, 0.05
         )
+        self.link.transact(p.encode(sid, p.WRITE, payload), sid, 0.05)
+
+    # ------------------------------------------------------------ 带安全包络
+    def apply_safety_limits(self, policy, ids: list[int] | None = None) -> None:
+        policy.apply_limits(self, ids)
+
+    def goto_checked(self, name: str, value: float, policy,
+                     speed: int | None = None, acc: int | None = None) -> None:
+        """关节空间下发单轴；越界/跳变/温度/电压/故障任一不过就抛 ValueError。"""
+        decision = policy.guard_motion(self, {name: value})
+        if not decision.ok:
+            raise ValueError(f"{decision.code}: {decision.message}")
+        j = policy.joint(name)
+        policy.apply_limits(self, [j.servo_id])
+        self.goto(j.servo_id, j.to_servo_deg(value),
+                  speed=policy.speed if speed is None else speed,
+                  acc=policy.acc if acc is None else acc)
+
+    def sync_goto_checked(self, targets: dict[str, float], policy,
+                          speed: int | None = None) -> None:
+        """多轴同步下发；先整体预检，再统一写限制与同步帧。"""
+        decision = policy.guard_motion(self, targets)
+        if not decision.ok:
+            raise ValueError(f"{decision.code}: {decision.message}")
+        policy.apply_limits(self)
+        self.sync_goto(policy.targets_to_servo(targets),
+                       speed=policy.speed if speed is None else speed)
+
+    def move_pose_checked(self, x: float, y: float, z: float, policy,
+                          speed: int | None = None) -> tuple[float, float, float]:
+        """末端到点：逆解 + 自碰撞包络 + 安全联锁，再同步下发。"""
+        from . import envelope
+
+        yaw, shoulder, elbow = kin.inverse(self.arm, kin.Pose(x, y, z))
+        problems = envelope.check_pose(self.arm, yaw, shoulder, elbow)
+        if problems:
+            raise ValueError("几何包络：" + "；".join(problems))
+        self.sync_goto_checked({"yaw": yaw, "shoulder": shoulder, "elbow": elbow},
+                               policy, speed=speed)
+        return yaw, shoulder, elbow
 
     def sync_goto(self, mapping: dict[int, float], speed: int = 400) -> None:
         payloads = {}

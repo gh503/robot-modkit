@@ -23,6 +23,8 @@ from . import calibrate as cal
 from . import odomcal as oc
 from . import qc as qc
 from . import selftest as st
+from . import safety as sf
+from . import envelope as env
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -118,6 +120,25 @@ def cmd_pose(args) -> int:
     return 0
 
 
+def cmd_envelope(args) -> int:
+    """离线姿态包络检查：不接硬件，判断末端点/关节组合是否越界。"""
+    geom = kin.ArmGeometry()
+    try:
+        yaw, sh, el = kin.inverse(geom, kin.Pose(args.x, args.y, args.z))
+    except kin.UnreachableError as e:
+        print(f"不可达：{e}")
+        return 2
+    problems = env.check_pose(geom, yaw, sh, el)
+    print(f"逆解：yaw {yaw:.1f}°  shoulder {sh:.1f}°  elbow {el:.1f}°")
+    if problems:
+        for x in problems:
+            print(f"  ✗ {x}")
+        print("包络：BLOCK")
+        return 2
+    print("包络：PASS")
+    return 0
+
+
 def cmd_demo(args) -> int:
     link = _make_link(args)
     bot = Robot(link)
@@ -187,6 +208,72 @@ def cmd_calib(args) -> int:
         return 0
 
     raise SystemExit(f"未知动作 {args.action}")
+
+
+def cmd_preflight(args) -> int:
+    """运动前预检：在线、限位、温度、电压、故障位；可选写安全限制。"""
+    policy = sf.SafetyPolicy.defaults()
+    if args.policy:
+        try:
+            policy = sf.SafetyPolicy.load(args.policy)
+        except Exception as e:
+            print(f"读取策略失败：{e}")
+            return 2
+    if args.calibration:
+        try:
+            policy = sf.SafetyPolicy.from_calibration(args.calibration, base=policy)
+        except Exception as e:
+            print(f"读取标定失败：{e}")
+            return 2
+    expect = [int(x) for x in args.expect.split(",") if x.strip()]
+    link = _make_link(args)
+    bot = Robot(link)
+    rep = policy.preflight(bot, expected_ids=expect, scan=not args.no_scan)
+
+    source = (f"标定文件（{len(policy.calibrated_joints)} 轴）"
+              if rep.calibrated else "设计名义限位")
+    print(f"预检策略：{source}  temp≤{policy.temp_max_c:g}℃  V≥{policy.voltage_min_v:g}")
+    print(f"{'ID':>3} {'关节':<9} {'位置°':>8} {'温度℃':>5} {'电压V':>6} {'状态':<10} 结果")
+    for h in rep.health:
+        name = h.name or "-"
+        pos = f"{h.position_deg:8.1f}" if h.position_deg is not None else "     ---"
+        temp = f"{h.temp_c:5d}" if h.temp_c is not None else "  ---"
+        volt = f"{h.voltage:6.1f}" if h.voltage is not None else "   ---"
+        status = ",".join(h.faults) if h.faults else (h.error or "OK")
+        d = policy.check_health(h)
+        print(f"{h.servo_id:3d} {name:<10} {pos} {temp} {volt} {status:<10} "
+              f"{'PASS' if d.ok else 'BLOCK'}")
+
+    if rep.warnings:
+        print("警告：")
+        for w in rep.warnings:
+            print(f"  ! {w}")
+    if rep.issues:
+        print("阻止：")
+        for x in rep.issues:
+            print(f"  ✗ {x}")
+    print("预检：PASS" if rep.ok else "预检：BLOCK")
+
+    if args.write_limits and rep.ok:
+        policy.apply_limits(bot, expect)
+        print(f"已写安全限制：转矩 {policy.torque_limit} / 电流 {policy.current_limit} / 加速度 {policy.acc}")
+    elif args.write_limits:
+        print("未写安全限制：预检未通过")
+
+    if args.save_policy:
+        out = pathlib.Path(args.save_policy)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        policy.save(out)
+        print(f"策略：{out}")
+    if args.report:
+        out = pathlib.Path(args.report)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(rep.as_dict(), ensure_ascii=False, indent=2) + "\n",
+                       encoding="utf-8")
+        print(f"报告：{out}")
+    if args.json:
+        print(json.dumps(rep.as_dict(), ensure_ascii=False, indent=2))
+    return 0 if rep.ok else 2
 
 
 def cmd_qc(args) -> int:
@@ -812,6 +899,12 @@ def main(argv: list[str] | None = None) -> int:
     pz.add_argument("--speed", type=int, default=300)
     pz.set_defaults(func=cmd_pose)
 
+    ev = sub.add_parser("envelope", help="离线检查末端点是否在安全包络内")
+    ev.add_argument("--x", type=float, required=True)
+    ev.add_argument("--y", type=float, required=True)
+    ev.add_argument("--z", type=float, required=True)
+    ev.set_defaults(func=cmd_envelope)
+
     d = sub.add_parser("demo", help="逐个关节小角度摆动")
     d.add_argument("--max-joints", type=int, default=4)
     d.set_defaults(func=cmd_demo)
@@ -834,6 +927,17 @@ def main(argv: list[str] | None = None) -> int:
     cb.add_argument("--file", default="calibration.json")
     cb.add_argument("--save", default="calibration.json")
     cb.set_defaults(func=cmd_calib)
+
+    pf = sub.add_parser("preflight", help="运动前预检：在线/温度/电压/故障/限位")
+    pf.add_argument("--calibration", help="标定文件 calibration.json")
+    pf.add_argument("--policy", help="安全策略 JSON（可选）")
+    pf.add_argument("--expect", default="1,2,3,4,5,6", help="期望 ID，逗号分隔")
+    pf.add_argument("--no-scan", action="store_true", help="跳过扫描，只读已知 ID")
+    pf.add_argument("--write-limits", action="store_true", help="预检通过后写转矩/电流/加速度")
+    pf.add_argument("--report", default="", help="保存 JSON 报告")
+    pf.add_argument("--save-policy", default="", help="保存当前安全策略 JSON")
+    pf.add_argument("--json", action="store_true", help="同时打印 JSON")
+    pf.set_defaults(func=cmd_preflight)
 
     q = sub.add_parser("qc", help="生产记录：序列号/质检/汇总")
     q.add_argument("--action", required=True, choices=["new", "show", "validate", "summary"])

@@ -92,6 +92,7 @@
     border-radius:10px;padding:7px 10px;font:11.5px var(--mono);color:#3c536a;
     font-variant-numeric:tabular-nums;pointer-events:none;max-width:calc(100% - 32px)}
   .hud b{color:var(--accent)}
+  .fk-warn{display:block;margin-top:3px;font-size:11px;color:#8a5a00;max-width:300px;line-height:1.4}
   .tip{position:absolute;left:24px;bottom:64px;z-index:4;max-width:300px;background:#0f1b2df0;
     color:#eaf4ff;border-radius:12px;padding:10px 12px;font-size:12px;box-shadow:var(--shadow);
     display:flex;gap:10px;align-items:flex-start}
@@ -156,6 +157,8 @@
   .progress>span{display:block;height:100%;width:0;background:linear-gradient(90deg,#2f80c9,#62b0e8);
     border-radius:99px;transition:width .08s linear}
   .hint{font-size:11.5px;color:var(--faint);margin:7px 0 0;line-height:1.55}
+  .preflight-card{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2)}
+  .preflight-card .serial-head{margin-bottom:4px}
   .keys{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:11.5px;color:var(--muted)}
   kbd{font:10px var(--mono);background:#f3f7fb;border:1px solid #d3dfec;border-bottom-width:2px;
     border-radius:4px;padding:1px 5px;color:#3f5368;white-space:nowrap}
@@ -285,7 +288,7 @@
       <p>拖一拖关节，看它怎么抓；连上串口，就是同一套正解在驱动真机。</p>
       <div class="chips"><span>3 自由度 + 夹爪</span><span>4 路总线舵机</span><span>27 个可替换零件</span></div>
     </div>
-    <div class="hud">指尖位置：<b id="fk">—</b></div>
+    <div class="hud">指尖位置：<b id="fk">—</b><span id="fk-warn" class="fk-warn" role="status"></span></div>
     <div class="stage-tools" role="group" aria-label="预设视角">
       <button id="view-iso" class="active" aria-pressed="true">轴测</button>
       <button id="view-front" aria-pressed="false">正视</button>
@@ -373,6 +376,16 @@
         </div>
         <button id="serial-demo" class="action" style="width:100%;margin-top:7px">演示数据（无硬件）</button>
         <p class="hint">Chrome/Edge，https 或 localhost，1 Mbps。演示模式的数据是合成的，不能当实测。</p>
+
+        <div class="preflight-card" id="preflight-card">
+          <div class="serial-head"><h3>运动预检</h3><span id="preflight-state" class="pill" role="status" aria-live="polite">未连接</span></div>
+          <p id="preflight-note" class="hint" role="status" aria-live="polite">连接后自动读 4 轴反馈；温度、电压、故障位或限位任一不过，禁止下发。</p>
+          <div class="grid2">
+            <button id="preflight-run" class="action" disabled>重新预检</button>
+            <button id="load-cal" class="action" disabled>载入标定</button>
+          </div>
+          <input id="cal-file" type="file" accept=".json,application/json" hidden>
+        </div>
 
         <table id="fb" class="telemetry" aria-label="舵机反馈">
           <thead><tr><th>关节</th><th>目标</th><th>实际</th><th>误差</th><th>温度</th><th>电压</th></tr></thead>

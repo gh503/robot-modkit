@@ -1,7 +1,7 @@
 # robot-modkit：一条命令跑完所有"不依赖实物"的验证
 PY ?= .venv/bin/python
 
-.PHONY: check check-fast doctor cad firmware firmware-target software sim docs workbench demo clean-out
+.PHONY: check check-fast doctor cad firmware firmware-target software sim docs workbench demo preflight clean-out
 
 check: cad firmware software sim docs
 
@@ -42,6 +42,9 @@ docs:
 	$(PY) tools/linkcheck.py .
 	$(PY) tools/consistency.py
 	$(PY) tools/traceability.py
+
+preflight:
+	cd software && ../$(PY) -m modkit.cli --sim preflight --expect 1,2,3,4,5,6 --write-limits
 
 workbench:
 	cd software && ../$(PY) -m modkit.cli simui --open

@@ -199,7 +199,31 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
             if not r.success:
                 failures.append(log[-1])
         elif cmd in ("nav", "nav_square"):
+            cam = cs.Camera(width=act.get("cam_w", 320),
+                            height=act.get("cam_h", 240),
+                            cx=act.get("cam_w", 320) / 2,
+                            cy=act.get("cam_h", 240) / 2,
+                            x=act.get("cam_x", 0.0), y=act.get("cam_y", 0.0),
+                            z=act.get("cam_z", 800.0), fx=act.get("fx", 300.0))
+
+            cache = {"t": -1.0, "pose": None}
+
             def read_pose():
+                if act.get("localize"):
+                    # 相机按 10Hz 出图；控制环 50Hz 复用同一帧
+                    bucket = round(sim.time * 10.0)
+                    if cache["t"] == bucket and cache["pose"] is not None:
+                        return cache["pose"]
+                    m = cs.Marker(sim.chassis.x, sim.chassis.y, sim.chassis.yaw,
+                                  color=tuple(act.get("marker_color", [200, 40, 200])),
+                                  dot_color=tuple(act.get("dot_color", [0, 180, 220])))
+                    img = cs.render(cam, [], markers=[m], seed=0,
+                                    noise=0, texture=False)
+                    p = cs.localize_marker(img, cam, m)
+                    if p is not None:
+                        cache["t"] = bucket
+                        cache["pose"] = nv.Pose(*p)
+                        return cache["pose"]
                 o = bot.update_odom()
                 return nv.Pose(o.x, o.y, o.yaw)
 

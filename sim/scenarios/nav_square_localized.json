@@ -1,0 +1,29 @@
+{
+  "name": "打滑 0.2 + 相机标记定位，方形仍能闭合",
+  "sim": {
+    "slip": 0.2
+  },
+  "actions": [
+    {
+      "cmd": "nav_square",
+      "size": 300,
+      "dt": 0.02,
+      "localize": true,
+      "cam_w": 160,
+      "cam_h": 120,
+      "fx": 150
+    }
+  ],
+  "assert": [
+    {
+      "path": "pose.x",
+      "value": 0,
+      "tol": 30
+    },
+    {
+      "path": "pose.y",
+      "value": 0,
+      "tol": 30
+    }
+  ]
+}

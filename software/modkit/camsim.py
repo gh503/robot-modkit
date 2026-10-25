@@ -60,6 +60,44 @@ class Cube:
     yaw_deg: float = 0.0
 
 
+@dataclass
+class Marker:
+    """平放在桌面上的机器人标记：主体矩形 + 前向小圆点（定朝向）。"""
+    x: float
+    y: float
+    yaw_deg: float = 0.0
+    length: float = 80.0
+    width: float = 50.0
+    color: tuple[int, int, int] = (200, 40, 200)
+    dot_color: tuple[int, int, int] = (0, 180, 220)
+    dot_offset: float = 45.0
+    dot_r: float = 9.0
+
+
+def _centroid(img, color, tol: int):
+    from . import vision
+    mask = vision.color_mask(img, color, tol)
+    ys, xs = np.nonzero(mask)
+    if len(xs) < 10:
+        return None
+    return float(xs.mean()), float(ys.mean())
+
+
+def localize_marker(img, cam: Camera, m: Marker, tol: int = 45):
+    """从图里找标记：主体质心 → 桌面 x/y，主体→前向点 → 偏航。
+
+    只找两个颜色块，不用连通域（画面里没有同色干扰），几十微秒。
+    """
+    body = _centroid(img, m.color, tol)
+    dot = _centroid(img, m.dot_color, tol)
+    if body is None or dot is None:
+        return None
+    x, y = cam.table_calib(0.0).apply(*body)
+    dx, dy = cam.table_calib(0.0).apply(*dot)
+    yaw = math.degrees(math.atan2(dy - y, dx - x))
+    return x, y, yaw
+
+
 def _poly(cam: Camera, pts: list[tuple[float, float, float]]) -> list[tuple[float, float]]:
     out = []
     for X, Y, Z in pts:
@@ -71,17 +109,20 @@ def _poly(cam: Camera, pts: list[tuple[float, float, float]]) -> list[tuple[floa
 
 
 def render(cam: Camera, cubes: list[Cube], bg: tuple[int, int, int] = (232, 230, 224),
-           noise: float = 2.0, seed: int = 0) -> np.ndarray:
+           noise: float = 2.0, seed: int = 0,
+           markers: list[Marker] | None = None,
+           texture: bool = True) -> np.ndarray:
     img = Image.new("RGB", (cam.width, cam.height), bg)
     d = ImageDraw.Draw(img)
     rng = np.random.default_rng(seed)
 
     # 桌面轻纹理
-    for _ in range(400):
-        u = rng.uniform(0, cam.width)
-        v = rng.uniform(0, cam.height)
-        c = int(rng.uniform(-6, 6))
-        d.point((u, v), fill=tuple(max(0, min(255, x + c)) for x in bg))
+    if texture:
+        for _ in range(400):
+            u = rng.uniform(0, cam.width)
+            v = rng.uniform(0, cam.height)
+            c = int(rng.uniform(-6, 6))
+            d.point((u, v), fill=tuple(max(0, min(255, x + c)) for x in bg))
 
     for cube in sorted(cubes, key=lambda c: c.y):
         h = cube.size
@@ -109,6 +150,25 @@ def render(cam: Camera, cubes: list[Cube], bg: tuple[int, int, int] = (232, 230,
         d.polygon(top, fill=cube.color)
         # 顶面高光
         d.line(top + [top[0]], fill=tuple(min(255, int(c * 1.15)) for c in cube.color), width=2)
+
+    for m in markers or []:
+        a = math.radians(m.yaw_deg)
+        ca, sa = math.cos(a), math.sin(a)
+        hl, hw = m.length / 2, m.width / 2
+
+        def corner(dx, dy):
+            return (m.x + dx * ca - dy * sa, m.y + dx * sa + dy * ca, 0.0)
+
+        quad = _poly(cam, [corner(-hl, -hw), corner(hl, -hw),
+                           corner(hl, hw), corner(-hl, hw)])
+        if quad:
+            d.polygon(quad, fill=m.color)
+        dot = _poly(cam, [(m.x + m.dot_offset * ca,
+                           m.y + m.dot_offset * sa, 0.0)])
+        if dot:
+            u, v = dot[0]
+            r = max(2, int(round(m.dot_r * cam.fx / cam.z)))
+            d.ellipse([u - r, v - r, u + r, v + r], fill=m.dot_color)
 
     arr = np.asarray(img, dtype=np.int16)
     if noise:

@@ -70,3 +70,8 @@ def test_slip_breaks_pure_odometry_nav():
     r = scenario.run_scenario(scene)
     assert not r["ok"]
     assert abs(r["pose"][0]) > 30 or abs(r["pose"][1]) > 30
+
+
+def test_localized_nav_handles_slip():
+    r = scenario.run_scenario(scenario.load(SCEN / "nav_square_localized.json"))
+    assert r["ok"], r["failures"]

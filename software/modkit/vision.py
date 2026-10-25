@@ -46,13 +46,17 @@ def load_rgb(path: str | Path) -> np.ndarray:
     return np.asarray(Image.open(path).convert("RGB"), dtype=np.int16)
 
 
-def detect_color(rgb: np.ndarray, target: tuple[int, int, int],
-                 tol: int = 50, min_area: int = 200) -> Detection | None:
-    """找与 target 颜色距离 ≤tol 的最大连通块。rgb 形状 (H, W, 3)。"""
+def color_mask(rgb: np.ndarray, target: tuple[int, int, int],
+               tol: int = 50) -> np.ndarray:
+    """颜色距离 ≤tol 的布尔掩码，形状 (H, W)。"""
     if rgb.ndim != 3 or rgb.shape[2] != 3:
         raise ValueError("需要 H×W×3 的 RGB 数组")
     diff = rgb.astype(np.int32) - np.array(target, dtype=np.int32)
-    mask = (diff * diff).sum(axis=2) <= tol * tol
+    return (diff * diff).sum(axis=2) <= tol * tol
+
+
+def largest_blob(mask: np.ndarray, min_area: int = 200) -> Detection | None:
+    """4 邻域最大连通块；返回质心/面积/包围盒。"""
     h, w = mask.shape
     seen = np.zeros((h, w), dtype=bool)
     best: Detection | None = None
@@ -83,6 +87,12 @@ def detect_color(rgb: np.ndarray, target: tuple[int, int, int],
             if n >= min_area and (best is None or n > best.area):
                 best = Detection(sx / n, sy / n, n, (minx, miny, maxx, maxy))
     return best
+
+
+def detect_color(rgb: np.ndarray, target: tuple[int, int, int],
+                 tol: int = 50, min_area: int = 200) -> Detection | None:
+    """找与 target 颜色距离 ≤tol 的最大连通块。rgb 形状 (H, W, 3)。"""
+    return largest_blob(color_mask(rgb, target, tol), min_area)
 
 
 @dataclass

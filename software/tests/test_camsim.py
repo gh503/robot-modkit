@@ -56,3 +56,15 @@ def test_perspective_compensation_matters():
     x40, _ = cam.table_calib(40).apply(d.cx, d.cy)
     assert abs(x0 - 200) > 5          # 不补偿会偏
     assert abs(x40 - 200) < 1.5
+
+
+def test_marker_localization():
+    cam = camsim.Camera(width=320, height=240, cx=160, cy=120, fx=300)
+    for x, y, yaw in [(0, 0, 0), (150, 50, 30), (-100, -80, -120)]:
+        m = camsim.Marker(x, y, yaw)
+        img = camsim.render(cam, [], markers=[m], seed=1, noise=0, texture=False)
+        p = camsim.localize_marker(img, cam, m)
+        assert p is not None
+        assert p[0] == pytest.approx(x, abs=2.5)
+        assert p[1] == pytest.approx(y, abs=2.5)
+        assert p[2] == pytest.approx(yaw, abs=3.0)

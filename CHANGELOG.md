@@ -1,5 +1,25 @@
 # 更新日志
 
+## v1.9.0 — 2026-10-25
+
+### CLI 预算优化器
+
+- 新增 `software/modkit/optimizer.py`：与 `web/budget-core.js` 同语义的单步
+  降本候选；每个候选重新走 `assembly.validate`，按 BOM 节省排序。
+- 新增 `modkit assemble suggest`：
+  - 默认列出候选（省 ¥/应用后成本/组件/关节/风险/代价）；
+  - `--json` 输出机器可读元数据（不含完整 assembly）；
+  - `--out report.md` 写 Markdown 报告；
+  - `--apply drop-elbow --out new.json` 写出新装配，名字加 `-opt`；
+  - 写出的 JSON 可继续 `modkit assemble validate/plan`。
+- 测试 269 → **271**（Python 候选 + CLI apply）；m1 仍是 15 组件/3 关节/¥968。
+- 文档 [68](docs/68-预算优化器.md) 增加 CLI；README/42/45/67 同步。
+
+### 边界
+
+- 单步候选，不是全局最优；与网页同一替换表/BOM 口径。
+- 仍是软件装配验证；没有采购/打印/装配/上电/标定，物理闸门 **0/5**。
+
 ## v1.8.0 — 2026-10-25
 
 ### 预算优化器

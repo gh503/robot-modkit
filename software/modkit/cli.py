@@ -27,6 +27,7 @@ from . import safety as sf
 from . import envelope as env
 from . import components as comps
 from . import assembly as asm
+from . import optimizer as opt
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -342,6 +343,47 @@ def cmd_assemble(args) -> int:
     if args.strict:
         strict = True
     rep = asm.validate(name, inst, payload, accel, strict, raw)
+
+    if args.action == "suggest":
+        data = json.loads(json.dumps(raw, ensure_ascii=False))
+        data["payload_g"] = payload
+        data["max_accel_m_s2"] = accel
+        data["strict"] = strict
+        cands = opt.suggest(data, max_candidates=args.max_candidates)
+        if args.apply:
+            chosen = next((c for c in cands if c["id"] == args.apply), None)
+            if chosen is None:
+                print(f"没有候选 {args.apply}；可用：{', '.join(c['id'] for c in cands) or '无'}")
+                return 2
+            out = pathlib.Path(args.out or (pathlib.Path(args.file).stem + "-opt.json"))
+            out.parent.mkdir(parents=True, exist_ok=True)
+            asm_data = opt.apply_candidate(data, chosen)
+            base_name = str(asm_data.get("name") or name).removesuffix("-opt")
+            asm_data["name"] = base_name + "-opt"
+            asm_data["description"] = f"预算优化：应用「{chosen['title']}」。" + str(asm_data.get("description") or "")
+            out.write_text(json.dumps(asm_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(f"已写出候选：{out}  {chosen['title']}  ¥{chosen['cost']:.1f}")
+            return 0
+        if args.out:
+            out = pathlib.Path(args.out)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(opt.to_markdown(cands, rep.total_cost_cny, name), encoding="utf-8")
+            print(f"预算优化报告：{out}")
+            if not cands:
+                return 0
+        if args.json:
+            print(json.dumps([{k: v for k, v in c.items() if k != "assembly"} for c in cands],
+                             ensure_ascii=False, indent=2))
+            return 0
+        print(f"预算优化：{name}  当前 ¥{rep.total_cost_cny:.1f}")
+        if not cands:
+            print("  没有找到既省钱又能通过校验的单步候选。")
+            return 0
+        for n, c in enumerate(cands, 1):
+            print(f"  [{n}] {c['id']:<42} 省 ¥{c['saving']:.1f}  → ¥{c['cost']:.1f}  "
+                  f"{c['components']} 组件 / {c['joints']} 关节  {c['risk']}")
+            print(f"      {c['title']}：{c['tradeoff']}")
+        return 0
 
     if args.action == "preview":
         if not args.out:
@@ -1057,13 +1099,16 @@ def main(argv: list[str] | None = None) -> int:
     co.set_defaults(func=cmd_components)
 
     ab = sub.add_parser("assemble", help="装配图：校验/BOM/安全配置/预览")
-    ab.add_argument("action", choices=("validate", "plan", "preview"), default="validate",
+    ab.add_argument("action", choices=("validate", "plan", "preview", "suggest"), default="validate",
                     nargs="?")
     ab.add_argument("file")
     ab.add_argument("--out", help="plan 输出目录，或 preview 的 .svg 路径")
     ab.add_argument("--payload", type=float, help="工具端载荷 g（默认用装配文件）")
     ab.add_argument("--max-accel", type=float, help="设计加速度 m/s²，用于稳定性余量")
     ab.add_argument("--strict", action="store_true", help="把包围盒重叠升级为错误")
+    ab.add_argument("--apply", help="suggest：应用候选 id，写到 --out 或 <file>-opt.json")
+    ab.add_argument("--max", dest="max_candidates", type=int, default=8,
+                    help="suggest：最多列出几个候选（默认 8）")
     ab.add_argument("--json", action="store_true")
     ab.set_defaults(func=cmd_assemble)
 

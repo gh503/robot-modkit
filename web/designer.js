@@ -29,7 +29,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.8.0";
+  var STUDIO_VERSION = "1.9.0";
 
   function toast(msg, kind) {
     var el = $("toast");

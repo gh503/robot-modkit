@@ -24,6 +24,7 @@ from . import qc as qc
 from . import selftest as st
 from . import camsim as cs
 from . import scenario as sn
+from . import simserver as ss
 from . import speedcal as sc
 from . import kinematics as kin
 from . import nav as nv
@@ -330,6 +331,11 @@ def cmd_camsim(args) -> int:
             x, y = cam.table_calib(c.size).apply(det.cx, det.cy)
             print(f"检测中心 ({det.cx:.1f},{det.cy:.1f})px → 桌面 "
                   f"({x:.1f},{y:.1f})mm（真值 {c.x},{c.y}）")
+    return 0
+
+
+def cmd_simui(args) -> int:
+    ss.main(port=args.port, open_browser=args.open)
     return 0
 
 
@@ -746,6 +752,11 @@ def main(argv: list[str] | None = None) -> int:
     csp.add_argument("--seed", type=int, default=0)
     csp.add_argument("--detect", action="store_true")
     csp.set_defaults(func=cmd_camsim)
+
+    ui = sub.add_parser("simui", help="交互式仿真工作台（浏览器）")
+    ui.add_argument("--port", type=int, default=8765)
+    ui.add_argument("--open", action="store_true", help="启动后打开浏览器")
+    ui.set_defaults(func=cmd_simui)
 
     spl = sub.add_parser("simplot", help="把场景 trace 画成调试图")
     spl.add_argument("--scenario", required=True)

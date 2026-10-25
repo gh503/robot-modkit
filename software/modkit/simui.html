@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>modkit 仿真工作台</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#0f141c; --line:#223041;
+    --text:#e6edf3; --dim:#8b98a5; --accent:#4da3ff; --green:#3fb950;
+    --red:#f85149; --amber:#d29922; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.45 system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC",sans-serif}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;
+         border-bottom:1px solid var(--line);background:linear-gradient(180deg,#111821,#0d131a)}
+  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.3px}
+  header .badge{font:11px var(--mono);color:var(--accent);border:1px solid #1f456d;
+                background:#0d1a28;padding:2px 7px;border-radius:20px}
+  header .spacer{flex:1}
+  header .clock{font:13px var(--mono);color:var(--dim)}
+  .btns{display:flex;gap:7px}
+  button{background:#18222e;color:var(--text);border:1px solid var(--line);
+         padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:#33506f;background:#1c2938}
+  button.primary{background:#123a5e;border-color:#1f5f92;color:#cfe8ff}
+  button.warn{border-color:#5a2320;color:#ffb3ae;background:#2a1514}
+  main{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,.9fr);
+       gap:14px;padding:14px 18px 22px;max-width:1400px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:12px;box-shadow:0 8px 24px #0004}
+  .card h2{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;
+           letter-spacing:.8px;text-transform:uppercase}
+  canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--panel2)}
+  .views{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:1050px){main{grid-template-columns:1fr}.views{grid-template-columns:1fr}}
+  .row{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .row label{width:74px;color:var(--dim);font-size:12px}
+  .row input[type=range]{flex:1;accent-color:var(--accent)}
+  .row .val{width:70px;text-align:right;font:12px var(--mono);color:var(--text)}
+  .group{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
+  .group h3{margin:0 0 6px;font-size:11px;color:var(--dim);letter-spacing:.6px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px}
+  .stat b{display:block;font:16px var(--mono);font-weight:600}
+  .stat span{font-size:11px;color:var(--dim)}
+  .log{font:11px var(--mono);color:var(--dim);height:70px;overflow:auto;
+       background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px}
+  .on{color:var(--green)} .off{color:var(--red)}
+  footer{color:#5d6a78;font-size:11px;text-align:center;padding:0 0 18px}
+  kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;
+      border-radius:4px;padding:1px 5px;color:var(--dim)}
+</style>
+</head>
+<body>
+<header>
+  <h1>modkit 仿真工作台</h1><span class="badge">digital twin</span>
+  <div class="spacer"></div>
+  <span id="clock" class="clock">t 0.00s</span>
+  <div class="btns">
+    <button id="play" class="primary">▶ 运行</button>
+    <button id="step">单步 50ms</button>
+    <button id="reset" class="warn">复位</button>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="views">
+      <div class="card"><h2>俯视图 · 底盘与工作空间</h2>
+        <canvas id="top" width="560" height="430"></canvas></div>
+      <div class="card"><h2>侧视图 · 臂与夹爪</h2>
+        <canvas id="side" width="560" height="430"></canvas></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h2>信号 · 电压 / 温度 / 轮速</h2>
+      <canvas id="chart" width="1120" height="150"></canvas>
+      <div class="stats">
+        <div class="stat"><b id="s-v">--</b><span>电池电压 V</span></div>
+        <div class="stat"><b id="s-t">--</b><span>肩舵机温度 ℃</span></div>
+        <div class="stat"><b id="s-i">--</b><span>总电流 A</span></div>
+        <div class="stat"><b id="s-pose">--</b><span>位姿 x,y / yaw</span></div>
+        <div class="stat"><b id="s-ee">--</b><span>末端 x,z</span></div>
+        <div class="stat"><b id="s-held">--</b><span>夹持状态</span></div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>控制</h2>
+    <div class="row"><label>线速度</label>
+      <input id="v" type="range" min="-120" max="120" step="5" value="0">
+      <span class="val" id="v-val">0 mm/s</span></div>
+    <div class="row"><label>角速度</label>
+      <input id="w" type="range" min="-60" max="60" step="5" value="0">
+      <span class="val" id="w-val">0 °/s</span></div>
+    <div class="row"><label>夹爪</label>
+      <input id="grip" type="range" min="0" max="1" step="0.05" value="1">
+      <span class="val" id="grip-val">开</span></div>
+    <div class="row"><label>扭矩</label>
+      <input id="torque" type="checkbox" checked>
+      <span class="val" id="torque-val">使能</span></div>
+
+    <div class="group"><h3>关节目标（舵机角度）</h3>
+      <div class="row"><label>J1 偏航</label>
+        <input id="j1" type="range" min="60" max="300" step="1" value="180">
+        <span class="val" id="j1-val">180°</span></div>
+      <div class="row"><label>J2 肩</label>
+        <input id="j2" type="range" min="150" max="280" step="1" value="200">
+        <span class="val" id="j2-val">200°</span></div>
+      <div class="row"><label>J3 肘</label>
+        <input id="j3" type="range" min="30" max="180" step="1" value="150">
+        <span class="val" id="j3-val">150°</span></div>
+    </div>
+
+    <div class="group"><h3>故障注入（即改即生效）</h3>
+      <div class="row"><label>打滑</label>
+        <input id="slip" type="range" min="0" max="1" step="0.05" value="0">
+        <span class="val" id="slip-val">0</span></div>
+      <div class="row"><label>电池 OCV</label>
+        <input id="batt" type="range" min="9.5" max="12.6" step="0.1" value="12.2">
+        <span class="val" id="batt-val">12.2V</span></div>
+      <div class="row"><label>负载</label>
+        <input id="payload" type="range" min="0" max="1" step="0.05" value="0">
+        <span class="val" id="payload-val">0 kg</span></div>
+      <div class="row"><label>丢帧率</label>
+        <input id="drop" type="range" min="0" max="0.2" step="0.01" value="0">
+        <span class="val" id="drop-val">0%</span></div>
+    </div>
+    <div class="group"><h3>日志</h3><div id="log" class="log"></div></div>
+  </aside>
+</main>
+<footer>空格 运行/暂停 · → 单步 · 所有数值来自 HardwareSim，不含实物</footer>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const st = {s:null, running:false, busy:false, last:0};
+  const logEl = $("log");
+  function log(msg){
+    const t = st.s ? st.s.time.toFixed(1) : "0.0";
+    logEl.textContent = `[${t}s] ${msg}\n` + logEl.textContent;
+    if (logEl.textContent.length > 4000) logEl.textContent = logEl.textContent.slice(0,4000);
+  }
+  async function api(path, body){
+    const r = await fetch(path, body===undefined ? {} : {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body||{})
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||r.status);
+    return j;
+  }
+  function apply(s){ st.s = s; render(s); }
+  async function step(dt){
+    if(st.busy) return; st.busy = true;
+    try{ apply(await api("/api/step",{dt:dt||0.05})); }
+    catch(e){ log("步进失败："+e.message); st.running=false; syncPlay(); }
+    finally{ st.busy = false; }
+  }
+  async function control(body){
+    try{ apply(await api("/api/control", body)); }
+    catch(e){ log("控制失败："+e.message); }
+  }
+  async function reset(){
+    try{ apply(await api("/api/reset", {})); log("已复位"); }
+    catch(e){ log("复位失败："+e.message); }
+  }
+  function syncPlay(){ $("play").textContent = st.running ? "⏸ 暂停" : "▶ 运行"; }
+  function toggle(){
+    st.running = !st.running; st.last = performance.now(); syncPlay();
+    log(st.running ? "开始运行" : "暂停");
+  }
+  $("play").onclick = toggle;
+  $("step").onclick = ()=>step(0.05);
+  $("reset").onclick = reset;
+  document.addEventListener("keydown", e=>{
+    if(e.code==="Space"){ e.preventDefault(); toggle(); }
+    if(e.code==="ArrowRight"){ e.preventDefault(); step(0.05); }
+  });
+
+  function bind(id, fmt, body){
+    const el = $(id), out = $(id+"-val");
+    const upd = ()=>{ out.textContent = fmt(el.value); };
+    el.addEventListener("input", ()=>{ upd(); control(body(el.value)); });
+    upd();
+  }
+  bind("v", v=>`${v} mm/s`, v=>({v:Number(v)}));
+  bind("w", v=>`${v} °/s`, v=>({w:Number(v)}));
+  bind("grip", v=>Number(v)<0.5?"闭":"开", v=>({gripper:Number(v)}));
+  bind("j1", v=>`${v}°`, v=>({joints:{1:Number(v)}}));
+  bind("j2", v=>`${v}°`, v=>({joints:{2:Number(v)}}));
+  bind("j3", v=>`${v}°`, v=>({joints:{3:Number(v)}}));
+  bind("slip", v=>Number(v).toFixed(2), v=>({options:{slip:Number(v)}}));
+  bind("batt", v=>`${Number(v).toFixed(1)}V`, v=>({options:{battery_ocv:Number(v)}}));
+  bind("payload", v=>`${Number(v).toFixed(2)}kg`, v=>({options:{payload_kg:Number(v)}}));
+  bind("drop", v=>`${Math.round(Number(v)*100)}%`, v=>({options:{drop_rate:Number(v)}}));
+  $("torque").addEventListener("change", e=>{
+    $("torque-val").textContent = e.target.checked ? "使能" : "卸力";
+    control({torque:e.target.checked});
+  });
+
+  // ---------------------------------------------------------- 绘图
+  const top = $("top"), side = $("side"), chart = $("chart");
+  const tx = top.getContext("2d"), sx = side.getContext("2d"), cx = chart.getContext("2d");
+  const C = {bg:"#0f141c", grid:"#1a2634", axis:"#2b3d52", text:"#8b98a5",
+             bot:"#2d7dd2", wheel:"#0a0d11", arm:"#d29922", ee:"#f0b429",
+             cube:"#e5534b", ok:"#3fb950", bad:"#f85149", trail:"#2a5d8f"};
+  function clear(g,w,h){ g.fillStyle=C.bg; g.fillRect(0,0,w,h); }
+  function line(g,x1,y1,x2,y2,color,w){ g.strokeStyle=color; g.lineWidth=w||1;
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); }
+
+  function drawTop(s){
+    const W=top.width,H=top.height; clear(tx,W,H);
+    const cx0=W/2, cy0=H/2, sc=0.55;
+    const px=x=>cx0+x*sc, py=y=>cy0-y*sc;
+    for(let mm=-350; mm<=350; mm+=50){
+      line(tx,px(mm),0,px(mm),H,C.grid,1); line(tx,0,py(mm),W,py(mm),C.grid,1);
+    }
+    line(tx,0,py(0),W,py(0),C.axis,1); line(tx,px(0),0,px(0),H,C.axis,1);
+    // 轨迹
+    if(s.history && s.history.length>1){
+      tx.strokeStyle=C.trail; tx.lineWidth=1.6; tx.beginPath();
+      s.history.forEach((p,i)=> i?tx.lineTo(px(p.x),py(p.y)):tx.moveTo(px(p.x),py(p.y)));
+      tx.stroke();
+    }
+    // 方块
+    const cb=s.cube, half=20*sc;
+    tx.fillStyle=C.cube; tx.fillRect(px(cb[0])-half,py(cb[1])-half,half*2,half*2);
+    tx.fillStyle="#fff"; tx.font="10px monospace"; tx.textAlign="center";
+    tx.fillText("cube",px(cb[0]),py(cb[1])-half-4);
+    // 机器人
+    tx.save(); tx.translate(px(s.pose[0]),py(s.pose[1]));
+    tx.rotate(-s.pose[2]*Math.PI/180);
+    tx.fillStyle=C.wheel;
+    tx.fillRect(-70*sc,-78*sc,140*sc,16*sc);
+    tx.fillRect(-70*sc,62*sc,140*sc,16*sc);
+    tx.fillStyle=C.bot; tx.strokeStyle="#5aa9f0"; tx.lineWidth=1;
+    const L=160*sc, Wd=140*sc;
+    tx.beginPath(); tx.roundRect(-L/2,-Wd/2,L,Wd,8*sc); tx.fill(); tx.stroke();
+    tx.fillStyle="#0d1a28"; tx.beginPath(); tx.arc(0,0,16*sc,0,7); tx.fill();
+    tx.restore();
+    // 末端投影
+    tx.fillStyle=C.ee; tx.beginPath(); tx.arc(px(s.ee[0]),py(s.ee[1]),4,0,7); tx.fill();
+    line(tx,px(s.pose[0]),py(s.pose[1]),px(s.ee[0]),py(s.ee[1]),C.ee,1);
+    // 图例
+    tx.fillStyle=C.text; tx.font="11px monospace"; tx.textAlign="left";
+    tx.fillText(`x ${s.pose[0].toFixed(0)}  y ${s.pose[1].toFixed(0)}  yaw ${s.pose[2].toFixed(0)}°`,10,18);
+    tx.textAlign="right"; tx.fillText("1 格 = 50mm",W-10,18);
+  }
+
+  function drawSide(s){
+    const W=side.width,H=side.height; clear(sx,W,H);
+    const ox=80, oy=H-60, sc=1.45;
+    const px=x=>ox+x*sc, pz=z=>oy-z*sc;
+    line(sx,0,oy,W,oy,"#2b3d52",1.5);
+    for(let z=0; z<=320; z+=50){
+      line(sx,ox,pz(z),W,pz(z),C.grid,1);
+      sx.fillStyle=C.text; sx.font="10px monospace"; sx.textAlign="left";
+      sx.fillText(z,4,pz(z)-3);
+    }
+    const p=s.arm_side;
+    // 底座
+    sx.fillStyle="#1c2938"; sx.fillRect(px(-18),pz(0),36*sc,90*sc);
+    sx.strokeStyle=C.arm; sx.lineWidth=7; sx.lineCap="round";
+    sx.beginPath(); sx.moveTo(px(p[0][0]),pz(p[0][1]));
+    sx.lineTo(px(p[1][0]),pz(p[1][1])); sx.lineTo(px(p[2][0]),pz(p[2][1])); sx.stroke();
+    sx.fillStyle=C.ee; sx.beginPath(); sx.arc(px(p[2][0]),pz(p[2][1]),7,0,7); sx.fill();
+    sx.fillStyle=C.text; sx.font="11px monospace"; sx.textAlign="left";
+    sx.fillText(`末端 r=${p[2][0].toFixed(0)} z=${p[2][1].toFixed(0)}`,10,18);
+    const held=s.held ? "夹持中" : "空";
+    sx.fillStyle=s.held?C.ok:C.text; sx.textAlign="right";
+    sx.fillText(held,W-10,18);
+  }
+
+  function drawChart(s){
+    const W=chart.width,H=chart.height; clear(cx,W,H);
+    const hist=s.history||[]; if(hist.length<2) return;
+    const pad=28, t0=hist[0].t, t1=Math.max(hist[hist.length-1].t,t0+1);
+    const X=t=>pad+(t-t0)/(t1-t0)*(W-pad-10);
+    // 电压 9–13V
+    const Yv=v=>H-22-(v-9)/4*(H-40);
+    cx.strokeStyle="#223041"; cx.lineWidth=1;
+    for(let v=9; v<=13; v+=1){ line(cx,pad,Yv(v),W-10,Yv(v),"#1a2634",1);
+      cx.fillStyle=C.text; cx.font="10px monospace"; cx.textAlign="right";
+      cx.fillText(v+"V",pad-4,Yv(v)+3); }
+    cx.strokeStyle=C.red; cx.lineWidth=1.6; cx.beginPath();
+    hist.forEach((p,i)=> i?cx.lineTo(X(p.t),Yv(p.v)):cx.moveTo(X(p.t),Yv(p.v)));
+    cx.stroke();
+    // 温度 20–80℃
+    const Yt=t=>H-22-(t-20)/60*(H-40);
+    cx.strokeStyle=C.amber; cx.lineWidth=1.2; cx.beginPath();
+    hist.forEach((p,i)=> i?cx.lineTo(X(p.t),Yt(p.temp)):cx.moveTo(X(p.t),Yt(p.temp)));
+    cx.stroke();
+    cx.fillStyle=C.text; cx.textAlign="left"; cx.font="11px monospace";
+    cx.fillStyle=C.red; cx.fillText("电压",pad,14);
+    cx.fillStyle=C.amber; cx.fillText("温度",pad+46,14);
+    cx.fillStyle=C.text; cx.textAlign="right"; cx.fillText(`${t0.toFixed(1)}s → ${t1.toFixed(1)}s`,W-10,14);
+  }
+
+  function render(s){
+    $("clock").textContent = `t ${s.time.toFixed(2)}s`;
+    $("s-v").textContent = s.voltage.toFixed(2);
+    $("s-t").textContent = s.temp.toFixed(1);
+    $("s-i").textContent = s.current.toFixed(2);
+    $("s-pose").textContent = `${s.pose[0].toFixed(0)},${s.pose[1].toFixed(0)} / ${s.pose[2].toFixed(0)}°`;
+    $("s-ee").textContent = `${s.ee[0].toFixed(0)},${s.ee[2].toFixed(0)}`;
+    $("s-held").textContent = s.held ? "夹持中" : "空";
+    $("s-held").className = s.held ? "on" : "off";
+    drawTop(s); drawSide(s); drawChart(s);
+  }
+
+  async function boot(){
+    try{
+      const s = await api("/api/state");
+      apply(s);
+      // 用服务端状态初始化控件
+      $("v").value = s.controls.v; $("v-val").textContent = `${s.controls.v} mm/s`;
+      $("grip").value = s.controls.gripper;
+      $("grip-val").textContent = s.controls.gripper < .5 ? "闭" : "开";
+      ["j1","j2","j3"].forEach((id,i)=>{
+        const deg = s.controls.joints[String(i+1)]; $(id).value=deg; $(id+"-val").textContent=`${Math.round(deg)}°`;
+      });
+      log("已连接仿真后端");
+    }catch(e){ log("后端不可用："+e.message); }
+  }
+
+  function loop(now){
+    if(st.running && !st.busy){
+      const dt = Math.min(0.1, (now - st.last)/1000);
+      st.last = now;
+      if(dt >= 0.05) step(dt);
+    } else { st.last = now; }
+    requestAnimationFrame(loop);
+  }
+  boot(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

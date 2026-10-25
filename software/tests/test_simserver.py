@@ -117,3 +117,13 @@ def test_camera_png_and_mode(server):
     post(base + "/api/control", {"options": {"camera_mode": "onboard"}})
     b = get(base + "/api/camera")
     assert b[:8] == b"\x89PNG\r\n\x1a\n" and b != a
+
+
+def test_fault_options_apply_live(server):
+    _, session = server
+    session.control({"options": {"drop_rate": 0.3, "bus_latency": 0.01,
+                                 "camera_noise": 5, "mu": 0.1}})
+    assert session.sim.drop_rate == pytest.approx(0.3)
+    assert session.sim.bus_latency == pytest.approx(0.01)
+    assert session.options.camera_noise == pytest.approx(5)
+    assert session.options.mu == pytest.approx(0.1)

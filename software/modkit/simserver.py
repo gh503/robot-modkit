@@ -37,6 +37,7 @@ class SimOptions:
     grip_force: float = 4.0
     cube_mass: float = 0.05
     camera_mode: str = "overhead"
+    camera_noise: float = 0.0
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -114,6 +115,8 @@ class SimSession:
                 self.sim.chassis.slip = self.options.slip
                 self.sim.battery.ocv = self.options.battery_ocv
                 self.sim.payload_kg = self.options.payload_kg
+                self.sim.drop_rate = self.options.drop_rate
+                self.sim.bus_latency = self.options.bus_latency
 
     # ------------------------------------------------------------ 步进
     def step(self, dt: float = 0.05) -> None:
@@ -182,7 +185,8 @@ class SimSession:
                 cam = cs.Camera(width=320, height=240, cx=160, cy=120,
                                 fx=300, fy=300, z=800)
             cube = cs.Cube(self.cube[0], self.cube[1], 40)
-            img = cs.render(cam, [cube], seed=0, noise=0, texture=False)
+            img = cs.render(cam, [cube], seed=0,
+                            noise=self.options.camera_noise, texture=False)
             det = vis.detect_color(img, cube.color, tol=40)
             from PIL import Image as PILImage, ImageDraw
             pic = PILImage.fromarray(img.astype("uint8"), "RGB")

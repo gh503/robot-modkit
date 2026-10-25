@@ -63,6 +63,7 @@
   <div class="btns">
     <button id="play" class="primary">▶ 运行</button>
     <button id="step">单步 50ms</button>
+    <button id="live">实时</button>
     <button id="reset" class="warn">复位</button>
   </div>
 </header>
@@ -137,11 +138,18 @@
       <div class="row"><label>摩擦 μ</label>
         <input id="mu" type="range" min="0.02" max="0.8" step="0.02" value="0.4">
         <span class="val" id="mu-val">0.40</span></div>
+      <div class="row"><label>总线延迟</label>
+        <input id="lat" type="range" min="0" max="20" step="1" value="0">
+        <span class="val" id="lat-val">0 ms</span></div>
+      <div class="row"><label>相机噪声</label>
+        <input id="cnoise" type="range" min="0" max="20" step="1" value="0">
+        <span class="val" id="cnoise-val">0</span></div>
     </div>
     <div class="group"><h3>场景回放</h3>
       <div class="row"><select id="scenario" style="flex:1;background:#0f141c;color:#e6edf3;
         border:1px solid #223041;border-radius:7px;padding:7px"></select></div>
       <div class="row"><button id="runsc">运行场景</button>
+        <button id="export">导出 JSON</button>
         <span id="sc-res" class="val" style="width:auto;flex:1;text-align:left"></span></div>
       <div id="sc-log" class="log"></div>
     </div>
@@ -212,6 +220,20 @@
     else reset();
   };
   $("runsc").onclick = runScenario;
+  $("live").onclick = ()=>{
+    st.replay = null; st.running = false;
+    if(st.s) render(st.s);
+    syncPlay(); refreshCam(); log("回到实时仿真");
+  };
+  $("export").onclick = ()=>{
+    if(!st.replay){ log("没有可导出的回放"); return; }
+    const blob = new Blob([JSON.stringify({trace:st.replay.trace, log:st.replay.log,
+      ok:st.replay.ok}, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "sim-replay.json"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  };
 
   function refreshCam(){ $("cam").src = "/api/camera?t=" + Date.now(); }
   function camLabel(mode){ $("cam-mode").textContent = mode === "onboard" ? "车载" : "俯视"; }
@@ -223,7 +245,7 @@
   };
   setInterval(()=>{ if(!document.hidden) refreshCam(); }, 400);
   document.addEventListener("keydown", e=>{
-    if(e.code==="Space"){ e.preventDefault(); toggle(); }
+    if(e.code==="Space"){ e.preventDefault(); togglePlay(); }
     if(e.code==="ArrowRight"){ e.preventDefault(); step(0.05); }
   });
 
@@ -244,6 +266,8 @@
   bind("payload", v=>`${Number(v).toFixed(2)}kg`, v=>({options:{payload_kg:Number(v)}}));
   bind("drop", v=>`${Math.round(Number(v)*100)}%`, v=>({options:{drop_rate:Number(v)}}));
   bind("mu", v=>Number(v).toFixed(2), v=>({options:{mu:Number(v)}}));
+  bind("lat", v=>`${v} ms`, v=>({options:{bus_latency:Number(v)/1000}}));
+  bind("cnoise", v=>`σ ${v}`, v=>({options:{camera_noise:Number(v)}}));
   $("torque").addEventListener("change", e=>{
     $("torque-val").textContent = e.target.checked ? "使能" : "卸力";
     control({torque:e.target.checked});
@@ -385,6 +409,7 @@
       const r = await api("/api/scenario", {file});
       st.running = false; syncPlay();
       st.replay = {trace:r.trace, i:0, playing:false, last:0, log:r.log, ok:r.ok};
+      syncPlay();
       $("sc-res").textContent = r.ok ? "PASS" : "FAIL";
       $("sc-res").style.color = r.ok ? "var(--green)" : "var(--red)";
       $("sc-log").textContent = (r.log||[]).slice(-8).join("\n");

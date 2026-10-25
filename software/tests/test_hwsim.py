@@ -3,6 +3,7 @@
 import pytest
 
 from modkit import protocol as p
+from modkit.bus import RetryLink
 from modkit.hwsim import BatterySpec, HardwareSim, ServoSpec
 from modkit.robot import Robot
 
@@ -56,6 +57,16 @@ def test_drop_frame_raises():
     bot = Robot(sim)
     with pytest.raises(Exception):
         bot.feedback(1)
+
+
+def test_retry_counts_and_gives_up():
+    sim = HardwareSim(drop_rate=1.0)
+    link = RetryLink(sim, retries=2)
+    bot = Robot(link)
+    with pytest.raises(RuntimeError):
+        bot.feedback(1)
+    assert link.errors == 3
+    assert link.retried == 2
 
 
 def test_encoder_quantized():

@@ -15,6 +15,7 @@ from . import kinematics as kin
 from . import mission as ms
 from . import nav as nv
 from . import vision as vis
+from .bus import RetryLink
 from .hwsim import BatterySpec, HardwareSim, ServoSpec
 from .robot import Robot
 
@@ -86,8 +87,9 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                       drop_rate=cfg.get("drop_rate", 0.0),
                       bus_latency=cfg.get("bus_latency", 0.0),
                       payload_kg=cfg.get("payload_kg", 0.0))
+    link = RetryLink(sim, retries=cfg["retries"]) if cfg.get("retries") else sim
     sim.chassis.slip = cfg.get("slip", 0.0)
-    bot = Robot(sim)
+    bot = Robot(link)
     log = []
     failures = []
     meta: dict = {}

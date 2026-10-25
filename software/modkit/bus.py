@@ -73,6 +73,30 @@ class SerialLink:
         raise LinkError(f"超时：{expect_id} 号舵机无应答")
 
 
+class RetryLink:
+    """给任意链路加重试：真机总线会偶尔丢帧，上层不该因此崩掉。
+
+    只重试传输层错误；协议错误（校验/ID）不重试，避免把错误命令发两遍。
+    """
+
+    def __init__(self, link, retries: int = 2):
+        self.link = link
+        self.retries = retries
+        self.errors = 0
+        self.retried = 0
+
+    def transact(self, frame, expect_id, timeout=0.05):
+        for i in range(self.retries + 1):
+            try:
+                return self.link.transact(frame, expect_id, timeout)
+            except RuntimeError:
+                self.errors += 1
+                if i >= self.retries:
+                    raise
+                self.retried += 1
+        raise RuntimeError("重试耗尽")
+
+
 class SimLink:
     """仿真：内存里的假舵机。用来在没有硬件时跑通全部上位机流程。"""
 

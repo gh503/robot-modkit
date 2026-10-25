@@ -54,3 +54,19 @@ def test_mission_nav_full_stack():
     r = scenario.run_scenario(scenario.load(SCEN / "mission_nav.json"))
     assert r["ok"], r["failures"]
     assert r["time"] < 25
+
+
+def test_packet_loss_with_retry():
+    r = scenario.run_scenario(scenario.load(SCEN / "packet_loss.json"))
+    assert r["ok"], r["failures"]
+
+
+def test_slip_breaks_pure_odometry_nav():
+    """已知边界：没有外部定位时，打滑会让里程计闭环跑偏。"""
+    scene = {"sim": {"slip": 0.2}, "actions": [
+        {"cmd": "nav_square", "size": 300, "dt": 0.02}],
+        "assert": [{"path": "pose.x", "value": 0, "tol": 30},
+                   {"path": "pose.y", "value": 0, "tol": 30}]}
+    r = scenario.run_scenario(scene)
+    assert not r["ok"]
+    assert abs(r["pose"][0]) > 30 or abs(r["pose"][1]) > 30

@@ -1,0 +1,11 @@
+{
+  "name": "5% 丢帧 + 3 次重试仍能跑完方形",
+  "sim": {"drop_rate": 0.05, "retries": 3},
+  "actions": [
+    {"cmd": "nav_square", "size": 300, "dt": 0.02}
+  ],
+  "assert": [
+    {"path": "pose.x", "value": 0, "tol": 30},
+    {"path": "pose.y", "value": 0, "tol": 30}
+  ]
+}

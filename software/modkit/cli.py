@@ -23,6 +23,7 @@ from . import odomcal as oc
 from . import qc as qc
 from . import selftest as st
 from . import kinematics as kin
+from . import nav as nv
 from . import protocol as p
 from .bus import SerialLink, SimLink
 from .robot import Robot
@@ -289,6 +290,44 @@ def cmd_backlash(args) -> int:
     raise SystemExit("未知动作")
 
 
+def cmd_nav(args) -> int:
+    if args.path == "square":
+        wps = nv.square_waypoints(args.size)
+    elif args.path == "line":
+        wps = [nv.Pose(args.size, 0.0, 0.0)]
+    else:
+        wps = []
+        for chunk in args.wp.split(";"):
+            if not chunk.strip():
+                continue
+            parts = [float(v) for v in chunk.split(",")]
+            if len(parts) != 3:
+                sys.exit("--wp 格式：x,y,theta;x,y,theta")
+            wps.append(nv.Pose(*parts))
+        if not wps:
+            sys.exit("--path custom 需要 --wp")
+    start = nv.Pose(*[float(v) for v in args.start.split(",")])
+    legs, ok = nv.follow(start, wps, dt=args.dt)
+    print(f"{'段':>2}  {'目标':>18}  {'用时':>6}  {'误差':>12}  结果")
+    for i, r in enumerate(legs, 1):
+        g = wps[i - 1]
+        print(f"{i:>2}  ({g.x:6.0f},{g.y:6.0f},{g.theta:5.0f}°)  "
+              f"{r.seconds:6.1f}s  {r.error_mm:6.1f}mm {r.error_deg:5.1f}°  "
+              f"{'OK' if r.ok else 'FAIL'}")
+    last = legs[-1].final
+    print(f"终点 ({last.x:.1f}, {last.y:.1f}, {nv.wrap(last.theta):.1f}°)，"
+          f"{'全部到达' if ok else '未完成'}")
+    out = pathlib.Path(args.out)
+    out.write_text(json.dumps({
+        "ok": ok, "start": [start.x, start.y, start.theta],
+        "legs": [{"goal": [w.x, w.y, w.theta], "final": [r.final.x, r.final.y, r.final.theta],
+                  "seconds": round(r.seconds, 2), "error_mm": round(r.error_mm, 2),
+                  "error_deg": round(r.error_deg, 2), "ok": r.ok} for w, r in zip(wps, legs)],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"已写入 {out}")
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -381,6 +420,15 @@ def main(argv: list[str] | None = None) -> int:
     blp.add_argument("--settle", type=float, default=0.35)
     blp.add_argument("--file", default="backlash.json")
     blp.set_defaults(func=cmd_backlash)
+
+    nvp = sub.add_parser("nav", help="导航到点（控制器 + 理想单轮车验证）")
+    nvp.add_argument("--path", default="square", choices=["square", "line", "custom"])
+    nvp.add_argument("--size", type=float, default=300.0)
+    nvp.add_argument("--wp", default="")
+    nvp.add_argument("--start", default="0,0,0")
+    nvp.add_argument("--dt", type=float, default=0.02)
+    nvp.add_argument("--out", default="nav_sim.json")
+    nvp.set_defaults(func=cmd_nav)
 
     args = ap.parse_args(argv)
     return args.func(args)

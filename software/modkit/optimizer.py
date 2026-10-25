@@ -263,36 +263,79 @@ def apply_candidate(data: dict[str, Any], candidate: dict[str, Any]) -> dict[str
     return _clone(candidate["assembly"])
 
 
-def plan(data: dict[str, Any], target_budget: float, max_steps: int = 4) -> dict[str, Any]:
-    """按“最大节省”逐步应用候选，直到达到目标预算或没有候选。"""
+def plan(data: dict[str, Any], target_budget: float, max_steps: int = 4,
+         max_nodes: int = 200) -> dict[str, Any]:
+    """深度受限的精确规划：在候选树里找“达标且最省”的路径。
+
+    候选数量有限，但每个状态可能有多个可替换件；穷举比贪心更可能找到
+    两步/三步组合。节点数有上限，超限时返回 truncated=True 和当前最优。
+    """
     import copy
 
     target = float(target_budget)
     max_steps = max(1, min(8, int(max_steps or 4)))
-    cur = copy.deepcopy(data)
-    rep = _validate(cur)
-    if rep is None:
+    max_nodes = max(1, min(2000, int(max_nodes or 200)))
+    base = copy.deepcopy(data)
+    base_rep = _validate(base)
+    if base_rep is None:
         return {"reached": False, "error": "当前装配未通过校验", "target": target,
-                "base_cost": 0.0, "cost": 0.0, "remaining": 0.0, "steps": [], "assembly": cur}
-    base_cost = rep.total_cost_cny
-    steps = []
-    while rep.total_cost_cny > target and len(steps) < max_steps:
-        cands = suggest(cur, max_candidates=8)
-        if not cands:
-            break
-        pick = cands[0]
-        cur = pick["assembly"]
+                "base_cost": 0.0, "cost": 0.0, "remaining": 0.0, "steps": [],
+                "assembly": base, "mode": "exact", "nodes": 0, "truncated": False}
+
+    best = {"reached": base_rep.total_cost_cny <= target + 0.01,
+            "cost": base_rep.total_cost_cny, "steps": [], "assembly": base}
+    if best["reached"]:
+        return {"reached": True, "target": target, "base_cost": base_rep.total_cost_cny,
+                "cost": base_rep.total_cost_cny, "remaining": 0.0, "steps": [],
+                "assembly": base, "mode": "exact", "nodes": 0, "truncated": False}
+    nodes = 0
+    truncated = False
+
+    def better(rep: asm.Report, steps: list[dict[str, Any]]) -> bool:
+        reached = rep.total_cost_cny <= target + 0.01
+        if reached != best["reached"]:
+            return reached
+        if reached:
+            # 达标优先“步骤少”，同样步数再比成本。
+            if len(steps) != len(best["steps"]):
+                return len(steps) < len(best["steps"])
+            return rep.total_cost_cny < best["cost"] - 0.01
+        return rep.total_cost_cny < best["cost"] - 0.01
+
+    def search(cur: dict[str, Any], steps: list[dict[str, Any]], depth: int) -> None:
+        nonlocal nodes, truncated
+        if nodes >= max_nodes:
+            truncated = True
+            return
+        nodes += 1
         rep = _validate(cur)
         if rep is None:
-            break
-        steps.append({"id": pick["id"], "title": pick["title"],
-                      "saving": pick["saving"], "cost": rep.total_cost_cny,
-                      "risk": pick["risk"], "tradeoff": pick["tradeoff"]})
-    final = _validate(cur)
-    cost = final.total_cost_cny if final else base_cost
-    return {"reached": cost <= target + 0.01, "target": target,
-            "base_cost": base_cost, "cost": cost,
-            "remaining": max(0.0, cost - target), "steps": steps, "assembly": cur}
+            return
+        if better(rep, steps):
+            best.update({"reached": rep.total_cost_cny <= target + 0.01,
+                         "cost": rep.total_cost_cny, "steps": list(steps),
+                         "assembly": copy.deepcopy(cur)})
+        if depth >= max_steps:
+            return
+        try:
+            cands = suggest(cur, max_candidates=8)
+        except (asm.AssemblyError, KeyError, ValueError):
+            return
+        for cand in cands:
+            search(cand["assembly"], steps + [{
+                "id": cand["id"], "title": cand["title"], "saving": cand["saving"],
+                "cost": cand["cost"], "risk": cand["risk"], "tradeoff": cand["tradeoff"],
+            }], depth + 1)
+            if nodes >= max_nodes:
+                truncated = True
+                return
+
+    search(base, [], 0)
+    return {"reached": best["reached"], "target": target,
+            "base_cost": base_rep.total_cost_cny, "cost": best["cost"],
+            "remaining": max(0.0, best["cost"] - target),
+            "steps": best["steps"], "assembly": best["assembly"],
+            "mode": "exact", "nodes": nodes, "truncated": truncated}
 
 
 def plan_markdown(plan_result: dict[str, Any], title: str = "装配") -> str:

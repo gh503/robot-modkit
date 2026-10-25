@@ -120,11 +120,13 @@ def test_budget_plan_reaches_and_reports_shortfall():
     out = run_core("""
       const hit = B.plan(window.MODKIT_ASSEMBLIES.m1, 1000, 4);
       const miss = B.plan(window.MODKIT_ASSEMBLIES.m1, 900, 4);
+      const cut = B.plan(window.MODKIT_ASSEMBLIES.m1, 900, 4, { maxNodes: 1 });
       return {
         hit: { reached: hit.reached, cost: hit.cost, steps: hit.steps.map(s => s.id),
                components: hit.assembly.components.length },
         miss: { reached: miss.reached, cost: miss.cost, remaining: miss.remaining,
-                steps: miss.steps.map(s => s.id) }
+                steps: miss.steps.map(s => s.id) },
+        cut: { truncated: cut.truncated, steps: cut.steps, cost: cut.cost }
       };
     """)
     assert out["hit"]["reached"] is True
@@ -135,6 +137,9 @@ def test_budget_plan_reaches_and_reports_shortfall():
     assert out["miss"]["steps"] == ["drop-elbow", "swap-link.beam_100-link.beam_60"]
     assert abs(out["miss"]["cost"] - 964.4) < 0.2
     assert abs(out["miss"]["remaining"] - 64.4) < 0.2
+    assert out["cut"]["truncated"] is True
+    assert out["cut"]["steps"] == []
+    assert abs(out["cut"]["cost"] - 1127.4) < 0.2
 
 
 def test_optimizer_markdown_report():

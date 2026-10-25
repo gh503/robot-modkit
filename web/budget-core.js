@@ -196,44 +196,72 @@
       return clone(cand.assembly);
     }
 
-    function plan(assembly, targetBudget, maxSteps) {
+    function plan(assembly, targetBudget, maxSteps, opts) {
+      opts = opts || {};
       var target = Number(targetBudget);
       maxSteps = Math.max(1, Math.min(8, Number(maxSteps) || 4));
+      var maxNodes = Math.max(1, Math.min(2000, Number(opts.maxNodes) || 200));
       var current = clone(assembly);
       var baseReport = report(current);
       if (!isFinite(target)) {
         return { reached: false, error: "目标预算无效", target: target,
                  baseCost: baseReport ? baseReport.totalCost : 0,
-                 cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0 };
+                 cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0,
+                 mode: "exact", nodes: 0, truncated: false };
       }
       if (!baseReport || !baseReport.ok) {
         return { reached: false, error: "当前装配未通过校验", target: target,
                  baseCost: baseReport ? baseReport.totalCost : 0,
-                 cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0 };
+                 cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0,
+                 mode: "exact", nodes: 0, truncated: false };
       }
       var baseCost = baseReport.totalCost;
-      var steps = [];
-      for (var n = 0; n < maxSteps && baseReport.totalCost > target; n++) {
-        var cands = suggest(current, { max: 8 });
-        if (!cands.length) break;
-        var pick = cands[0];
-        current = clone(pick.assembly);
-        baseReport = report(current);
-        if (!baseReport) break;
-        steps.push({ id: pick.id, title: pick.title, saving: pick.saving,
-                     cost: baseReport.totalCost, risk: pick.risk, tradeoff: pick.tradeoff });
-        if (baseReport.totalCost <= target) break;
+      var best = { reached: baseCost <= target, cost: baseCost, steps: [], assembly: current };
+      if (best.reached) {
+        return { reached: true, target: target, baseCost: baseCost,
+                 cost: baseCost, remaining: 0, steps: [], assembly: current,
+                 mode: "exact", nodes: 0, truncated: false };
       }
-      var finalReport = report(current) || baseReport;
-      return {
-        reached: finalReport.totalCost <= target,
-        target: target,
-        baseCost: baseCost,
-        cost: finalReport.totalCost,
-        remaining: Math.max(0, finalReport.totalCost - target),
-        steps: steps,
-        assembly: current
-      };
+      var nodes = 0, truncated = false;
+
+      function better(r, steps) {
+        var reached = r.totalCost <= target;
+        if (reached !== best.reached) return reached;
+        if (reached) {
+          if (steps.length !== best.steps.length) return steps.length < best.steps.length;
+          return r.totalCost < best.cost - 0.01;
+        }
+        return r.totalCost < best.cost - 0.01;
+      }
+
+      function search(cur, steps, depth) {
+        if (nodes >= maxNodes) { truncated = true; return; }
+        nodes += 1;
+        var r = report(cur);
+        if (!r) return;
+        if (better(r, steps)) {
+          best = { reached: r.totalCost <= target, cost: r.totalCost,
+                   steps: steps.slice(), assembly: clone(cur) };
+        }
+        if (depth >= maxSteps) return;
+        var cands;
+        try { cands = suggest(cur, { max: 8 }); }
+        catch (e) { return; }
+        for (var i = 0; i < cands.length; i++) {
+          var c = cands[i];
+          search(c.assembly, steps.concat([{
+            id: c.id, title: c.title, saving: c.saving, cost: c.cost,
+            risk: c.risk, tradeoff: c.tradeoff
+          }]), depth + 1);
+          if (nodes >= maxNodes) { truncated = true; return; }
+        }
+      }
+
+      search(current, [], 0);
+      return { reached: best.reached, target: target, baseCost: baseCost,
+               cost: best.cost, remaining: Math.max(0, best.cost - target),
+               steps: best.steps, assembly: best.assembly,
+               mode: "exact", nodes: nodes, truncated: truncated };
     }
 
     function reportMarkdown(cands, baseCost, title) {

@@ -88,3 +88,11 @@ def test_cli_plan_and_apply(tmp_path):
     assert rep.ok and len(rep.instances) == 15
     assert abs(rep.total_cost_cny - 968.0) < 0.2
     assert out.read_text(encoding="utf-8").find("-plan") >= 0
+
+
+def test_plan_node_cap_reports_truncation():
+    data = json.loads(M1.read_text(encoding="utf-8"))
+    p = opt.plan(data, 900, max_steps=4, max_nodes=1)
+    assert p["truncated"] is True
+    assert p["steps"] == []
+    assert abs(p["cost"] - 1127.4) < 0.2

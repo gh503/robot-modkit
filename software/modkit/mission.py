@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from . import nav
 from .vision import Detection
@@ -35,6 +35,30 @@ class MissionResult:
         return {"success": self.success, "states": self.states,
                 "seconds": round(self.seconds, 1), "attempts": self.attempts,
                 "reason": self.reason}
+
+
+def run_tasks(drive_to, look, pick, drop, tasks: list[tuple[tuple[float, float], tuple[float, float]]],
+              cfg: MissionConfig | None = None, now=time.monotonic,
+              total_seconds: float = 600.0) -> dict:
+    """按顺序跑多个 pick→drop；任一任务失败就停，保留每一步结果。"""
+    cfg = cfg or MissionConfig()
+    t0 = now()
+    results = []
+    for i, (pick_xy, drop_xy) in enumerate(tasks, 1):
+        remain = total_seconds - (now() - t0)
+        if remain <= 0:
+            results.append({"task": i, "success": False, "reason": "总预算超时"})
+            break
+        c = replace(cfg, pick_xy=pick_xy, drop_xy=drop_xy,
+                    max_seconds=min(cfg.max_seconds, remain))
+        r = Mission(drive_to, look, pick, drop, cfg=c, now=now).run()
+        results.append({"task": i, "pick": list(pick_xy), "drop": list(drop_xy),
+                        **r.as_dict()})
+        if not r.success:
+            break
+    return {"success": bool(results) and all(r.get("success") for r in results),
+            "tasks": len(results), "seconds": round(now() - t0, 1),
+            "results": results}
 
 
 class Mission:

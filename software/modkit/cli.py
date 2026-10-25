@@ -349,10 +349,11 @@ def cmd_mission(args) -> int:
         sys.exit("任务会真动；先 --sim 验证流程，真机版本等硬件到位再放开")
 
     class SimWorld:
-        def __init__(self):
+        def __init__(self, cubes):
             self.p = nv.Pose()
             self.t = 0.0
             self.held = False
+            self.cubes = [nv.Pose(x, y) for x, y in cubes]
 
         def now(self):
             return self.t
@@ -365,7 +366,7 @@ def cmd_mission(args) -> int:
 
         def look(self):
             self.t += 0.5
-            if self.p.distance_to(nv.Pose(200, 0)) < 20:
+            if any(self.p.distance_to(c) < 20 for c in self.cubes):
                 return vis.Detection(160, 120, 1600, (140, 100, 179, 139))
             return None
 
@@ -379,7 +380,29 @@ def cmd_mission(args) -> int:
             self.held = False
             return True
 
-    w = SimWorld()
+    if args.tasks:
+        tasks = []
+        for chunk in args.tasks.split(";"):
+            if not chunk.strip():
+                continue
+            v = [float(x) for x in chunk.split(",")]
+            if len(v) != 4:
+                sys.exit("--tasks 格式：pick_x,pick_y,drop_x,drop_y;...")
+            tasks.append(((v[0], v[1]), (v[2], v[3])))
+        w = SimWorld([p for p, _ in tasks])
+        res = ms.run_tasks(w.drive, w.look, w.pick, w.drop, tasks,
+                           now=w.now, total_seconds=args.max_seconds)
+        for r in res["results"]:
+            print(f"  任务 {r['task']}: {'OK' if r['success'] else 'FAIL'}"
+                  f"（{r.get('reason', '')}，{r.get('seconds', 0)}s）")
+        print(f"{'PASS' if res['success'] else 'FAIL'}：{res['tasks']} 个任务，"
+              f"{res['seconds']}s")
+        pathlib.Path(args.out).write_text(
+            json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"已写入 {args.out}")
+        return 0 if res["success"] else 1
+
+    w = SimWorld([args.pick])
     cfg = ms.MissionConfig(pick_xy=args.pick, drop_xy=args.drop,
                            max_seconds=args.max_seconds)
     r = ms.Mission(w.drive, w.look, w.pick, w.drop, cfg=cfg, now=w.now).run()
@@ -669,6 +692,7 @@ def main(argv: list[str] | None = None) -> int:
     mp.add_argument("--drop", type=lambda s: tuple(float(v) for v in s.split(",")),
                     default=(-150.0, 0.0))
     mp.add_argument("--max-seconds", type=float, default=180.0)
+    mp.add_argument("--tasks", help="多任务：pick_x,pick_y,drop_x,drop_y;...")
     mp.add_argument("--out", default="mission.json")
     mp.set_defaults(func=cmd_mission)
 

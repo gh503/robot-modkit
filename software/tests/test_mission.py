@@ -98,3 +98,31 @@ def test_timeout_stops():
     r = run(w, mission.MissionConfig(max_seconds=50))
     assert not r.success
     assert "超时" in r.reason
+
+
+def test_queue_two_tasks():
+    w = World()
+    w.cubes = [(200, 0), (200, 100)]
+    w.look = lambda: Detection(1, 1, 10, (0, 0, 1, 1)) if w.p in w.cubes else None
+    tasks = [((200, 0), (-150, 0)), ((200, 100), (-150, 100))]
+    r = mission.run_tasks(w.drive, w.look, w.pick, w.drop, tasks, now=w.now)
+    assert r["success"] and r["tasks"] == 2
+    assert [x["success"] for x in r["results"]] == [True, True]
+
+
+def test_queue_stops_on_failure():
+    w = World()
+    w.nav_ok = False
+    tasks = [((200, 0), (-150, 0)), ((200, 100), (-150, 100))]
+    r = mission.run_tasks(w.drive, w.look, w.pick, w.drop, tasks, now=w.now)
+    assert not r["success"]
+    assert r["tasks"] == 1
+
+
+def test_queue_total_budget():
+    w = World()
+    tasks = [((200, 0), (-150, 0))]
+    r = mission.run_tasks(w.drive, w.look, w.pick, w.drop, tasks,
+                          now=w.now, total_seconds=-1)
+    assert not r["success"]
+    assert r["results"][0]["reason"] == "总预算超时"

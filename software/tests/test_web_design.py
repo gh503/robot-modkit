@@ -137,15 +137,17 @@ def test_pwa_shell_is_complete_and_versioned():
 def test_shape_check_rejects_bad_import_before_validate():
     out = run_core("""
       const good = A.check(window.MODKIT_ASSEMBLIES.m1);
+      const all = Object.keys(window.MODKIT_ASSEMBLIES).map(k => [k, A.check(window.MODKIT_ASSEMBLIES[k]).ok]);
       const noType = A.check({ components: [{ id: 'x' }] });
       const dup = A.check({ components: [
         { id: 'a', type: 'frame.chassis_160', parent: null },
         { id: 'a', type: 'frame.chassis_160', parent: null }
       ] });
-      return { good: good.ok, noType: noType.ok, noTypeErr: noType.errors[0],
+      return { good: good.ok, all: all, noType: noType.ok, noTypeErr: noType.errors[0],
                dup: dup.ok, dupErr: dup.errors[0] };
     """)
     assert out["good"] is True
+    assert all(ok for _, ok in out["all"]), out["all"]
     assert out["noType"] is False and "type" in out["noTypeErr"]
     assert out["dup"] is False and "重复" in out["dupErr"]
 

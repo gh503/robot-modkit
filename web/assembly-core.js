@@ -542,8 +542,11 @@
       else if (ids[c.id]) errors.push("组件 id 重复：" + c.id);
       else ids[c.id] = true;
       if (typeof c.type !== "string" || !components()[c.type]) errors.push(at + ".type 未知：" + c.type);
-      if (c.parent == null) roots += 1;
-      else if (typeof c.parent !== "string" || !c.parent.trim()) errors.push(at + ".parent 必须是字符串或 null");
+      if (c.parent == null && !c.offboard) roots += 1;
+      if (c.offboard && c.parent != null) errors.push(at + ".offboard 不能有 parent");
+      else if (c.parent != null && (typeof c.parent !== "string" || !c.parent.trim())) {
+        errors.push(at + ".parent 必须是字符串或 null");
+      }
       if (c.at != null && (!Array.isArray(c.at) || c.at.length !== 2 ||
           !isFinite(Number(c.at[0])) || !isFinite(Number(c.at[1])))) {
         errors.push(at + ".at 必须是两个数字");

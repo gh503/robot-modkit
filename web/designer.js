@@ -30,7 +30,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.15.1";
+  var STUDIO_VERSION = "1.16.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -465,8 +465,13 @@
       state.angles = {}; state.playing = false; state.fitPending = true;
       $("preset").value = "";
       pushHistory("打开分享链接");
-      revalidate();
-      toast("已从分享链接载入：" + (data.name || "未命名"), "ok");
+      // 分享链接是快照：不要覆盖本地草稿，也不要把 #d= 留在地址栏
+      // （否则刷新会把后续编辑重置回快照）。
+      var prevSuppress = state.suppressSave;
+      state.suppressSave = true;
+      try { revalidate(); } finally { state.suppressSave = prevSuppress; }
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* file:// */ }
+      toast("已从分享链接载入：" + (data.name || "未命名") + "；地址栏已清理", "ok");
       return true;
     } catch (e) {
       toast("分享链接无效：" + e.message, "err");

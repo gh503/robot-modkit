@@ -55,6 +55,7 @@
 | **抓取摩擦锥** | `modkit simrun --scenario sim/scenarios/slippery_cube.json` |
 | **蒙特卡洛 / 参数辨识** | `modkit simsweep ...` / `modkit identify --log telemetry.csv` |
 | **车载相机手眼** | `modkit simrun --scenario sim/scenarios/mission_onboard.json` |
+| **工作台验收** | 逐条证据见 [docs/50](docs/50-仿真工作台验收.md) |
 | 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
 | 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
 | 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |

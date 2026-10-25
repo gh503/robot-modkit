@@ -127,6 +127,9 @@
       <div class="row"><label>丢帧率</label>
         <input id="drop" type="range" min="0" max="0.2" step="0.01" value="0">
         <span class="val" id="drop-val">0%</span></div>
+      <div class="row"><label>摩擦 μ</label>
+        <input id="mu" type="range" min="0.02" max="0.8" step="0.02" value="0.4">
+        <span class="val" id="mu-val">0.40</span></div>
     </div>
     <div class="group"><h3>日志</h3><div id="log" class="log"></div></div>
   </aside>
@@ -197,6 +200,7 @@
   bind("batt", v=>`${Number(v).toFixed(1)}V`, v=>({options:{battery_ocv:Number(v)}}));
   bind("payload", v=>`${Number(v).toFixed(2)}kg`, v=>({options:{payload_kg:Number(v)}}));
   bind("drop", v=>`${Math.round(Number(v)*100)}%`, v=>({options:{drop_rate:Number(v)}}));
+  bind("mu", v=>Number(v).toFixed(2), v=>({options:{mu:Number(v)}}));
   $("torque").addEventListener("change", e=>{
     $("torque-val").textContent = e.target.checked ? "使能" : "卸力";
     control({torque:e.target.checked});
@@ -307,8 +311,10 @@
     $("s-i").textContent = s.current.toFixed(2);
     $("s-pose").textContent = `${s.pose[0].toFixed(0)},${s.pose[1].toFixed(0)} / ${s.pose[2].toFixed(0)}°`;
     $("s-ee").textContent = `${s.ee[0].toFixed(0)},${s.ee[2].toFixed(0)}`;
-    $("s-held").textContent = s.held ? "夹持中" : "空";
-    $("s-held").className = s.held ? "on" : "off";
+    const slip = s.grasp && s.grasp.slip && !s.held;
+    $("s-held").textContent = s.held ? "夹持中" : (slip ? "滑落" : "空");
+    $("s-held").className = s.held ? "on" : (slip ? "off" : "");
+    $("s-held").title = s.grasp ? `摩擦 ${s.grasp.capacity_n}N / 需要 ${s.grasp.required_n}N` : "";
     drawTop(s); drawSide(s); drawChart(s);
   }
 

@@ -14,6 +14,7 @@ from . import camsim as cs
 from . import kinematics as kin
 from . import mission as ms
 from . import nav as nv
+from . import contact as ct
 from . import vision as vis
 from .bus import RetryLink
 from .hwsim import BatterySpec, HardwareSim, ServoSpec
@@ -181,6 +182,20 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
                 step(1.5)
                 bot.gripper(act.get("close", 0.15))
                 step(0.5)
+                gs = ct.GraspSpec(mass_kg=act.get("cube_mass", 0.05),
+                                  mu=act.get("mu", 0.4),
+                                  grip_force_n=act.get("grip_force", 4.0))
+                meta["grasp"] = {
+                    "capacity_n": round(gs.friction_capacity_n, 2),
+                    "required_n": round(gs.required_n(), 2),
+                    "holds": gs.holds(),
+                }
+                log.append(f"[{i}] grasp 摩擦 {gs.friction_capacity_n:.2f}N / "
+                           f"需要 {gs.required_n():.2f}N")
+                if not gs.holds():
+                    log.append(f"[{i}] 抓取滑落（μ={gs.mu:.2f}）")
+                    meta["grasp_slip"] = True
+                    return False
                 bot.move_pose(plan.x, plan.y, plan.above_z)   # 抬起
                 step(1.5)
                 return True
@@ -264,7 +279,9 @@ def run_scenario(scene: dict, dt: float = 0.002) -> dict:
         if not ok:
             failures.append(msg)
 
-    return {"ok": not failures, "failures": failures, "log": log,
+    expected_fail = bool(scene.get("expect_fail"))
+    ok = bool(failures) if expected_fail else not failures
+    return {"ok": ok, "failures": failures, "log": log, "expect_fail": expected_fail,
             "pose": [round(v, 2) for v in sim.pose()],
             "voltage": round(sim.voltage, 2), "time": round(sim.time, 2),
             "trace": trace}

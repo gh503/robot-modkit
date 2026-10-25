@@ -1,0 +1,11 @@
+{
+  "name": "低摩擦方块（μ=0.05）夹不住，任务必须报失败",
+  "expect_fail": true,
+  "actions": [
+    {"cmd": "mission", "pick": [200, 0], "drop": [-150, 0],
+     "cube": [200, 0, 40], "drive_seconds": 1.0, "mu": 0.05}
+  ],
+  "assert": [
+    {"path": "mission.success", "value": false, "op": "eq"}
+  ]
+}

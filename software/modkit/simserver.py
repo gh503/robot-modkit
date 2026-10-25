@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from . import contact as ct
 from . import kinematics as kin
 from .hwsim import BatterySpec, HardwareSim, ServoSpec
 from .robot import Robot
@@ -27,6 +28,9 @@ class SimOptions:
     drop_rate: float = 0.0
     bus_latency: float = 0.0
     servo_torque: float = 2.94
+    mu: float = 0.4
+    grip_force: float = 4.0
+    cube_mass: float = 0.05
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -68,6 +72,7 @@ class SimSession:
             self.bot.gripper(self.controls.gripper)
             self.cube = [200.0, 0.0, 40.0]
             self.held = False
+            self.grasp_slip = False
             self.history: list[dict] = []
             self._next_sample = 0.0
 
@@ -126,13 +131,21 @@ class SimSession:
                 pts[2][1])
 
     def _grasp(self) -> None:
-        """极简夹持：闭合 + 末端靠近方块 → 吸附；张开即释放。"""
+        """摩擦锥：闭合 + 末端靠近方块 + 摩擦力足够，才吸附。"""
         ex, ey, ez = self._ee_world()
-        if self.controls.gripper <= 0.2 and not self.held:
-            if math.hypot(ex - self.cube[0], ey - self.cube[1]) < 35 and abs(ez - 40) < 60:
+        spec = ct.GraspSpec(mass_kg=self.options.cube_mass,
+                            mu=self.options.mu,
+                            grip_force_n=self.options.grip_force)
+        near = math.hypot(ex - self.cube[0], ey - self.cube[1]) < 35 and abs(ez - 40) < 60
+        if self.controls.gripper <= 0.2 and not self.held and near:
+            if spec.holds():
                 self.held = True
+                self.grasp_slip = False
+            else:
+                self.grasp_slip = True
         elif self.controls.gripper > 0.5:
             self.held = False
+            self.grasp_slip = False
         if self.held:
             self.cube[0], self.cube[1], self.cube[2] = ex, ey, ez
 
@@ -174,6 +187,15 @@ class SimSession:
                            round(sim.servos[6].vel_deg_s, 1)],
                 "cube": [round(v, 1) for v in self.cube],
                 "held": self.held,
+                "grasp": {
+                    "capacity_n": round(ct.GraspSpec(
+                        mass_kg=self.options.cube_mass, mu=self.options.mu,
+                        grip_force_n=self.options.grip_force).friction_capacity_n, 2),
+                    "required_n": round(ct.GraspSpec(
+                        mass_kg=self.options.cube_mass, mu=self.options.mu,
+                        grip_force_n=self.options.grip_force).required_n(), 2),
+                    "slip": self.grasp_slip,
+                },
                 "controls": {"v": self.controls.v, "w": self.controls.w,
                              "gripper": self.controls.gripper,
                              "torque": self.controls.torque,

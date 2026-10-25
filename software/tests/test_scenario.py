@@ -75,3 +75,9 @@ def test_slip_breaks_pure_odometry_nav():
 def test_localized_nav_handles_slip():
     r = scenario.run_scenario(scenario.load(SCEN / "nav_square_localized.json"))
     assert r["ok"], r["failures"]
+
+
+def test_slippery_cube_expected_failure():
+    r = scenario.run_scenario(scenario.load(SCEN / "slippery_cube.json"))
+    assert r["ok"], r["failures"]
+    assert r["expect_fail"]

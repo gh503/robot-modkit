@@ -33,13 +33,14 @@
 | 生产：检验/追溯/包装 | ✅ 可用 | 27 件逐件检验表；20 条需求追溯（16 已验证）；箱规与跌落判据 |
 | 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 单测 + **5 个在环场景**（119 断言） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **180 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
-| 仿真：三维视图 + **数字孪生** | ✅ 可用 | 12 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
-| 打印校准件 + 三张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_A/B/C.stl`、jigs 三件套 |
+| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **200 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
+| 仿真：三维视图 + **数字孪生** | ✅ 可用 | 16 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
+| 打印校准件 + 四张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_01..04.stl`（27 件）、jigs 三件套 |
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
 | 整机实测 | ⬜ 硬件阻塞 | 0/5 个物理闸门；顺序见 [docs/42](docs/42-完成度审计.md) |
 | 数字孪生验收 | ✅ 采购前目标达成 | 15 条逐项对照见 [docs/45](docs/45-数字孪生验收.md) |
 | **v1.0 ready-to-build** | ✅ 软件/设计侧完成 | 声明与边界见 [docs/52](docs/52-v1.0完成声明.md) |
+| **v1.1 五项增强** | ✅ 已验收 | 畸变/手眼、接触动态、3D、排板、编辑器；见 [docs/58](docs/58-v1.1验收.md) |
 
 > 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
 
@@ -57,10 +58,14 @@
 | **蒙特卡洛 / 参数辨识** | `modkit simsweep ...` / `modkit identify --log telemetry.csv` |
 | **车载相机手眼** | `modkit simrun --scenario sim/scenarios/mission_onboard.json` |
 | **工作台验收** | 逐条证据见 [docs/50](docs/50-仿真工作台验收.md) |
+| **相机畸变/手眼标定** | `modkit simrun --scenario sim/scenarios/mission_distortion.json`；见 [docs/53](docs/53-相机畸变与手眼标定.md) |
+| **接触滑动/六维力** | `modkit simrun --scenario sim/scenarios/fast_transport.json`；见 [docs/54](docs/54-接触动力学与六维力.md) |
+| **3D 实时 / 场景编辑** | `modkit simui`，四宫格 3D + JSON 编辑器；见 [docs/56](docs/56-工作台3D实时视图.md)、[57](docs/57-场景编辑器与回归基线.md) |
+| **回归基线** | `modkit simdiff --baseline ... --current ...` |
 | 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
 | 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
 | 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |
-| 拼打印板 | `cd cad && python plate.py` → `plate_A/B/C.stl` |
+| 拼打印板 | `cd cad && python plate.py --copies 1` → `plate_01..04.stl`；批量见 [docs/55](docs/55-按数量排板.md) |
 
 ## 三分钟上手（不需要任何硬件）
 
@@ -68,7 +73,7 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor                                          # 环境自检
-make check-fast                                      # 180 项测试 + 12 场景
+make check-fast                                      # 200 项测试 + 16 场景
 ./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点
 ./.venv/bin/python -m modkit.cli --sim demo          # 逐关节摆动
@@ -138,8 +143,9 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 ## 版本
 
-当前 **v1.0.0** ready-to-build：软件、仿真、固件、图纸、采购/装配/测试文档冻结；
-实物未装配，物理闸门 0/5。边界见 [docs/52](docs/52-v1.0完成声明.md)，
+当前 **v1.1.0**：在 v1.0 ready-to-build 上完成畸变/手眼、接触动态、3D 工作台、
+按数量排板、场景编辑器/基线五项增强。实物未装配，物理闸门 0/5。
+边界见 [docs/52](docs/52-v1.0完成声明.md) 与 [docs/58](docs/58-v1.1验收.md)，
 完整变更见 [CHANGELOG.md](CHANGELOG.md)，打包在 [Releases](https://github.com/gh503/robot-modkit/releases)。
 
 ## 许可

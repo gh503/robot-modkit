@@ -24,6 +24,7 @@ from . import qc as qc
 from . import selftest as st
 from . import kinematics as kin
 from . import nav as nv
+from . import mission as ms
 from . import vision as vis
 from . import protocol as p
 from .bus import SerialLink, SimLink
@@ -291,6 +292,55 @@ def cmd_backlash(args) -> int:
     raise SystemExit("未知动作")
 
 
+def cmd_mission(args) -> int:
+    if not args.sim:
+        sys.exit("任务会真动；先 --sim 验证流程，真机版本等硬件到位再放开")
+
+    class SimWorld:
+        def __init__(self):
+            self.p = nv.Pose()
+            self.t = 0.0
+            self.held = False
+
+        def now(self):
+            return self.t
+
+        def drive(self, x, y, theta):
+            r = nv.drive_to(self.p, nv.Pose(x, y, theta))
+            self.t += r.seconds
+            self.p = r.final
+            return r.ok
+
+        def look(self):
+            self.t += 0.5
+            if self.p.distance_to(nv.Pose(200, 0)) < 20:
+                return vis.Detection(160, 120, 1600, (140, 100, 179, 139))
+            return None
+
+        def pick(self, det):
+            self.t += 4.0
+            self.held = True
+            return True
+
+        def drop(self):
+            self.t += 2.0
+            self.held = False
+            return True
+
+    w = SimWorld()
+    cfg = ms.MissionConfig(pick_xy=args.pick, drop_xy=args.drop,
+                           max_seconds=args.max_seconds)
+    r = ms.Mission(w.drive, w.look, w.pick, w.drop, cfg=cfg, now=w.now).run()
+    for st in r.states:
+        print(f"  {st}")
+    print(f"{'PASS' if r.success else 'FAIL'}：{r.reason}，"
+          f"{r.seconds:.1f}s，动作 {r.attempts} 次")
+    out = pathlib.Path(args.out)
+    out.write_text(json.dumps(r.as_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"已写入 {out}")
+    return 0 if r.success else 1
+
+
 def cmd_pick(args) -> int:
     if not args.sim:
         sys.exit("抓取会真动，先 --sim 验证点位；真机请手动示教确认后再放开")
@@ -540,6 +590,15 @@ def main(argv: list[str] | None = None) -> int:
     nvp.add_argument("--closed-loop", action="store_true",
                      help="用里程计反馈闭环（目前仅 --sim）")
     nvp.set_defaults(func=cmd_nav)
+
+    mp = sub.add_parser("mission", help="M4 任务状态机（目前仅 --sim）")
+    mp.add_argument("--pick", type=lambda s: tuple(float(v) for v in s.split(",")),
+                    default=(200.0, 0.0))
+    mp.add_argument("--drop", type=lambda s: tuple(float(v) for v in s.split(",")),
+                    default=(-150.0, 0.0))
+    mp.add_argument("--max-seconds", type=float, default=180.0)
+    mp.add_argument("--out", default="mission.json")
+    mp.set_defaults(func=cmd_mission)
 
     pk = sub.add_parser("pick", help="识图 → 抓取序列（目前仅 --sim）")
     pk.add_argument("--image", required=True)

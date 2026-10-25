@@ -22,6 +22,7 @@ from . import calibrate as cal
 from . import odomcal as oc
 from . import qc as qc
 from . import selftest as st
+from . import scenario as sn
 from . import speedcal as sc
 from . import kinematics as kin
 from . import nav as nv
@@ -292,6 +293,34 @@ def cmd_backlash(args) -> int:
         print(f"已写入 {out}（可直接给 Compensator.load 用）")
         return 0 if jp.ok else 1
     raise SystemExit("未知动作")
+
+
+def cmd_simrun(args) -> int:
+    files = []
+    if args.all:
+        files = sorted(pathlib.Path(args.all).glob("*.json"))
+    elif args.scenario:
+        files = [pathlib.Path(args.scenario)]
+    if not files:
+        sys.exit("给 --scenario 文件或 --all 目录")
+    bad = 0
+    for f in files:
+        try:
+            scene = sn.load(f)
+            r = sn.run_scenario(scene)
+        except Exception as e:
+            print(f"{f.name}: ERROR {e}")
+            bad += 1
+            continue
+        print(f"{'PASS' if r['ok'] else 'FAIL'}  {f.name}  "
+              f"（{scene.get('name', '')}，{r['time']}s，{r['voltage']}V）")
+        for line in r["log"]:
+            print(f"    {line}")
+        for msg in r["failures"]:
+            print(f"    ! {msg}")
+        bad += 0 if r["ok"] else 1
+    print(f"{len(files) - bad}/{len(files)} 通过")
+    return 0 if bad == 0 else 1
 
 
 def cmd_speedcal(args) -> int:
@@ -665,6 +694,11 @@ def main(argv: list[str] | None = None) -> int:
     nvp.add_argument("--closed-loop", action="store_true",
                      help="用里程计反馈闭环（目前仅 --sim）")
     nvp.set_defaults(func=cmd_nav)
+
+    sr = sub.add_parser("simrun", help="跑硬件仿真场景（确定性）")
+    sr.add_argument("--scenario", help="单个场景 JSON")
+    sr.add_argument("--all", help="目录下所有场景，如 sim/scenarios")
+    sr.set_defaults(func=cmd_simrun)
 
     spc = sub.add_parser("speedcal", help="标定速度寄存器 1 LSB = ? deg/s")
     spc.add_argument("--sid", type=int, default=5)

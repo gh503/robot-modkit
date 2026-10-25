@@ -1,0 +1,14 @@
+{
+  "name": "肩关节到位与保持",
+  "sim": {"payload_kg": 0.2},
+  "actions": [
+    {"cmd": "torque", "sid": 2, "on": true},
+    {"cmd": "goto", "sid": 2, "deg": 210, "speed": 500},
+    {"cmd": "wait", "seconds": 1.5},
+    {"cmd": "assert", "path": "joint.2", "value": 210, "tol": 2}
+  ],
+  "assert": [
+    {"path": "joint.2", "value": 210, "tol": 2},
+    {"path": "voltage", "op": "gt", "value": 11.0}
+  ]
+}

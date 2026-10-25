@@ -1,0 +1,11 @@
+{
+  "name": "低压保护",
+  "sim": {"battery": {"ocv": 9.5}},
+  "actions": [
+    {"cmd": "wait", "seconds": 0.2}
+  ],
+  "assert": [
+    {"path": "voltage", "op": "lt", "value": 10.0},
+    {"path": "servos.2.status", "op": "bit", "value": 1}
+  ]
+}

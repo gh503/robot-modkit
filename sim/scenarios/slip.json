@@ -1,0 +1,12 @@
+{
+  "name": "打滑：轮子转车不走",
+  "sim": {"slip": 1.0},
+  "actions": [
+    {"cmd": "drive", "v": 100, "w": 0},
+    {"cmd": "wait", "seconds": 1.0},
+    {"cmd": "stop"}
+  ],
+  "assert": [
+    {"path": "pose.x", "value": 0, "tol": 1}
+  ]
+}

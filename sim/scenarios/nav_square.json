@@ -1,0 +1,10 @@
+{
+  "name": "硬件仿真里跑方形闭环",
+  "actions": [
+    {"cmd": "nav_square", "size": 300, "dt": 0.02}
+  ],
+  "assert": [
+    {"path": "pose.x", "value": 0, "tol": 30},
+    {"path": "pose.y", "value": 0, "tol": 30}
+  ]
+}

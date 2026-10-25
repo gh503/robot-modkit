@@ -1,0 +1,13 @@
+{
+  "name": "弱舵机 + 重载：扛不住",
+  "sim": {"servo": {"rated_torque": 0.05}, "payload_kg": 1.0},
+  "actions": [
+    {"cmd": "torque", "sid": 2, "on": true},
+    {"cmd": "goto", "sid": 2, "deg": 220, "speed": 500},
+    {"cmd": "wait", "seconds": 2.0}
+  ],
+  "assert": [
+    {"path": "joint.2", "op": "lt", "value": 150},
+    {"path": "servos.2.status", "op": "bit", "value": 32}
+  ]
+}

@@ -1,7 +1,7 @@
 # robot-modkit：一条命令跑完所有"不依赖实物"的验证
 PY ?= .venv/bin/python
 
-.PHONY: check check-fast doctor cad firmware software sim docs workbench demo clean-out
+.PHONY: check check-fast doctor cad firmware firmware-target software sim docs workbench demo clean-out
 
 check: cad firmware software sim docs
 
@@ -26,6 +26,9 @@ cad:
 
 firmware:
 	$(MAKE) -C firmware test
+
+firmware-target:
+	tools/arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32/modkit_esp32
 
 software:
 	cd software && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 ../$(PY) -m pytest -q

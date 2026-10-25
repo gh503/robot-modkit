@@ -30,6 +30,25 @@ jobs:
       - name: 编译并测试
         run: make -C firmware test
 
+  firmware-target:
+    name: 固件 (ESP32-S3 目标编译)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v1
+        with:
+          version: "1.5.1"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: arduino-esp32-3.3.12
+      - name: 安装 ESP32 核心
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.3.12
+      - name: 目标编译
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/esp32/modkit_esp32
+
   cad:
     name: CAD 几何自检
     runs-on: ubuntu-22.04

@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="design.css">
 </head>
 <body>
+<noscript><p style="padding:12px;background:#fff3cd;color:#664d03;margin:0">Studio 需要 JavaScript 才能装配和校验；请启用后刷新。</p></noscript>
 <a class="skip" href="#studio">跳到设计器</a>
 <header class="topbar">
   <div class="topbar-inner">
@@ -90,10 +91,10 @@
 
   <aside class="inspector panel" aria-label="装配参数与导出">
     <div class="tabs" role="tablist" aria-label="面板">
-      <button id="tab-btn-build" role="tab" aria-selected="true" aria-controls="tab-build">装配</button>
-      <button id="tab-btn-check" role="tab" aria-selected="false" aria-controls="tab-check">校验</button>
-      <button id="tab-btn-bom" role="tab" aria-selected="false" aria-controls="tab-bom">BOM</button>
-      <button id="tab-btn-export" role="tab" aria-selected="false" aria-controls="tab-export">导出</button>
+      <button id="tab-btn-build" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-build">装配</button>
+      <button id="tab-btn-check" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-check">校验</button>
+      <button id="tab-btn-bom" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-bom">BOM</button>
+      <button id="tab-btn-export" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-export">导出</button>
     </div>
 
     <section class="tabpanel" id="tab-build" role="tabpanel" aria-labelledby="tab-btn-build">

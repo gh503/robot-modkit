@@ -96,3 +96,4 @@ def test_plan_node_cap_reports_truncation():
     assert p["truncated"] is True
     assert p["steps"] == []
     assert abs(p["cost"] - 1127.4) < 0.2
+    assert "节点上限" in opt.plan_markdown(p, "m1")

@@ -383,6 +383,8 @@ def cmd_assemble(args) -> int:
                 print(f"  可达：¥{p['cost']:.1f}，预算 ¥{p['target']:.1f}")
             else:
                 print(f"  未达标：最多 ¥{p['cost']:.1f}，仍差 ¥{p['remaining']:.1f}；需要更大幅度改动")
+            if p.get("truncated"):
+                print(f"  ! 搜索达到 {p.get('nodes', 0)} 节点上限，结果可能不是全局最优")
             return 0
 
         cands = opt.suggest(data, max_candidates=args.max_candidates)

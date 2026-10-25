@@ -344,7 +344,11 @@ def plan_markdown(plan_result: dict[str, Any], title: str = "装配") -> str:
     if plan_result.get("error"):
         lines += [plan_result["error"], ""]
     elif not plan_result["steps"]:
-        lines += ["当前装配已经在预算内，不需要规划。", ""]
+        if plan_result.get("reached"):
+            lines += ["当前装配已经在预算内，不需要规划。", ""]
+        else:
+            lines += [f"没有找到可行动路径：当前 ¥{plan_result['base_cost']:.1f}，"
+                      f"目标 ¥{plan_result['target']:.1f}。", ""]
     else:
         lines += ["| 步 | 候选 | 省 ¥ | 应用后 ¥ | 风险 |", "|---:|---|---:|---:|---|"]
         for i, s in enumerate(plan_result["steps"], 1):
@@ -355,6 +359,9 @@ def plan_markdown(plan_result: dict[str, Any], title: str = "装配") -> str:
         else:
             lines.append(f"**未达标**：最多到 ¥{plan_result['cost']:.1f}，仍差 ¥{plan_result['remaining']:.1f}；"
                          "需要更大幅度的结构改动。")
+        lines.append("")
+    if plan_result.get("truncated"):
+        lines.append("> 搜索达到节点上限，结果可能不是全局最优。")
         lines.append("")
     return "\n".join(lines)
 

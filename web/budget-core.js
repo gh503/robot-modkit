@@ -264,10 +264,22 @@
                mode: "exact", nodes: nodes, truncated: truncated };
     }
 
-    function reportMarkdown(cands, baseCost, title) {
+    function reportMarkdown(cands, baseCost, title, planResult) {
       function md(v) { return String(v == null ? "" : v).replace(/\|/g, "\\|").replace(/\n/g, " "); }
       var lines = ["# 预算优化：" + md(title || "装配"), "",
                    "当前 BOM：¥" + Number(baseCost).toFixed(1), ""];
+      if (planResult && planResult.steps && planResult.steps.length) {
+        lines.push("## 目标规划", "",
+          "目标 ¥" + Number(planResult.target).toFixed(1) + "　" +
+          (planResult.reached ? "可达" : "未达标") + " ¥" + Number(planResult.cost).toFixed(1) +
+          (planResult.reached ? "" : "（仍差 ¥" + Number(planResult.remaining).toFixed(1) + "）"), "");
+        planResult.steps.forEach(function (s, i) {
+          lines.push((i + 1) + ". " + md(s.title) + " → ¥" + Number(s.cost).toFixed(1) +
+            "（省 ¥" + Number(s.saving).toFixed(1) + "）");
+        });
+        if (planResult.truncated) lines.push("", "> 搜索达到节点上限，结果可能不是全局最优。");
+        lines.push("");
+      }
       if (!cands || !cands.length) {
         lines.push("没有找到既省钱又能通过校验的单步候选。");
         return lines.join("\n") + "\n";

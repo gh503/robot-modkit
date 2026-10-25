@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 
@@ -124,6 +125,9 @@ def test_pwa_shell_is_complete_and_versioned():
     for name in ("design.html", "designer.js", "assembly-core.js", "budget-core.js"):
         assert name in sw
     assert "CACHE" in sw and "skipWaiting" in sw
+    version = re.search(r'__version__\s*=\s*"([^"]+)"',
+                        (ROOT / "software" / "modkit" / "__init__.py").read_text(encoding="utf-8")).group(1)
+    assert 'CACHE = "modkit-shell-v' + version + '"' in sw
     for page in ("index.html", "design.html"):
         html = (WEB / page).read_text(encoding="utf-8")
         assert 'rel="manifest"' in html and 'src="pwa.js"' in html
@@ -174,11 +178,13 @@ def test_budget_plan_reaches_and_reports_shortfall():
 def test_optimizer_markdown_report():
     out = run_core("""
       const cs = B.suggest(window.MODKIT_ASSEMBLIES.m1);
-      return { md: B.reportMarkdown(cs, 1127.4, 'm1'), n: cs.length };
+      const plan = B.plan(window.MODKIT_ASSEMBLIES.m1, 900, 4);
+      return { md: B.reportMarkdown(cs, 1127.4, 'm1', plan), n: cs.length };
     """)
     assert out["n"] >= 2
     assert out["md"].startswith("# 预算优化：m1")
     assert "去掉肘关节" in out["md"]
+    assert "目标规划" in out["md"] and "未达标" in out["md"]
     assert "单步候选" in out["md"]
 
 

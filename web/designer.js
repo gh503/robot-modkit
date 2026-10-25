@@ -30,7 +30,7 @@
     materials: {}, fitPending: true, ready: false
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.13.0";
+  var STUDIO_VERSION = "1.14.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -980,6 +980,10 @@
       html += '<p class="opt-empty">规划 ' + p.steps.length + ' 步后仍差 ¥' + Math.round(p.remaining) +
         '；需要更大幅度的结构改动，或先接受一个候选再继续规划。</p>';
     }
+    if (p.truncated) {
+      html += '<p class="opt-empty">搜索达到 ' + (p.nodes || 0) +
+        ' 节点上限，结果可能不是全局最优；可减少步数或接受当前方案。</p>';
+    }
     html += '</div>';
     host.innerHTML = html;
     var b = $("apply-plan");
@@ -1062,9 +1066,9 @@
   }
 
   function exportOptimizerReport() {
-    if (!state.optimizer) { toast("先生成候选，再导出报告", ""); return; }
-    var md = window.MODKIT_BUDGET.reportMarkdown(state.optimizer, state.report ? state.report.totalCost : 0,
-      state.assembly ? state.assembly.name : "design");
+    if (!state.optimizer && !state.plan) { toast("先生成候选或规划，再导出报告", ""); return; }
+    var md = window.MODKIT_BUDGET.reportMarkdown(state.optimizer || [], state.report ? state.report.totalCost : 0,
+      state.assembly ? state.assembly.name : "design", state.plan);
     download(designFileName("budget.md"), new Blob([md], { type: "text/markdown;charset=utf-8" }));
     toast("已导出预算优化报告（Markdown）", "ok");
   }
@@ -1320,6 +1324,7 @@
       $("tab-" + k).hidden = k !== name;
       var b = $("tab-btn-" + k);
       b.setAttribute("aria-selected", k === name ? "true" : "false");
+      b.tabIndex = k === name ? 0 : -1;
     });
   }
 
@@ -1358,8 +1363,21 @@
     });
     $("speed").addEventListener("input", function () { state.speed = parseFloat($("speed").value) || 1; renderStatus(); });
     $("fit-view").addEventListener("click", fitCamera);
-    ["build", "check", "bom", "export"].forEach(function (k) {
-      $("tab-btn-" + k).addEventListener("click", function () { showTab(k); });
+    var tabKeys = ["build", "check", "bom", "export"];
+    tabKeys.forEach(function (k, idx) {
+      var b = $("tab-btn-" + k);
+      b.addEventListener("click", function () { showTab(k); });
+      b.addEventListener("keydown", function (e) {
+        var next = null;
+        if (e.key === "ArrowRight") next = tabKeys[(idx + 1) % tabKeys.length];
+        else if (e.key === "ArrowLeft") next = tabKeys[(idx - 1 + tabKeys.length) % tabKeys.length];
+        else if (e.key === "Home") next = tabKeys[0];
+        else if (e.key === "End") next = tabKeys[tabKeys.length - 1];
+        if (!next) return;
+        e.preventDefault();
+        showTab(next);
+        $("tab-btn-" + next).focus();
+      });
     });
     $("optimize").addEventListener("click", runOptimizer);
     $("plan-budget").addEventListener("click", runPlan);

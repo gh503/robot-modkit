@@ -12,8 +12,9 @@
 
 ![关节模块装配预览](docs/images/assembly.png)
 
-**在线看：<https://gh503.github.io/robot-modkit/>** —— 浏览器里拖动滑杆改关节角、播放抓取动画、
-也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。
+**在线看：<https://gh503.github.io/robot-modkit/>** —— 浏览器里拖动滑杆改关节角、播放抓取动画，
+也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。界面在 v1.3 做了产品级重做：
+模型探索 / 真机调试分栏、键盘快捷键、安全确认、移动端布局；工作台是三标签 + 单视图切换。
 
 [![实时查看器](docs/images/viewer.png)](https://gh503.github.io/robot-modkit/)
 
@@ -33,7 +34,7 @@
 | 生产：检验/追溯/包装 | ✅ 可用 | 27 件逐件检验表；20 条需求追溯（16 已验证）；箱规与跌落判据 |
 | 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 单测 + **5 个在环场景**（119 断言） |
 | 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **209 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
+| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **212 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架）；无硬件可跑全流程 |
 | 仿真：三维视图 + **数字孪生** | ✅ 可用 | 16 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
 | 打印校准件 + 四张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_01..04.stl`（27 件）、jigs 三件套 |
 | 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
@@ -42,6 +43,7 @@
 | **v1.0 ready-to-build** | ✅ 软件/设计侧完成 | 声明与边界见 [docs/52](docs/52-v1.0完成声明.md) |
 | **v1.1 五项增强** | ✅ 已验收 | 畸变/手眼、接触动态、3D、排板、编辑器；见 [docs/58](docs/58-v1.1验收.md) |
 | **v1.2 交付硬化** | ✅ 已验收 | bring-up 证据、协议异常流、发布校验和；见 [docs/60](docs/60-v1.2验收.md) |
+| **v1.3 产品级 UI** | ✅ 已验收 | 工作台/查看器重做、键盘与安全确认、移动端；见 [docs/61](docs/61-v1.3-UI优化.md) |
 
 > 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
 
@@ -75,7 +77,7 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor                                          # 环境自检
-make check-fast                                      # 209 项测试 + 16 场景
+make check-fast                                      # 212 项测试 + 16 场景
 ./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点
 ./.venv/bin/python -m modkit.cli --sim demo          # 逐关节摆动
@@ -145,9 +147,9 @@ software/ modkit/（协议/运动学/仿真/CLI）· tests/
 
 ## 版本
 
-当前 **v1.2.1**：v1.1 完成五项增强，v1.2 补齐 bring-up 证据、协议异常流与发布校验和。
-实物未装配，物理闸门 0/5。边界见 [docs/52](docs/52-v1.0完成声明.md)、
-[58](docs/58-v1.1验收.md)、[60](docs/60-v1.2验收.md)，
+当前 **v1.3.0**：v1.3 把工作台与在线查看器做成产品级界面（信息架构、状态机、快捷键、
+安全确认、移动端、可访问性）。实物未装配，物理闸门 0/5。边界见 [docs/52](docs/52-v1.0完成声明.md)、
+[58](docs/58-v1.1验收.md)、[60](docs/60-v1.2验收.md)、[61](docs/61-v1.3-UI优化.md)，
 完整变更见 [CHANGELOG.md](CHANGELOG.md)，打包在 [Releases](https://github.com/gh503/robot-modkit/releases)。
 
 ## 许可

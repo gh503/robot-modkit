@@ -157,3 +157,15 @@ def test_vendor_three_served(server):
     base, _ = server
     data = get(base + "/vendor/three.min.js")
     assert len(data) > 10_000
+
+
+def test_vendor_orbitcontrols_and_product_ui(server):
+    base, _ = server
+    controls = get(base + "/vendor/OrbitControls.js")
+    assert b"OrbitControls" in controls and len(controls) > 5_000
+    html = get(base + "/").decode()
+    for node in ("panels", "tabbtn-scenario", "editor-dialog",
+                 "help-dialog", "toasts", "offline", "run-status"):
+        assert 'id="%s"' % node in html
+    assert 'class="mobile-views"' in html
+    assert "aria-selected" in html and "aria-live" in html

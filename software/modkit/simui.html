@@ -3,511 +3,1515 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>modkit 仿真工作台</title>
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080b10">
+<title>modkit 仿真工作台 · 数字孪生</title>
 <style>
   :root{
-    --bg:#0b0f14; --panel:#121821; --panel2:#0f141c; --line:#223041;
-    --text:#e6edf3; --dim:#8b98a5; --accent:#4da3ff; --green:#3fb950;
-    --red:#f85149; --amber:#d29922; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --bg:#080b10; --surface:#0f141c; --surface-2:#131b25; --surface-3:#18222f;
+    --line:#223041; --line-strong:#30465f; --text:#e9f0f7; --muted:#94a5b8;
+    --faint:#66788c; --accent:#4da3ff; --accent-2:#86c5ff; --accent-soft:#4da3ff1f;
+    --ok:#3fb950; --warn:#d29922; --bad:#f85149; --focus:#86c5ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    --radius:14px; --radius-sm:9px; --shadow:0 18px 48px #0007;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);
-       font:14px/1.45 system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC",sans-serif}
-  header{display:flex;align-items:center;gap:14px;padding:12px 18px;
-         border-bottom:1px solid var(--line);background:linear-gradient(180deg,#111821,#0d131a)}
-  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.3px}
-  header .badge{font:11px var(--mono);color:var(--accent);border:1px solid #1f456d;
-                background:#0d1a28;padding:2px 7px;border-radius:20px}
-  header .spacer{flex:1}
-  header .clock{font:13px var(--mono);color:var(--dim)}
-  .btns{display:flex;gap:7px}
-  button{background:#18222e;color:var(--text);border:1px solid var(--line);
-         padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px}
-  button:hover{border-color:#33506f;background:#1c2938}
-  button.primary{background:#123a5e;border-color:#1f5f92;color:#cfe8ff}
-  button.warn{border-color:#5a2320;color:#ffb3ae;background:#2a1514}
-  main{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,.9fr);
-       gap:14px;padding:14px 18px 22px;max-width:1400px;margin:0 auto}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-        padding:12px;box-shadow:0 8px 24px #0004}
-  .card h2{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;
-           letter-spacing:.8px;text-transform:uppercase}
-  canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--panel2)}
-  .views{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-  #view3d{width:100%;height:auto;border-radius:8px;background:#0b1018;display:block}
-  #cam{width:100%;height:auto;border-radius:8px;background:var(--panel2);display:block}
-  #sc-text{width:100%;height:120px;margin-top:8px;background:#0f141c;color:#cfe3ff;
-    border:1px solid #223041;border-radius:7px;padding:8px;font:12px/1.4 ui-monospace,monospace;
-    resize:vertical;display:none}
-  #sc-text.show{display:block}
-  @media(max-width:1200px){.views{grid-template-columns:1fr 1fr}}
-  @media(max-width:1050px){main{grid-template-columns:1fr}.views{grid-template-columns:1fr}}
-  .row{display:flex;align-items:center;gap:10px;margin:9px 0}
-  .row label{width:74px;color:var(--dim);font-size:12px}
-  .row input[type=range]{flex:1;accent-color:var(--accent)}
-  .row .val{width:70px;text-align:right;font:12px var(--mono);color:var(--text)}
-  .group{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
-  .group h3{margin:0 0 6px;font-size:11px;color:var(--dim);letter-spacing:.6px}
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
-  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px}
-  .stat b{display:block;font:16px var(--mono);font-weight:600}
-  .stat span{font-size:11px;color:var(--dim)}
-  .log{font:11px var(--mono);color:var(--dim);height:70px;overflow:auto;
-       background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px}
-  .on{color:var(--green)} .off{color:var(--red)}
-  footer{color:#5d6a78;font-size:11px;text-align:center;padding:0 0 18px}
-  kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;
-      border-radius:4px;padding:1px 5px;color:var(--dim)}
+  html{scroll-behavior:smooth}
+  body{margin:0;min-height:100vh;background:
+      radial-gradient(1100px 520px at 18% -10%,#122033 0%,transparent 62%),var(--bg);
+      color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--accent-2)}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  ::selection{background:#1f5f92;color:#fff}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .skip{position:fixed;left:12px;top:-60px;z-index:200;background:var(--accent);color:#04111e;
+        padding:10px 14px;border-radius:8px;font-weight:700;text-decoration:none}
+  .skip:focus{top:12px}
+
+  /* ---------- app bar ---------- */
+  .appbar{position:sticky;top:0;z-index:40;border-bottom:1px solid var(--line);
+    background:#0b1017e8;backdrop-filter:blur(14px)}
+  .appbar-inner{max-width:1600px;margin:0 auto;padding:10px 18px;display:flex;
+    align-items:center;gap:14px;min-height:60px}
+  .brand{display:flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none}
+  .brand-mark{width:34px;height:34px;border-radius:10px;background:
+    linear-gradient(145deg,#1d5f96,#0d2d4a);border:1px solid #2b6c9f;display:grid;
+    place-items:center;box-shadow:inset 0 1px 0 #ffffff1f;flex:none}
+  .brand-mark svg{width:19px;height:19px;display:block}
+  .brand-name{font-weight:750;font-size:15px;letter-spacing:.2px;line-height:1.1}
+  .brand-sub{font-size:11px;color:var(--muted);white-space:nowrap;margin-top:3px}
+  .badge{font:11px/1 var(--mono);color:var(--accent-2);border:1px solid #24527d;
+    background:#0c1b2a;padding:5px 8px;border-radius:999px;white-space:nowrap}
+  .spacer{flex:1}
+  .run-status{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);
+    border-radius:999px;background:var(--surface);font-size:12px;color:var(--muted);white-space:nowrap}
+  .run-status .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+  .run-status.running .dot{background:var(--ok);box-shadow:0 0 0 4px #3fb95022}
+  .run-status.paused .dot{background:var(--warn)}
+  .run-status.replay .dot{background:var(--accent);box-shadow:0 0 0 4px #4da3ff22}
+  .clock{font:12px var(--mono);color:var(--muted);min-width:86px;text-align:right}
+  .btns{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+  button{background:var(--surface-2);color:var(--text);border:1px solid var(--line);
+    min-height:36px;padding:7px 12px;border-radius:9px;display:inline-flex;align-items:center;
+    justify-content:center;gap:7px;transition:background .16s,border-color .16s,transform .1s}
+  button:hover{border-color:var(--line-strong);background:var(--surface-3)}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  button.primary{background:#123a5e;border-color:#245f92;color:#d7edff}
+  button.primary:hover{background:#174a76}
+  button.warn{background:#2a1514;border-color:#61302c;color:#ffb9b4}
+  button.ghost{background:transparent}
+  button.icon{width:36px;padding:0;flex:none}
+  button svg{width:15px;height:15px;flex:none}
+  .btn-label{display:inline}
+
+  /* ---------- shell ---------- */
+  .shell{max-width:1600px;margin:0 auto;padding:16px 18px 26px;display:grid;
+    grid-template-columns:minmax(0,1fr) 370px;gap:16px;align-items:start}
+  .workspace{display:grid;gap:12px;min-width:0}
+  .panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .panel{background:linear-gradient(180deg,#111822,#0e141c);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:0 1px 0 #ffffff08 inset;min-width:0;overflow:hidden}
+  .panel-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #1b2735;
+    min-height:42px}
+  .panel-title{font-size:12px;font-weight:650;letter-spacing:.35px;color:#c8d7e7;margin:0}
+  .panel-meta{font:10px var(--mono);color:var(--faint);white-space:nowrap}
+  .panel-head .spacer{flex:1}
+  .panel-body{padding:8px}
+  .panel canvas{width:100%;display:block;border-radius:8px;background:#0a0f16}
+  #top,#side,#view3d{aspect-ratio:4/3;height:auto}
+  #chart{height:158px;aspect-ratio:auto}
+  .cam-wrap{position:relative;background:#0a0f16;border-radius:8px;overflow:hidden;aspect-ratio:4/3}
+  #cam{width:100%;height:100%;object-fit:cover;display:block}
+  .cam-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--faint);
+    font-size:12px;text-align:center;padding:20px}
+  .cam-wrap.loaded .cam-empty{display:none}
+
+  @media (min-width:981px){
+    .workspace{height:calc(100vh - 136px);grid-template-rows:minmax(0,1fr) auto auto}
+    .panel-grid{grid-template-rows:repeat(2,minmax(0,1fr));min-height:0}
+    .panel-grid.focus-mode{grid-template-rows:minmax(0,1fr)}
+    .panel-grid.focus-mode .panel.focused{display:flex;flex-direction:column}
+    .panel-grid.focus-mode .panel.focused #top,
+    .panel-grid.focus-mode .panel.focused #side,
+    .panel-grid.focus-mode .panel.focused #view3d{aspect-ratio:auto;height:100%}
+    .panel-grid .panel{display:flex;flex-direction:column;min-height:0}
+    .panel-grid .panel-body{flex:1;min-height:0;display:flex}
+    .panel-grid .panel-body>canvas{width:100%;height:100%;aspect-ratio:auto}
+    .panel-grid .panel-body>.cam-wrap{width:100%;height:100%;aspect-ratio:auto}
+    #panel-chart .panel-body{display:block}
+    #panel-chart #chart{height:120px}
+    .stats{margin-top:0}
+    .sidebar{height:calc(100vh - 136px)}
+  }
+  /* ---------- stats ---------- */
+  .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:10px}
+  .stat{background:var(--surface-2);border:1px solid #1e2c3d;border-radius:10px;padding:9px 10px;min-width:0}
+  .stat b{display:block;font:600 16px/1.15 var(--mono);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  .stat span{display:block;font-size:10.5px;color:var(--muted);margin-top:4px;white-space:nowrap}
+  .stat.warn b,.warn-text{color:var(--warn)} .stat.bad b,.bad-text{color:var(--bad)}
+  .stat.ok b,.ok-text{color:var(--ok)}
+
+  /* ---------- sidebar ---------- */
+  .sidebar{background:linear-gradient(180deg,#111822,#0d131b);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow);position:sticky;top:76px;
+    max-height:calc(100vh - 94px);display:flex;flex-direction:column;overflow:hidden}
+  .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:8px;
+    border-bottom:1px solid var(--line);background:#0c1219}
+  .tab{min-height:38px;border:0;background:transparent;color:var(--muted);border-radius:7px;
+    font-size:12px;font-weight:600;padding:6px 4px}
+  .tab:hover{background:#16202c;color:var(--text)}
+  .tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent-2);
+    box-shadow:inset 0 0 0 1px #2a5f8f}
+  .tab-panels{overflow:auto;padding:4px 14px 16px;scrollbar-gutter:stable}
+  .tab-panel[hidden]{display:none}
+  .group{border-bottom:1px solid #1b2735;padding:13px 0}
+  .group:last-child{border-bottom:0}
+  .group h3{margin:0 0 10px;font-size:10.5px;color:var(--faint);font-weight:700;
+    letter-spacing:1px;text-transform:uppercase}
+  .row{display:flex;align-items:center;gap:9px;margin:10px 0}
+  .row label{width:74px;color:var(--muted);font-size:12px;flex:none}
+  .row input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:24px}
+  .row output{width:74px;text-align:right;font:11.5px var(--mono);color:var(--text);
+    font-variant-numeric:tabular-nums;flex:none}
+  .row select{flex:1;min-width:0;background:var(--surface);color:var(--text);border:1px solid var(--line);
+    border-radius:8px;padding:8px;min-height:36px}
+  .row .check{width:18px;height:18px;accent-color:var(--accent)}
+  .button-row{display:flex;gap:7px;flex-wrap:wrap;margin:9px 0 0}
+  .button-row>button{flex:1}
+  .hint{font-size:11.5px;color:var(--faint);line-height:1.5;margin:6px 0 0}
+  .code{font:11px/1.5 var(--mono);background:#080d13;border:1px solid #1b2735;border-radius:7px;
+    padding:8px 9px;color:#a9c9e8;overflow:auto;white-space:pre-wrap;word-break:break-all}
+  .disclosure{border:1px solid #1e2c3d;border-radius:10px;background:#0c1219;margin-top:10px}
+  .disclosure summary{cursor:pointer;padding:10px 11px;font-size:12px;color:#c3d3e3;
+    list-style:none;display:flex;align-items:center;gap:8px;min-height:40px}
+  .disclosure summary::-webkit-details-marker{display:none}
+  .disclosure summary::before{content:"▸";color:var(--faint);transition:transform .15s}
+  .disclosure[open] summary::before{transform:rotate(90deg)}
+  .disclosure .inside{padding:0 11px 10px}
+  .preset-row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+  .preset-row button{min-height:34px;padding:4px 9px;font-size:11.5px;flex:1}
+  .result{border:1px solid #1e2c3d;border-radius:10px;background:#0b1119;padding:10px;margin-top:10px}
+  .result-head{display:flex;align-items:center;gap:8px}
+  .result-head strong{font:700 13px var(--mono);letter-spacing:.4px}
+  .result-head .meta{font:10.5px var(--mono);color:var(--faint);margin-left:auto}
+  .result p{margin:6px 0 0;font-size:11.5px;color:var(--muted)}
+  .result.pass{border-color:#2b5f3a;background:#0c1711}
+  .result.fail{border-color:#6a2f2b;background:#1a0f0e}
+  .log{font:11px/1.55 var(--mono);color:#9fb2c6;background:#080d13;border:1px solid #1b2735;
+    border-radius:8px;padding:8px;height:118px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  .log:empty::before{content:"暂无日志";color:var(--faint)}
+  #log{height:190px}
+  .log-line{padding:2px 0;border-bottom:1px solid #111c28}
+  .log-line:last-child{border-bottom:0}
+  .log-time{color:#5d7186;margin-right:6px}
+  .log-warn{color:#f0c674}.log-err{color:#ff9b95}.log-ok{color:#7ee787}
+  .kbd{font:10px var(--mono);border:1px solid #2a3d52;border-bottom-width:2px;border-radius:4px;
+    padding:1px 5px;color:#b9c9d9;background:#0b1119;white-space:nowrap}
+  .shortcut-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;align-items:center;
+    font-size:12px;color:var(--muted)}
+  .shortcut-grid .kbd{justify-self:start}
+
+  /* ---------- banners / toasts ---------- */
+  .banner{display:flex;align-items:center;gap:11px;flex-wrap:wrap;border:1px solid #6b3a1e;
+    background:#23170e;color:#ffd9a8;border-radius:11px;padding:10px 12px}
+  .banner strong{font-size:12.5px}
+  .banner .code{flex:1 1 280px;background:#160f08;border-color:#4a2e18;color:#ffd9a8;margin:0}
+  .banner[hidden]{display:none}
+  .toasts{position:fixed;right:18px;bottom:18px;z-index:100;display:grid;gap:8px;max-width:min(380px,90vw)}
+  .toast{background:#121b26;border:1px solid #2b4158;border-left:3px solid var(--accent);
+    border-radius:9px;padding:9px 12px;box-shadow:var(--shadow);font-size:12.5px;
+    animation:toast-in .18s ease-out;overflow-wrap:anywhere}
+  .toast.ok{border-left-color:var(--ok)} .toast.err{border-left-color:var(--bad)}
+  .toast.warn{border-left-color:var(--warn)}
+  @keyframes toast-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---------- status bar ---------- */
+  .statusbar{border-top:1px solid var(--line);background:#0b1017;color:var(--faint);font-size:11px}
+  .statusbar-inner{max-width:1600px;margin:0 auto;padding:8px 18px;display:flex;gap:16px;
+    align-items:center;flex-wrap:wrap}
+  .conn{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .conn .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .conn.ok .dot{background:var(--ok)} .conn.bad .dot{background:var(--bad)}
+  .statusbar .spacer{flex:1}
+
+  /* ---------- dialogs ---------- */
+  dialog{border:1px solid #2b4158;background:#0e151e;color:var(--text);border-radius:16px;
+    padding:0;width:min(920px,94vw);max-height:90vh;box-shadow:0 30px 90px #000b}
+  dialog::backdrop{background:#000a;backdrop-filter:blur(3px)}
+  .dialog-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .dialog-head h2{margin:0;font-size:15px}
+  .dialog-head .spacer{flex:1}
+  .dialog-body{padding:14px 16px;overflow:auto}
+  .dialog-foot{display:flex;gap:8px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);
+    flex-wrap:wrap}
+  .field{display:flex;align-items:center;gap:9px;margin:0 0 10px}
+  .field label{font-size:12px;color:var(--muted);flex:none}
+  .field input{flex:1;min-width:0;background:#080d13;border:1px solid var(--line);border-radius:8px;
+    padding:8px 10px;color:var(--text);font:12px var(--mono);min-height:36px}
+  #sc-text{width:100%;height:min(54vh,520px);resize:vertical;background:#080d13;color:#cfe3ff;
+    border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:12px/1.55 var(--mono);
+    tab-size:2}
+  #editor-status{font-size:11.5px;color:var(--muted);min-height:18px}
+  .help-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .help-table td{padding:7px 4px;border-bottom:1px solid #1b2735;vertical-align:top}
+  .help-table td:first-child{width:128px}
+
+  /* ---------- canvas focus mode ---------- */
+  .panel-grid.focus-mode{grid-template-columns:1fr}
+  .panel-grid.focus-mode .panel{display:none}
+  .panel-grid.focus-mode .panel.focused{display:flex;flex-direction:column}
+  .panel.focused #top,.panel.focused #side,.panel.focused #view3d{aspect-ratio:16/10}
+  .mobile-views{display:none}
+
+  /* ---------- booting ---------- */
+  body.booting .panel canvas,body.booting .cam-wrap,body.booting .chart-wrap{opacity:.35;
+    filter:saturate(.5)}
+  body.booting .sidebar{opacity:.8}
+  .boot-hint{font-size:11px;color:var(--faint);display:flex;align-items:center;gap:6px}
+  .spinner{width:12px;height:12px;border:2px solid #29425b;border-top-color:var(--accent);
+    border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  @media (max-width:1180px){
+    .shell{grid-template-columns:1fr}
+    .sidebar{position:static;max-height:none;height:auto}
+    .stats{grid-template-columns:repeat(3,1fr)}
+  }
+  @media (max-width:760px){
+    .appbar-inner{padding:8px 12px;gap:9px;flex-wrap:wrap}
+    .brand-sub,.hide-sm,.badge,.clock{display:none}
+    .mobile-views{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+    .mobile-views button{min-height:38px;font-size:12px;color:var(--muted);background:#0c1219}
+    .mobile-views button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent-2);
+      box-shadow:inset 0 0 0 1px #2a5f8f}
+    .panel-grid{display:block}
+    .panel-grid .panel{display:none}
+    body[data-view="panel-top"] #panel-top,
+    body[data-view="panel-side"] #panel-side,
+    body[data-view="panel-3d"] #panel-3d,
+    body[data-view="panel-cam"] #panel-cam{display:block}
+    .panel-grid.focus-mode .panel{display:none}
+    .panel-grid.focus-mode .panel.focused{display:flex;flex-direction:column}
+    .run-status{order:3}
+    .clock{order:4;min-width:0}
+    .btns{order:5;width:100%;justify-content:flex-end}
+    .btns button{flex:0 1 auto}
+    .shell{padding:10px 12px 20px}
+    .panel-grid{grid-template-columns:1fr}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .row label{width:66px}
+    .row output{width:66px}
+    .toasts{right:10px;bottom:10px}
+    .statusbar-inner{padding:8px 12px;gap:8px}
+  }
+  @media (max-width:420px){
+    .brand-name{font-size:13px}
+    .btns button{padding:7px 9px}
+    .stats{grid-template-columns:1fr 1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+      transition-duration:.001ms!important;scroll-behavior:auto!important}
+  }
+  @media (prefers-contrast:more){
+    :root{--line:#3a566f;--muted:#c2d2e2;--faint:#9fb2c6}
+  }
 </style>
 </head>
-<body>
-<header>
-  <h1>modkit 仿真工作台</h1><span class="badge">digital twin</span>
-  <div class="spacer"></div>
-  <span id="clock" class="clock">t 0.00s</span>
-  <div class="btns">
-    <button id="play" class="primary">▶ 运行</button>
-    <button id="step">单步 50ms</button>
-    <button id="live">实时</button>
-    <button id="reset" class="warn">复位</button>
+<body class="booting">
+<a class="skip" href="#main">跳到工作区</a>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="brand" href="./" aria-label="modkit 仿真工作台首页">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5v-7Z" stroke="#b9e0ff" stroke-width="1.5"/><path d="M8 10.5 12 8l4 2.5v3L12 16l-4-2.5v-3Z" fill="#4da3ff"/></svg>
+      </span>
+      <span><span class="brand-name">modkit 仿真工作台</span><span class="brand-sub">M1 · 数字孪生 · 不接实物也能调</span></span>
+    </a>
+    <span class="badge">DIGITAL TWIN</span>
+    <div class="spacer"></div>
+    <div id="run-status" class="run-status paused" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span><span id="run-label">已暂停</span>
+    </div>
+    <span id="clock" class="clock" aria-live="off">t 0.00 s</span>
+    <div class="btns">
+      <button id="play" class="primary" aria-pressed="false" title="空格">
+        <span id="play-icon" aria-hidden="true">▶</span><span id="play-label" class="btn-label">运行</span>
+      </button>
+      <button id="step" title="→ 单步 50ms"><span aria-hidden="true">→</span><span class="hide-sm">单步 50ms</span></button>
+      <button id="live" title="回到实时仿真"><span class="btn-label">实时</span></button>
+      <button id="reset" class="warn" title="R 复位">复位</button>
+      <button id="help" class="icon ghost" aria-label="帮助与快捷键" title="帮助（?）">?</button>
+    </div>
   </div>
 </header>
 
-<main>
-  <section>
-    <div class="views">
-      <div class="card"><h2>俯视图 · 底盘与工作空间</h2>
-        <canvas id="top" width="560" height="430"></canvas></div>
-      <div class="card"><h2>侧视图 · 臂与夹爪</h2>
-        <canvas id="side" width="560" height="430"></canvas></div>
-      <div class="card"><h2>3D 实时</h2>
-        <canvas id="view3d" width="560" height="420"></canvas></div>
-      <div class="card"><h2>相机 · 检测框</h2>
-        <img id="cam" alt="相机画面">
-        <div class="row"><button id="camtoggle">切换车载</button>
-          <span class="val" id="cam-mode" style="flex:1;text-align:left">俯视</span></div>
+<main id="main" class="shell">
+  <div class="workspace">
+    <div id="offline" class="banner" role="alert" hidden>
+      <strong>连不上仿真后端</strong>
+      <span id="offline-msg">请确认服务已启动。</span>
+      <code class="code">cd software &amp;&amp; python -m modkit.cli simui --open</code>
+      <button id="retry" class="primary">重试连接</button>
+    </div>
+
+    <div class="mobile-views" role="tablist" aria-label="切换视图">
+      <button data-view="panel-top" role="tab" aria-selected="true">俯视</button>
+      <button data-view="panel-side" role="tab" aria-selected="false">侧视</button>
+      <button data-view="panel-3d" role="tab" aria-selected="false">3D</button>
+      <button data-view="panel-cam" role="tab" aria-selected="false">相机</button>
+    </div>
+    <div id="panels" class="panel-grid">
+      <section class="panel" id="panel-top" aria-labelledby="h-top">
+        <div class="panel-head"><h2 class="panel-title" id="h-top">俯视 · 底盘与工作空间</h2>
+          <span class="panel-meta">mm</span><span class="spacer"></span>
+          <button class="icon ghost" data-expand="panel-top" aria-label="放大俯视图" aria-pressed="false">⤢</button>
+        </div>
+        <div class="panel-body"><canvas id="top" width="560" height="420" role="img"
+          aria-label="机器人俯视图，显示位姿、轨迹、方块与末端投影"></canvas></div>
+      </section>
+
+      <section class="panel" id="panel-side" aria-labelledby="h-side">
+        <div class="panel-head"><h2 class="panel-title" id="h-side">侧视 · 臂与夹爪</h2>
+          <span class="panel-meta">mm</span><span class="spacer"></span>
+          <button class="icon ghost" data-expand="panel-side" aria-label="放大侧视图" aria-pressed="false">⤢</button>
+        </div>
+        <div class="panel-body"><canvas id="side" width="560" height="420" role="img"
+          aria-label="机械臂侧视图，显示底座、连杆和末端高度"></canvas></div>
+      </section>
+
+      <section class="panel" id="panel-3d" aria-labelledby="h-3d">
+        <div class="panel-head"><h2 class="panel-title" id="h-3d">3D 实时</h2>
+          <span class="panel-meta">拖拽旋转 · 滚轮缩放</span><span class="spacer"></span>
+          <button class="icon ghost" data-cam-reset aria-label="重置 3D 视角" title="重置视角">⌂</button>
+          <button class="icon ghost" data-expand="panel-3d" aria-label="放大 3D 视图" aria-pressed="false">⤢</button>
+        </div>
+        <div class="panel-body"><canvas id="view3d" width="560" height="420" tabindex="0" role="img"
+              aria-label="三维视图：底盘、机械臂与方块；鼠标拖拽旋转，滚轮缩放，Home 复位视角"
+          aria-label="机器人三维示意，可拖拽旋转"></canvas></div>
+      </section>
+
+      <section class="panel" id="panel-cam" aria-labelledby="h-cam">
+        <div class="panel-head"><h2 class="panel-title" id="h-cam">相机 · 检测框</h2>
+          <span class="panel-meta" id="cam-mode">俯视</span><span class="spacer"></span>
+          <button id="camtoggle" class="ghost">切换车载</button>
+          <button class="icon ghost" data-expand="panel-cam" aria-label="放大相机画面" aria-pressed="false">⤢</button>
+        </div>
+        <div class="panel-body">
+          <div class="cam-wrap" id="cam-wrap">
+            <img id="cam" alt="仿真相机画面，检测到的方块用绿框标出" width="320" height="240">
+            <div class="cam-empty" id="cam-empty">等待相机帧…</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="panel-chart" aria-labelledby="h-chart">
+      <div class="panel-head"><h2 class="panel-title" id="h-chart">信号 · 电压 / 温度</h2>
+        <span class="panel-meta" id="chart-range">最近 600 采样</span><span class="spacer"></span>
+        <span class="panel-meta"><span style="color:var(--bad)">●</span> 电压
+          <span style="color:var(--warn);margin-left:8px">●</span> 温度</span>
       </div>
-    </div>
-    <div class="card" style="margin-top:12px">
-      <h2>信号 · 电压 / 温度 / 轮速</h2>
-      <canvas id="chart" width="1120" height="150"></canvas>
-      <div class="stats">
-        <div class="stat"><b id="s-v">--</b><span>电池电压 V</span></div>
-        <div class="stat"><b id="s-t">--</b><span>肩舵机温度 ℃</span></div>
-        <div class="stat"><b id="s-i">--</b><span>总电流 A</span></div>
-        <div class="stat"><b id="s-pose">--</b><span>位姿 x,y / yaw</span></div>
-        <div class="stat"><b id="s-ee">--</b><span>末端 x,z</span></div>
-        <div class="stat"><b id="s-held">--</b><span>夹持状态</span></div>
+      <div class="panel-body"><canvas id="chart" width="1120" height="158" role="img"
+        aria-label="电压与温度随时间变化曲线"></canvas>
+        <div class="stats" role="group" aria-label="实时状态">
+          <div class="stat"><b id="s-v">--</b><span>电池电压 V</span></div>
+          <div class="stat"><b id="s-t">--</b><span>肩舵机温度 ℃</span></div>
+          <div class="stat"><b id="s-i">--</b><span>总电流 A</span></div>
+          <div class="stat"><b id="s-pose">--</b><span>位姿 x,y / yaw</span></div>
+          <div class="stat"><b id="s-ee">--</b><span>末端 x,z / mm</span></div>
+          <div class="stat"><b id="s-held">--</b><span>夹持状态</span></div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </div>
 
-  <aside class="card">
-    <h2>控制</h2>
-    <div class="row"><label>线速度</label>
-      <input id="v" type="range" min="-120" max="120" step="5" value="0">
-      <span class="val" id="v-val">0 mm/s</span></div>
-    <div class="row"><label>角速度</label>
-      <input id="w" type="range" min="-60" max="60" step="5" value="0">
-      <span class="val" id="w-val">0 °/s</span></div>
-    <div class="row"><label>夹爪</label>
-      <input id="grip" type="range" min="0" max="1" step="0.05" value="1">
-      <span class="val" id="grip-val">开</span></div>
-    <div class="row"><label>扭矩</label>
-      <input id="torque" type="checkbox" checked>
-      <span class="val" id="torque-val">使能</span></div>
+  <aside class="sidebar" aria-label="控制与诊断面板">
+    <div class="tabs" role="tablist" aria-label="工作台面板">
+      <button class="tab" id="tabbtn-control" role="tab" aria-selected="true"
+        aria-controls="tab-control" tabindex="0">控制</button>
+      <button class="tab" id="tabbtn-scenario" role="tab" aria-selected="false"
+        aria-controls="tab-scenario" tabindex="-1">场景</button>
+      <button class="tab" id="tabbtn-diag" role="tab" aria-selected="false"
+        aria-controls="tab-diag" tabindex="-1">诊断</button>
+    </div>
+    <div class="tab-panels">
+      <section class="tab-panel" id="tab-control" role="tabpanel" aria-labelledby="tabbtn-control">
+        <div class="group">
+          <h3>底盘</h3>
+          <div class="row"><label for="v">线速度</label>
+            <input id="v" type="range" min="-120" max="120" step="5" value="0">
+            <output id="v-val" for="v">0 mm/s</output></div>
+          <div class="row"><label for="w">角速度</label>
+            <input id="w" type="range" min="-60" max="60" step="5" value="0">
+            <output id="w-val" for="w">0 °/s</output></div>
+        </div>
 
-    <div class="group"><h3>关节目标（舵机角度）</h3>
-      <div class="row"><label>J1 偏航</label>
-        <input id="j1" type="range" min="60" max="300" step="1" value="180">
-        <span class="val" id="j1-val">180°</span></div>
-      <div class="row"><label>J2 肩</label>
-        <input id="j2" type="range" min="150" max="280" step="1" value="200">
-        <span class="val" id="j2-val">200°</span></div>
-      <div class="row"><label>J3 肘</label>
-        <input id="j3" type="range" min="30" max="180" step="1" value="150">
-        <span class="val" id="j3-val">150°</span></div>
-    </div>
+        <div class="group">
+          <h3>夹爪与扭矩</h3>
+          <div class="row"><label for="grip">夹爪</label>
+            <input id="grip" type="range" min="0" max="1" step="0.05" value="1">
+            <output id="grip-val" for="grip">开</output></div>
+          <div class="row"><label for="torque">扭矩</label>
+            <input id="torque" class="check" type="checkbox" checked>
+            <output id="torque-val" for="torque">使能</output></div>
+        </div>
 
-    <div class="group"><h3>故障注入（即改即生效）</h3>
-      <div class="row"><label>打滑</label>
-        <input id="slip" type="range" min="0" max="1" step="0.05" value="0">
-        <span class="val" id="slip-val">0</span></div>
-      <div class="row"><label>电池 OCV</label>
-        <input id="batt" type="range" min="9.5" max="12.6" step="0.1" value="12.2">
-        <span class="val" id="batt-val">12.2V</span></div>
-      <div class="row"><label>负载</label>
-        <input id="payload" type="range" min="0" max="1" step="0.05" value="0">
-        <span class="val" id="payload-val">0 kg</span></div>
-      <div class="row"><label>丢帧率</label>
-        <input id="drop" type="range" min="0" max="0.2" step="0.01" value="0">
-        <span class="val" id="drop-val">0%</span></div>
-      <div class="row"><label>摩擦 μ</label>
-        <input id="mu" type="range" min="0.02" max="0.8" step="0.02" value="0.4">
-        <span class="val" id="mu-val">0.40</span></div>
-      <div class="row"><label>总线延迟</label>
-        <input id="lat" type="range" min="0" max="20" step="1" value="0">
-        <span class="val" id="lat-val">0 ms</span></div>
-      <div class="row"><label>相机噪声</label>
-        <input id="cnoise" type="range" min="0" max="20" step="1" value="0">
-        <span class="val" id="cnoise-val">0</span></div>
+        <div class="group">
+          <h3>关节目标</h3>
+          <div class="row"><label for="j1">J1 偏航</label>
+            <input id="j1" type="range" min="60" max="300" step="1" value="180">
+            <output id="j1-val" for="j1">180°</output></div>
+          <div class="row"><label for="j2">J2 肩</label>
+            <input id="j2" type="range" min="150" max="280" step="1" value="200">
+            <output id="j2-val" for="j2">200°</output></div>
+          <div class="row"><label for="j3">J3 肘</label>
+            <input id="j3" type="range" min="30" max="180" step="1" value="150">
+            <output id="j3-val" for="j3">150°</output></div>
+        </div>
+
+        <div class="group">
+          <h3>故障注入</h3>
+          <div class="preset-row" aria-label="故障预设">
+            <button data-preset="nominal">标称</button>
+            <button data-preset="slip">打滑</button>
+            <button data-preset="lowbatt">低电量</button>
+          </div>
+          <details class="disclosure">
+            <summary>展开参数（即改即生效）</summary>
+            <div class="inside">
+              <div class="row"><label for="slip">打滑</label>
+                <input id="slip" type="range" min="0" max="1" step="0.05" value="0">
+                <output id="slip-val" for="slip">0.00</output></div>
+              <div class="row"><label for="batt">电池 OCV</label>
+                <input id="batt" type="range" min="9.5" max="12.6" step="0.1" value="12.2">
+                <output id="batt-val" for="batt">12.2V</output></div>
+              <div class="row"><label for="payload">负载</label>
+                <input id="payload" type="range" min="0" max="1" step="0.05" value="0">
+                <output id="payload-val" for="payload">0.00kg</output></div>
+              <div class="row"><label for="drop">丢帧率</label>
+                <input id="drop" type="range" min="0" max="0.2" step="0.01" value="0">
+                <output id="drop-val" for="drop">0%</output></div>
+              <div class="row"><label for="mu">摩擦 μ</label>
+                <input id="mu" type="range" min="0.02" max="0.8" step="0.02" value="0.4">
+                <output id="mu-val" for="mu">0.40</output></div>
+              <div class="row"><label for="lat">总线延迟</label>
+                <input id="lat" type="range" min="0" max="20" step="1" value="0">
+                <output id="lat-val" for="lat">0 ms</output></div>
+              <div class="row"><label for="cnoise">相机噪声</label>
+                <input id="cnoise" type="range" min="0" max="20" step="1" value="0">
+                <output id="cnoise-val" for="cnoise">σ 0</output></div>
+            </div>
+          </details>
+          <p class="hint">故障注入会直接改 HardwareSim；复位后回到默认值。</p>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-scenario" role="tabpanel" aria-labelledby="tabbtn-scenario" hidden>
+        <div class="group">
+          <h3>场景回放</h3>
+          <div class="row"><label for="scenario">场景</label>
+            <select id="scenario" aria-describedby="scenario-count"></select></div>
+          <p id="scenario-count" class="hint">正在读取场景…</p>
+          <div class="button-row">
+            <button id="runsc" class="primary">运行场景</button>
+            <button id="edit">编辑 JSON</button>
+          </div>
+          <div id="result-card" class="result" hidden>
+            <div class="result-head"><strong id="sc-res">--</strong>
+              <span id="sc-meta" class="meta"></span></div>
+            <p id="sc-summary">运行后显示判据与帧数。</p>
+          </div>
+          <div id="sc-log" class="log" aria-live="polite" style="margin-top:10px"></div>
+          <div class="button-row">
+            <button id="export" disabled>导出回放</button>
+            <button id="share">复制分享链接</button>
+          </div>
+          <p class="hint">运行场景会把结果载入回放；空格播放/暂停，→ 单步。</p>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-diag" role="tabpanel" aria-labelledby="tabbtn-diag" hidden>
+        <div class="group">
+          <h3>连接</h3>
+          <div class="shortcut-grid">
+            <span>后端</span><span id="diag-backend">检查中…</span>
+            <span>轮询</span><span>20 ms 回放 / 50 ms 仿真步进</span>
+            <span>模型</span><span>HardwareSim · 不含实物</span>
+          </div>
+        </div>
+        <div class="group">
+          <h3>日志</h3>
+          <div class="button-row" style="margin:0 0 7px">
+            <button id="clearlog" class="ghost">清空</button>
+            <button id="copy-log" class="ghost">复制</button>
+          </div>
+          <div id="log" class="log" aria-live="polite" aria-label="运行日志"></div>
+        </div>
+        <div class="group">
+          <h3>快捷键</h3>
+          <div class="shortcut-grid">
+            <span><kbd class="kbd">Space</kbd></span><span>运行 / 暂停 / 回放</span>
+            <span><kbd class="kbd">→</kbd></span><span>单步 50 ms</span>
+            <span><kbd class="kbd">R</kbd></span><span>复位仿真</span>
+            <span><kbd class="kbd">L</kbd></span><span>回到实时</span>
+            <span><kbd class="kbd">F</kbd></span><span>放大/还原当前视图</span>
+            <span><kbd class="kbd">?</kbd></span><span>打开帮助</span>
+            <span><kbd class="kbd">Esc</kbd></span><span>关闭弹窗/还原视图</span>
+          </div>
+        </div>
+        <div class="group">
+          <h3>启动命令</h3>
+          <div class="code">cd software
+python -m modkit.cli simui --open</div>
+          <p class="hint">工作台默认只监听 127.0.0.1；不要把它暴露到公网。</p>
+        </div>
+      </section>
     </div>
-    <div class="group"><h3>场景回放</h3>
-      <div class="row"><select id="scenario" style="flex:1;background:#0f141c;color:#e6edf3;
-        border:1px solid #223041;border-radius:7px;padding:7px"></select></div>
-      <div class="row"><button id="runsc">运行场景</button>
-        <button id="export">导出 JSON</button>
-        <span id="sc-res" class="val" style="width:auto;flex:1;text-align:left"></span></div>
-      <div class="row"><button id="edit">编辑</button>
-        <button id="runedit">运行编辑</button>
-        <button id="save">保存</button></div>
-      <textarea id="sc-text" spellcheck="false" placeholder="选中场景后点「编辑」"></textarea>
-      <div id="sc-log" class="log"></div>
-    </div>
-    <div class="group"><h3>日志</h3><div id="log" class="log"></div></div>
   </aside>
 </main>
-<footer>空格 运行/暂停 · → 单步 · 所有数值来自 HardwareSim，不含实物</footer>
+
+<footer class="statusbar">
+  <div class="statusbar-inner">
+    <span id="conn" class="conn"><span class="dot" aria-hidden="true"></span><span id="conn-text">连接中…</span></span>
+    <span class="spacer"></span>
+    <span>空格 运行/暂停 · → 单步 · R 复位 · F 放大 · ? 帮助</span>
+    <span>数值来自 HardwareSim · 仿真不等于实物</span>
+  </div>
+</footer>
+
+<div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<dialog id="editor-dialog" aria-labelledby="editor-title">
+  <div class="dialog-head">
+    <h2 id="editor-title">编辑场景 JSON</h2>
+    <span id="editor-file" class="panel-meta"></span><span class="spacer"></span>
+    <button id="close-editor" class="icon ghost" aria-label="关闭编辑器">✕</button>
+  </div>
+  <div class="dialog-body">
+    <div class="field"><label for="sc-name">保存为</label>
+      <input id="sc-name" value="my_scenario.json" spellcheck="false" autocomplete="off"></div>
+    <textarea id="sc-text" spellcheck="false" aria-describedby="editor-status"
+      placeholder="选中场景后点「编辑 JSON」"></textarea>
+    <div id="editor-status" role="status" aria-live="polite">Ctrl/⌘ + Enter 运行</div>
+  </div>
+  <div class="dialog-foot">
+    <button id="format-json" class="ghost">格式化</button>
+    <button id="runedit" class="primary">运行编辑</button>
+    <button id="save">保存</button>
+    <span class="spacer"></span>
+    <button id="cancel-editor" class="ghost">取消</button>
+  </div>
+</dialog>
+
+<dialog id="help-dialog" aria-labelledby="help-title">
+  <div class="dialog-head"><h2 id="help-title">怎么用这个工作台</h2><span class="spacer"></span>
+    <button id="close-help" class="icon ghost" aria-label="关闭帮助">✕</button></div>
+  <div class="dialog-body">
+    <p style="margin-top:0;color:var(--muted)">三步：选场景 → 运行 → 看回放。所有数值来自 HardwareSim，
+      不是实物测量。</p>
+    <table class="help-table">
+      <tr><td><kbd class="kbd">Space</kbd></td><td>运行 / 暂停；回放模式下播放 / 暂停</td></tr>
+      <tr><td><kbd class="kbd">→</kbd></td><td>单步 50 ms</td></tr>
+      <tr><td><kbd class="kbd">R</kbd></td><td>复位仿真（故障注入也恢复默认）</td></tr>
+      <tr><td><kbd class="kbd">L</kbd></td><td>从回放回到实时仿真</td></tr>
+      <tr><td><kbd class="kbd">F</kbd></td><td>放大当前面板；再按还原</td></tr>
+      <tr><td><kbd class="kbd">?</kbd></td><td>打开这个帮助</td></tr>
+    </table>
+    <p class="hint">3D 面板可以拖拽旋转、滚轮缩放；俯视/侧视/曲线是 Canvas 2D，断网也能画。</p>
+    <p class="hint">安全边界：这是数字孪生。真机测试前先读 docs/59 的 11 步 bring-up。</p>
+  </div>
+  <div class="dialog-foot"><span class="spacer"></span><button id="help-ok" class="primary">知道了</button></div>
+</dialog>
 
 <script src="/vendor/three.min.js"></script>
+<script src="/vendor/OrbitControls.js"></script>
 <script>
 (function(){
   "use strict";
   const $ = id => document.getElementById(id);
-  const st = {s:null, running:false, busy:false, last:0, replay:null};
-  window.addEventListener("error", e=>log("JS 错误："+(e.message||e.type)));
-  const logEl = $("log");
-  function log(msg){
-    const t = st.s ? st.s.time.toFixed(1) : "0.0";
-    logEl.textContent = `[${t}s] ${msg}\n` + logEl.textContent;
-    if (logEl.textContent.length > 4000) logEl.textContent = logEl.textContent.slice(0,4000);
+  const st = {s:null, running:false, busy:false, last:0, replay:null,
+              tab:"control", hoverPanel:"panel-top", editorDirty:false};
+  const TABS = ["control", "scenario", "diag"];
+
+  // ---------------------------------------------------------- status / log
+  function nowStamp(){
+    const t = st.s ? st.s.time : 0;
+    return "[" + t.toFixed(1) + "s]";
   }
-  async function api(path, body){
-    const r = await fetch(path, body===undefined ? {} : {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(body||{})
-    });
-    const j = await r.json();
-    if(!r.ok) throw new Error(j.error||r.status);
-    return j;
+  function log(msg, kind){
+    const line = document.createElement("div");
+    line.className = "log-line" + (kind ? " log-" + kind : "");
+    const t = document.createElement("span");
+    t.className = "log-time";
+    t.textContent = nowStamp();
+    line.appendChild(t);
+    line.appendChild(document.createTextNode(String(msg)));
+    $("log").prepend(line);
+    while ($("log").children.length > 200) $("log").lastChild.remove();
   }
+
+  function toast(msg, kind){
+    const box = $("toasts");
+    const el = document.createElement("div");
+    el.className = "toast " + (kind || "");
+    el.setAttribute("role", kind === "err" ? "alert" : "status");
+    el.textContent = msg;
+    box.appendChild(el);
+    const kill = () => { el.style.opacity = "0"; setTimeout(() => el.remove(), 180); };
+    el.addEventListener("click", kill);
+    setTimeout(kill, kind === "err" ? 6000 : 3600);
+  }
+
+  function setConn(ok){
+    const conn = $("conn"), text = $("conn-text"), diag = $("diag-backend");
+    conn.classList.toggle("ok", ok === true);
+    conn.classList.toggle("bad", ok === false);
+    text.textContent = ok === true ? "后端已连接" : ok === false ? "后端不可用" : "连接中…";
+    if (diag) diag.textContent = ok === true ? "已连接 · 127.0.0.1" :
+      ok === false ? "不可用 · 请启动 simui" : "检查中…";
+    if (ok === true) $("offline").hidden = true;
+    if (ok === false) {
+      st.running = false;
+      syncPlay();
+      $("offline").hidden = false;
+      $("offline-msg").textContent = "后端连接中断；运行已暂停。检查 `modkit simui` 是否还在。";
+    }
+  }
+
+  function showOffline(msg){
+    $("offline").hidden = false;
+    $("offline-msg").textContent = msg || "请确认服务已启动。";
+    document.body.classList.remove("booting");
+  }
+
+  window.addEventListener("error", e => {
+    log("JS 错误：" + (e.message || e.type), "err");
+    toast("界面脚本出错：" + (e.message || e.type), "err");
+  });
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function api(path, body, timeoutMs){
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 12000);
+    try {
+      const r = await fetch(path, body === undefined ? {signal: ctrl.signal} : {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body || {}), signal: ctrl.signal
+      });
+      const text = await r.text();
+      let j;
+      try { j = text ? JSON.parse(text) : {}; }
+      catch (err) { throw new Error("后端返回了非 JSON（HTTP " + r.status + "）"); }
+      if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+      setConn(true);
+      return j;
+    } catch (e) {
+      if (e.name === "AbortError") {
+        setConn(false);
+        throw new Error("请求超时（" + Math.round((timeoutMs || 12000) / 1000) + "s），后端可能卡住");
+      }
+      if (e instanceof TypeError) setConn(false);
+      throw e;
+    } finally { clearTimeout(timer); }
+  }
+
   function apply(s){ st.s = s; render(s); }
-  async function step(dt){
-    if(st.busy) return; st.busy = true;
-    try{ apply(await api("/api/step",{dt:dt||0.05})); }
-    catch(e){ log("步进失败："+e.message); st.running=false; syncPlay(); }
-    finally{ st.busy = false; }
+
+  // ---------------------------------------------------------- controls
+  const PRESETS = {
+    nominal: {slip:0, battery_ocv:12.2, payload_kg:0, drop_rate:0, mu:0.4, bus_latency:0, camera_noise:0},
+    slip:    {slip:1, battery_ocv:12.2, payload_kg:0, drop_rate:0, mu:0.2, bus_latency:0, camera_noise:0},
+    lowbatt: {slip:0.1, battery_ocv:10.2, payload_kg:0.2, drop_rate:0.03, mu:0.35, bus_latency:0.005, camera_noise:2}
+  };
+  const FAULTS = [
+    ["slip", "slip", v => Number(v).toFixed(2)],
+    ["batt", "battery_ocv", v => Number(v).toFixed(1) + "V"],
+    ["payload", "payload_kg", v => Number(v).toFixed(2) + "kg"],
+    ["drop", "drop_rate", v => Math.round(Number(v) * 100) + "%"],
+    ["mu", "mu", v => Number(v).toFixed(2)],
+    ["lat", "bus_latency", v => v + " ms"],
+    ["cnoise", "camera_noise", v => "σ " + v]
+  ];
+
+  function setRange(id, value, fmt){
+    const el = $(id); if (!el) return;
+    if (value === undefined || value === null) return;
+    el.value = value;
+    const out = $(id + "-val");
+    if (out && fmt) out.textContent = fmt(el.value);
   }
+
+  function syncControls(s){
+    if (!s) return;
+    const c = s.controls || {}, o = s.options || {};
+    setRange("v", c.v, v => v + " mm/s");
+    setRange("w", c.w, v => v + " °/s");
+    setRange("grip", c.gripper, v => Number(v) < 0.5 ? "闭" : "开");
+    ["1", "2", "3"].forEach((k, i) => {
+      let v = c.joints && c.joints[k];
+      if (v !== undefined && v !== null) v = Math.round(v);
+      setRange("j" + (i + 1), v, x => x + "°");
+    });
+    if (document.activeElement !== $("torque")) $("torque").checked = c.torque !== false;
+    $("torque-val").textContent = $("torque").checked ? "使能" : "卸力";
+    FAULTS.forEach(([id, key, fmt]) => {
+      let v = o[key];
+      if (key === "bus_latency") v = Math.round(Number(v || 0) * 1000);
+      setRange(id, v, fmt);
+    });
+    if (o.camera_mode) camLabel(o.camera_mode);
+  }
+
+  let pendingBody = {}, pendingTimer = null;
+  function mergeBody(dst, src){
+    Object.keys(src || {}).forEach(k => {
+      if (src[k] && typeof src[k] === "object" && !Array.isArray(src[k])) {
+        dst[k] = Object.assign({}, dst[k] || {}, src[k]);
+      } else dst[k] = src[k];
+    });
+    return dst;
+  }
+  function queueControl(body){
+    mergeBody(pendingBody, body);
+    if (pendingTimer) clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(() => {
+      const b = pendingBody; pendingBody = {}; pendingTimer = null;
+      control(b);
+    }, 45);
+  }
+
   async function control(body){
-    try{ apply(await api("/api/control", body)); }
-    catch(e){ log("控制失败："+e.message); }
+    try { const s = await api("/api/control", body); apply(s); return s; }
+    catch (e) { log("控制失败：" + e.message, "err"); toast("控制失败：" + e.message, "err"); }
+  }
+  async function step(dt){
+    if (st.busy) return;
+    st.busy = true; $("step").setAttribute("aria-busy", "true");
+    try { apply(await api("/api/step", {dt: dt || 0.05})); }
+    catch (e) { log("步进失败：" + e.message, "err"); toast("步进失败：" + e.message, "err"); st.running = false; syncPlay(); }
+    finally { st.busy = false; $("step").removeAttribute("aria-busy"); }
   }
   async function reset(){
-    try{ apply(await api("/api/reset", {})); log("已复位"); }
-    catch(e){ log("复位失败："+e.message); }
+    try {
+      const s = await api("/api/reset", {});
+      apply(s); syncControls(s);
+      log("已复位到初始状态", "ok"); toast("已复位", "ok"); refreshCam();
+    } catch (e) { log("复位失败：" + e.message, "err"); toast("复位失败：" + e.message, "err"); }
   }
+
+  // ---------------------------------------------------------- run state
   function syncPlay(){
-    $("play").textContent = st.replay
-      ? (st.replay.playing ? "⏸ 暂停回放" : "▶ 回放")
-      : (st.running ? "⏸ 暂停" : "▶ 运行");
+    const replay = st.replay;
+    let icon = "▶", label = "运行", run = "已暂停", mode = "paused", pressed = false;
+    if (replay) {
+      pressed = !!replay.playing;
+      mode = "replay";
+      if (replay.playing) { icon = "❚❚"; label = "暂停回放"; run = "回放中"; }
+      else if (replay.i >= replay.trace.length - 1) { icon = "↺"; label = "重播"; run = "回放完成"; }
+      else { icon = "▶"; label = "播放回放"; run = "回放暂停"; }
+    } else if (st.running) {
+      icon = "❚❚"; label = "暂停"; run = "运行中"; mode = "running"; pressed = true;
+    }
+    $("play-icon").textContent = icon;
+    $("play-label").textContent = label;
+    $("play").title = replay ? "回放：" + label : label + "实时仿真（空格）";
+    $("play").setAttribute("aria-pressed", String(pressed));
+    const rs = $("run-status");
+    rs.className = "run-status " + mode;
+    $("run-label").textContent = run;
   }
+
   function toggle(){
+    if (st.replay) return;
     st.running = !st.running; st.last = performance.now(); syncPlay();
-    log(st.running ? "开始运行" : "暂停");
+    log(st.running ? "开始实时运行" : "暂停实时运行");
   }
   function togglePlay(){
-    if(st.replay){
-      if(st.replay.i >= st.replay.trace.length-1) st.replay.i = 0;
-      st.replay.playing = !st.replay.playing; st.replay.last = performance.now();
+    if (st.replay) {
+      if (st.replay.i >= st.replay.trace.length - 1) st.replay.i = 0;
+      st.replay.playing = !st.replay.playing;
+      st.replay.last = performance.now();
       syncPlay();
-    }
-    else toggle();
+    } else toggle();
   }
-  $("play").onclick = togglePlay;
-  $("step").onclick = ()=>{
-    if(st.replay){ st.replay.playing=false; st.replay.i=Math.min(Math.floor(st.replay.i)+1, st.replay.trace.length-1); renderReplay(); syncPlay(); }
-    else step(0.05);
-  };
-  $("reset").onclick = ()=>{
-    if(st.replay){ st.replay.i=0; st.replay.playing=false; renderReplay(); syncPlay(); }
-    else reset();
-  };
-  $("runsc").onclick = runScenario;
-  $("live").onclick = ()=>{
+  function goLive(){
     st.replay = null; st.running = false;
-    if(st.s) render(st.s);
+    if (st.s) render(st.s);
+    $("export").disabled = true;
     syncPlay(); refreshCam(); log("回到实时仿真");
+  }
+
+  // ---------------------------------------------------------- tabs / focus
+  function switchTab(name, focus){
+    if (!TABS.includes(name)) name = "control";
+    st.tab = name;
+    TABS.forEach(k => {
+      const on = k === name;
+      const btn = $("tabbtn-" + k), panel = $("tab-" + k);
+      btn.setAttribute("aria-selected", String(on));
+      btn.tabIndex = on ? 0 : -1;
+      panel.hidden = !on;
+      if (on && focus) btn.focus();
+    });
+    try { localStorage.setItem("modkit.tab", name); } catch (e) {}
+    if (history.replaceState) history.replaceState(null, "", location.pathname + location.search + "#" + name);
+  }
+
+  function setFocus(panelId){
+    const grid = $("panels");
+    const panels = Array.from(grid.querySelectorAll(".panel"));
+    const current = grid.classList.contains("focus-mode") ? grid.querySelector(".panel.focused") : null;
+    if (!panelId && !current) return;
+    if (current && (!panelId || current.id === panelId)) {
+      current.classList.remove("focused");
+      grid.classList.remove("focus-mode");
+      panels.forEach(p => { const b = p.querySelector("[data-expand]"); if (b) b.setAttribute("aria-pressed", "false"); });
+      setTimeout(resizeAll, 30);
+      return;
+    }
+    grid.classList.add("focus-mode");
+    panels.forEach(p => {
+      p.classList.toggle("focused", p.id === panelId);
+      const b = p.querySelector("[data-expand]");
+      if (b) b.setAttribute("aria-pressed", String(p.id === panelId));
+    });
+    setTimeout(resizeAll, 30);
+  }
+
+  // ---------------------------------------------------------- camera
+  function refreshCam(){
+    const img = $("cam"), wrap = $("cam-wrap");
+    img.onload = () => { wrap.classList.add("loaded"); $("cam-empty").textContent = "相机帧已连接"; };
+    img.onerror = () => {
+      wrap.classList.remove("loaded");
+      $("cam-empty").textContent = "相机帧不可用；请检查后端";
+    };
+    img.src = "/api/camera?t=" + Date.now();
+  }
+  function camLabel(mode){
+    $("cam-mode").textContent = mode === "onboard" ? "车载" : "俯视";
+    $("camtoggle").textContent = mode === "onboard" ? "切换俯视" : "切换车载";
+    $("camtoggle").setAttribute("aria-pressed", String(mode === "onboard"));
+  }
+  // ---------------------------------------------------------- actions
+  $("play").onclick = togglePlay;
+  $("step").onclick = () => {
+    if (st.replay) {
+      st.replay.playing = false;
+      st.replay.i = Math.min(Math.floor(st.replay.i) + 1, st.replay.trace.length - 1);
+      renderReplay(); syncPlay();
+    } else {
+      st.running = false; syncPlay(); step(0.05);
+    }
   };
-  $("export").onclick = ()=>{
-    if(!st.replay){ log("没有可导出的回放"); return; }
-    const blob = new Blob([JSON.stringify({trace:st.replay.trace, log:st.replay.log,
-      ok:st.replay.ok}, null, 2)], {type:"application/json"});
+  $("reset").onclick = () => {
+    if (st.replay) {
+      st.replay.i = 0; st.replay.playing = false; renderReplay(); syncPlay();
+    } else {
+      st.running = false; syncPlay(); reset();
+    }
+  };
+  $("live").onclick = goLive;
+  $("runsc").onclick = runScenario;
+
+  $("export").onclick = () => {
+    if (!st.replay) { log("没有可导出的回放", "warn"); return; }
+    const blob = new Blob([JSON.stringify({trace: st.replay.trace, log: st.replay.log,
+      ok: st.replay.ok}, null, 2)], {type: "application/json"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "sim-replay.json"; a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    a.download = "modkit-replay-" + new Date().toISOString().slice(0, 10) + ".json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast("回放已导出", "ok");
   };
 
-  function refreshCam(){ $("cam").src = "/api/camera?t=" + Date.now(); }
-  function camLabel(mode){ $("cam-mode").textContent = mode === "onboard" ? "车载" : "俯视"; }
-  $("camtoggle").onclick = ()=>{
+  $("share").onclick = async () => {
+    const file = $("scenario").value;
+    const url = location.origin + location.pathname +
+      (file ? "?scenario=" + encodeURIComponent(file) : "") + "#" + st.tab;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("分享链接已复制", "ok");
+    } catch (e) {
+      log(url); toast("复制失败，链接已写入日志", "warn");
+    }
+  };
+
+  $("camtoggle").onclick = async () => {
     const cur = (st.s && st.s.options && st.s.options.camera_mode) || "overhead";
     const next = cur === "onboard" ? "overhead" : "onboard";
     camLabel(next);
-    control({options:{camera_mode:next}}).then(refreshCam);
+    await control({options: {camera_mode: next}});
+    refreshCam();
   };
-  setInterval(()=>{ if(!document.hidden) refreshCam(); }, 400);
-  document.addEventListener("keydown", e=>{
-    if(e.target.tagName==="TEXTAREA" || e.target.tagName==="INPUT") return;
-    if(e.code==="Space"){ e.preventDefault(); togglePlay(); }
-    if(e.code==="ArrowRight"){ e.preventDefault(); step(0.05); }
+  setInterval(() => { if (!document.hidden && $("conn").classList.contains("ok")) refreshCam(); }, 450);
+
+  function isTyping(e){
+    const t = e.target;
+    return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName));
+  }
+  document.addEventListener("keydown", e => {
+    if (document.querySelector("dialog[open]") || isTyping(e)) return;
+    if (e.code === "Space") { e.preventDefault(); if (!e.repeat) togglePlay(); }
+    else if (e.code === "ArrowRight") { e.preventDefault(); $("step").click(); }
+    else if (e.code === "KeyR") { e.preventDefault(); $("reset").click(); }
+    else if (e.code === "KeyL") { e.preventDefault(); goLive(); }
+    else if (e.code === "KeyF") { e.preventDefault(); setFocus(st.hoverPanel); }
+    else if (e.key === "?") { e.preventDefault(); openHelp(); }
   });
 
+  // ---------------------------------------------------------- bind
   function bind(id, fmt, body){
-    const el = $(id), out = $(id+"-val");
-    const upd = ()=>{ out.textContent = fmt(el.value); };
-    el.addEventListener("input", ()=>{ upd(); control(body(el.value)); });
+    const el = $(id), out = $(id + "-val");
+    const upd = () => { out.textContent = fmt(el.value); };
+    el.addEventListener("input", () => { upd(); queueControl(body(el.value)); });
     upd();
   }
-  bind("v", v=>`${v} mm/s`, v=>({v:Number(v)}));
-  bind("w", v=>`${v} °/s`, v=>({w:Number(v)}));
-  bind("grip", v=>Number(v)<0.5?"闭":"开", v=>({gripper:Number(v)}));
-  bind("j1", v=>`${v}°`, v=>({joints:{1:Number(v)}}));
-  bind("j2", v=>`${v}°`, v=>({joints:{2:Number(v)}}));
-  bind("j3", v=>`${v}°`, v=>({joints:{3:Number(v)}}));
-  bind("slip", v=>Number(v).toFixed(2), v=>({options:{slip:Number(v)}}));
-  bind("batt", v=>`${Number(v).toFixed(1)}V`, v=>({options:{battery_ocv:Number(v)}}));
-  bind("payload", v=>`${Number(v).toFixed(2)}kg`, v=>({options:{payload_kg:Number(v)}}));
-  bind("drop", v=>`${Math.round(Number(v)*100)}%`, v=>({options:{drop_rate:Number(v)}}));
-  bind("mu", v=>Number(v).toFixed(2), v=>({options:{mu:Number(v)}}));
-  bind("lat", v=>`${v} ms`, v=>({options:{bus_latency:Number(v)/1000}}));
-  bind("cnoise", v=>`σ ${v}`, v=>({options:{camera_noise:Number(v)}}));
-  $("torque").addEventListener("change", e=>{
+  bind("v", v => v + " mm/s", v => ({v: Number(v)}));
+  bind("w", v => v + " °/s", v => ({w: Number(v)}));
+  bind("grip", v => Number(v) < 0.5 ? "闭" : "开", v => ({gripper: Number(v)}));
+  bind("j1", v => v + "°", v => ({joints: {1: Number(v)}}));
+  bind("j2", v => v + "°", v => ({joints: {2: Number(v)}}));
+  bind("j3", v => v + "°", v => ({joints: {3: Number(v)}}));
+  bind("slip", v => Number(v).toFixed(2), v => ({options: {slip: Number(v)}}));
+  bind("batt", v => Number(v).toFixed(1) + "V", v => ({options: {battery_ocv: Number(v)}}));
+  bind("payload", v => Number(v).toFixed(2) + "kg", v => ({options: {payload_kg: Number(v)}}));
+  bind("drop", v => Math.round(Number(v) * 100) + "%", v => ({options: {drop_rate: Number(v)}}));
+  bind("mu", v => Number(v).toFixed(2), v => ({options: {mu: Number(v)}}));
+  bind("lat", v => v + " ms", v => ({options: {bus_latency: Number(v) / 1000}}));
+  bind("cnoise", v => "σ " + v, v => ({options: {camera_noise: Number(v)}}));
+
+  $("torque").addEventListener("change", e => {
     $("torque-val").textContent = e.target.checked ? "使能" : "卸力";
-    control({torque:e.target.checked});
+    control({torque: e.target.checked});
   });
 
+  document.querySelectorAll("[data-preset]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const preset = PRESETS[btn.dataset.preset];
+      if (!preset) return;
+      FAULTS.forEach(([id, key, fmt]) => {
+        let v = preset[key];
+        if (key === "bus_latency") v = Math.round(Number(v) * 1000);
+        setRange(id, v, fmt);
+      });
+      await control({options: preset});
+      toast("已应用预设：" + btn.textContent, "ok");
+    });
+  });
+
+  // tabs
+  TABS.forEach(k => {
+    const btn = $("tabbtn-" + k);
+    btn.addEventListener("click", () => switchTab(k));
+    btn.addEventListener("keydown", e => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      const i = TABS.indexOf(st.tab);
+      const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
+      switchTab(next, true);
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    const name = location.hash.slice(1);
+    if (TABS.includes(name) && name !== st.tab) switchTab(name);
+  });
+
+  // panel expand
+  document.querySelectorAll("[data-expand]").forEach(btn => {
+    btn.addEventListener("click", () => setFocus(btn.dataset.expand));
+  });
+  document.querySelectorAll(".panel").forEach(p => {
+    p.addEventListener("mouseenter", () => { st.hoverPanel = p.id; });
+    p.addEventListener("focusin", () => { st.hoverPanel = p.id; });
+  });
+  document.addEventListener("keydown", e => {
+    if (e.code === "Escape" && !document.querySelector("dialog[open]")) {
+      const grid = $("panels");
+      if (grid.classList.contains("focus-mode")) { e.preventDefault(); setFocus(null); }
+    }
+  });
+
+  // help + log
+  function openHelp(){ $("help-dialog").showModal(); }
+  function closeHelp(){ $("help-dialog").close(); }
+  $("help").onclick = openHelp;
+  $("close-help").onclick = closeHelp;
+  $("help-ok").onclick = closeHelp;
+
+  $("clearlog").onclick = () => { $("log").textContent = ""; toast("日志已清空", "ok"); };
+  $("copy-log").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText($("log").innerText);
+      toast("日志已复制", "ok");
+    } catch (e) { toast("复制失败（浏览器限制）", "warn"); }
+  };
   // ---------------------------------------------------------- 绘图
   const top = $("top"), side = $("side"), chart = $("chart");
   const tx = top.getContext("2d"), sx = side.getContext("2d"), cx = chart.getContext("2d");
-  const C = {bg:"#0f141c", grid:"#1a2634", axis:"#2b3d52", text:"#8b98a5",
-             bot:"#2d7dd2", wheel:"#0a0d11", arm:"#d29922", ee:"#f0b429",
-             cube:"#e5534b", ok:"#3fb950", bad:"#f85149", trail:"#2a5d8f"};
-  function clear(g,w,h){ g.fillStyle=C.bg; g.fillRect(0,0,w,h); }
-  function line(g,x1,y1,x2,y2,color,w){ g.strokeStyle=color; g.lineWidth=w||1;
-    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); }
+  const C = {bg:"#0b1119", grid:"#172331", grid2:"#1f2e3f", axis:"#31465e",
+             text:"#8fa4ba", faint:"#5d7186", bot:"#2d7dd2", bot2:"#5aa9f0",
+             wheel:"#070b10", arm:"#d29922", ee:"#f0b429", cube:"#e5534b",
+             ok:"#3fb950", bad:"#f85149", warn:"#d29922", trail:"#2a5d8f",
+             volt:"#f06a68", temp:"#e3b341"};
+
+  function clear(g, w, h){
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = C.bg;
+    g.fillRect(0, 0, g.canvas.width, g.canvas.height); g.restore();
+  }
+  function line(g, x1, y1, x2, y2, color, w, dash){
+    g.strokeStyle = color; g.lineWidth = w || 1;
+    g.setLineDash(dash || []);
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    g.setLineDash([]);
+  }
+  function resizeCanvas(c){
+    const w = Math.max(1, Math.round(c.clientWidth || 0));
+    const h = Math.max(1, Math.round(c.clientHeight || 0));
+    if (!w || !h) return false;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    }
+    const g = c.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c._w = w; c._h = h;
+    return true;
+  }
 
   function drawTop(s){
-    const W=top.width,H=top.height; clear(tx,W,H);
-    const cx0=W/2, cy0=H/2, sc=0.55;
-    const px=x=>cx0+x*sc, py=y=>cy0-y*sc;
-    for(let mm=-350; mm<=350; mm+=50){
-      line(tx,px(mm),0,px(mm),H,C.grid,1); line(tx,0,py(mm),W,py(mm),C.grid,1);
+    resizeCanvas(top);
+    const W = top._w || 560, H = top._h || 420, g = tx;
+    clear(g, W, H);
+    const cx0 = W / 2, cy0 = H / 2 + 6;
+    let reach = 180;
+    if (s.pose) reach = Math.max(reach, Math.abs(s.pose[0]) + 80, Math.abs(s.pose[1]) + 80);
+    if (s.cube) reach = Math.max(reach, Math.abs(s.cube[0]) + 60, Math.abs(s.cube[1]) + 60);
+    const span = Math.max(360, reach * 2);
+    const sc = Math.min((W - 40) / span, (H - 40) / span);
+    const px = x => cx0 + x * sc, py = y => cy0 - y * sc;
+    const half = Math.ceil(span / 2 / 50) * 50;
+
+    // grid + ticks
+    for (let mm = -half; mm <= half; mm += 50) {
+      const major = mm % 100 === 0;
+      line(g, px(mm), 8, px(mm), H - 8, major ? C.grid2 : C.grid, 1);
+      line(g, 8, py(mm), W - 8, py(mm), major ? C.grid2 : C.grid, 1);
     }
-    line(tx,0,py(0),W,py(0),C.axis,1); line(tx,px(0),0,px(0),H,C.axis,1);
-    // 轨迹
-    if(s.history && s.history.length>1){
-      tx.strokeStyle=C.trail; tx.lineWidth=1.6; tx.beginPath();
-      s.history.forEach((p,i)=> i?tx.lineTo(px(p.x),py(p.y)):tx.moveTo(px(p.x),py(p.y)));
-      tx.stroke();
+    line(g, 8, py(0), W - 8, py(0), C.axis, 1.2);
+    line(g, px(0), 8, px(0), H - 8, C.axis, 1.2);
+    g.fillStyle = C.faint; g.font = "10px ui-monospace,monospace";
+    g.textAlign = "center"; g.textBaseline = "top";
+    g.fillText("x →", W - 30, py(0) + 5);
+    g.save(); g.translate(px(0) - 8, 30); g.rotate(-Math.PI / 2);
+    g.fillText("y →", 0, 0); g.restore();
+
+    // trail
+    if (s.history && s.history.length > 1) {
+      g.strokeStyle = C.trail; g.lineWidth = 1.8; g.beginPath();
+      s.history.slice(-600).forEach((p, i) => i ? g.lineTo(px(p.x), py(p.y)) : g.moveTo(px(p.x), py(p.y)));
+      g.stroke();
     }
-    // 方块
-    const cb=s.cube;
-    if(cb){
-      const half=20*sc;
-      tx.fillStyle=C.cube; tx.fillRect(px(cb[0])-half,py(cb[1])-half,half*2,half*2);
-      tx.fillStyle="#fff"; tx.font="10px monospace"; tx.textAlign="center";
-      tx.fillText("cube",px(cb[0]),py(cb[1])-half-4);
+
+    // cube
+    if (s.cube) {
+      const half = 20 * sc;
+      g.fillStyle = "#c7433a"; g.strokeStyle = "#ff8d84"; g.lineWidth = 1;
+      g.fillRect(px(s.cube[0]) - half, py(s.cube[1]) - half, half * 2, half * 2);
+      g.strokeRect(px(s.cube[0]) - half, py(s.cube[1]) - half, half * 2, half * 2);
+      g.fillStyle = "#ffd4cf"; g.font = "10px ui-monospace,monospace"; g.textAlign = "center";
+      g.textBaseline = "bottom";
+      g.fillText("cube", px(s.cube[0]), py(s.cube[1]) - half - 4);
     }
-    // 机器人
-    tx.save(); tx.translate(px(s.pose[0]),py(s.pose[1]));
-    tx.rotate(-s.pose[2]*Math.PI/180);
-    tx.fillStyle=C.wheel;
-    tx.fillRect(-70*sc,-78*sc,140*sc,16*sc);
-    tx.fillRect(-70*sc,62*sc,140*sc,16*sc);
-    tx.fillStyle=C.bot; tx.strokeStyle="#5aa9f0"; tx.lineWidth=1;
-    const L=160*sc, Wd=140*sc;
-    tx.beginPath(); tx.roundRect(-L/2,-Wd/2,L,Wd,8*sc); tx.fill(); tx.stroke();
-    tx.fillStyle="#0d1a28"; tx.beginPath(); tx.arc(0,0,16*sc,0,7); tx.fill();
-    tx.restore();
-    // 末端投影
-    tx.fillStyle=C.ee; tx.beginPath(); tx.arc(px(s.ee[0]),py(s.ee[1]),4,0,7); tx.fill();
-    line(tx,px(s.pose[0]),py(s.pose[1]),px(s.ee[0]),py(s.ee[1]),C.ee,1);
-    // 图例
-    tx.fillStyle=C.text; tx.font="11px monospace"; tx.textAlign="left";
-    tx.fillText(`x ${s.pose[0].toFixed(0)}  y ${s.pose[1].toFixed(0)}  yaw ${s.pose[2].toFixed(0)}°`,10,18);
-    tx.textAlign="right"; tx.fillText("1 格 = 50mm",W-10,18);
+
+    // robot
+    g.save(); g.translate(px(s.pose[0]), py(s.pose[1])); g.rotate(-s.pose[2] * Math.PI / 180);
+    g.fillStyle = C.wheel;
+    g.fillRect(-72 * sc, -80 * sc, 144 * sc, 14 * sc);
+    g.fillRect(-72 * sc, 66 * sc, 144 * sc, 14 * sc);
+    g.fillStyle = C.bot; g.strokeStyle = C.bot2; g.lineWidth = 1.2;
+    const L = 164 * sc, Wd = 128 * sc, r = 9 * sc;
+    g.beginPath(); g.roundRect(-L / 2, -Wd / 2, L, Wd, r); g.fill(); g.stroke();
+    g.fillStyle = "#071521"; g.beginPath(); g.arc(0, 0, 17 * sc, 0, 7); g.fill();
+    g.strokeStyle = C.ee; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(34 * sc, 0); g.stroke();
+    g.beginPath(); g.moveTo(34 * sc, 0); g.lineTo(26 * sc, -6 * sc);
+    g.moveTo(34 * sc, 0); g.lineTo(26 * sc, 6 * sc); g.stroke();
+    g.restore();
+
+    // end effector
+    g.fillStyle = C.ee;
+    g.beginPath(); g.arc(px(s.ee[0]), py(s.ee[1]), 4.5, 0, 7); g.fill();
+    line(g, px(s.pose[0]), py(s.pose[1]), px(s.ee[0]), py(s.ee[1]), C.ee, 1, [3, 4]);
+
+    // hud
+    g.fillStyle = C.text; g.font = "11px ui-monospace,monospace";
+    g.textAlign = "left"; g.textBaseline = "top";
+    g.fillText(`x ${s.pose[0].toFixed(0)}  y ${s.pose[1].toFixed(0)}  yaw ${s.pose[2].toFixed(0)}°`, 10, 10);
+    g.textAlign = "right";
+    g.fillText("1 格 = 50 mm", W - 10, 10);
+    top.setAttribute("aria-label",
+      `机器人俯视图：x ${s.pose[0].toFixed(0)} 毫米，y ${s.pose[1].toFixed(0)} 毫米，朝向 ${s.pose[2].toFixed(0)} 度`);
   }
 
   function drawSide(s){
-    const W=side.width,H=side.height; clear(sx,W,H);
-    const ox=80, oy=H-60, sc=1.45;
-    const px=x=>ox+x*sc, pz=z=>oy-z*sc;
-    line(sx,0,oy,W,oy,"#2b3d52",1.5);
-    for(let z=0; z<=320; z+=50){
-      line(sx,ox,pz(z),W,pz(z),C.grid,1);
-      sx.fillStyle=C.text; sx.font="10px monospace"; sx.textAlign="left";
-      sx.fillText(z,4,pz(z)-3);
+    resizeCanvas(side);
+    const W = side._w || 560, H = side._h || 420, g = sx;
+    clear(g, W, H);
+    const ox = 66, oy = H - 34;
+    const sc = Math.min((W - 100) / 300, (H - 74) / 330);
+    const px = x => ox + x * sc, pz = z => oy - z * sc;
+    line(g, 20, oy, W - 20, oy, C.axis, 1.5);
+    for (let z = 0; z <= 300; z += 50) {
+      line(g, ox, pz(z), W - 24, pz(z), z % 100 === 0 ? C.grid2 : C.grid, 1);
+      g.fillStyle = C.faint; g.font = "10px ui-monospace,monospace";
+      g.textAlign = "right"; g.textBaseline = "middle";
+      g.fillText(z, ox - 7, pz(z));
     }
-    const p=s.arm_side;
-    // 底座
-    sx.fillStyle="#1c2938"; sx.fillRect(px(-18),pz(0),36*sc,90*sc);
-    sx.strokeStyle=C.arm; sx.lineWidth=7; sx.lineCap="round";
-    sx.beginPath(); sx.moveTo(px(p[0][0]),pz(p[0][1]));
-    sx.lineTo(px(p[1][0]),pz(p[1][1])); sx.lineTo(px(p[2][0]),pz(p[2][1])); sx.stroke();
-    sx.fillStyle=C.ee; sx.beginPath(); sx.arc(px(p[2][0]),pz(p[2][1]),7,0,7); sx.fill();
-    sx.fillStyle=C.text; sx.font="11px monospace"; sx.textAlign="left";
-    sx.fillText(`末端 r=${p[2][0].toFixed(0)} z=${p[2][1].toFixed(0)}`,10,18);
-    const held=s.held ? "夹持中" : "空";
-    sx.fillStyle=s.held?C.ok:C.text; sx.textAlign="right";
-    sx.fillText(held,W-10,18);
+    g.fillStyle = C.faint; g.textAlign = "left"; g.textBaseline = "top";
+    g.fillText("z / mm", 10, 10);
+
+    const p = s.arm_side;
+    g.fillStyle = "#142333"; g.strokeStyle = "#2d4964"; g.lineWidth = 1;
+    g.fillRect(px(-18), pz(0), 36 * sc, 90 * sc); g.strokeRect(px(-18), pz(0), 36 * sc, 90 * sc);
+    g.strokeStyle = C.arm; g.lineWidth = 7; g.lineCap = "round"; g.lineJoin = "round";
+    g.beginPath(); g.moveTo(px(p[0][0]), pz(p[0][1]));
+    for (let i = 1; i < p.length; i++) g.lineTo(px(p[i][0]), pz(p[i][1]));
+    g.stroke();
+    p.forEach((q, i) => {
+      g.fillStyle = i === p.length - 1 ? C.ee : "#f6d36b";
+      g.beginPath(); g.arc(px(q[0]), pz(q[1]), i === p.length - 1 ? 7 : 5, 0, 7); g.fill();
+    });
+    g.fillStyle = C.text; g.font = "11px ui-monospace,monospace";
+    g.textAlign = "left"; g.textBaseline = "top";
+    g.fillText(`末端 r=${p[2][0].toFixed(0)}  z=${p[2][1].toFixed(0)}`, 10, 24);
+    g.textAlign = "right";
+    g.fillStyle = s.held ? C.ok : C.faint;
+    g.fillText(s.held ? "● 夹持中" : "○ 空", W - 10, 10);
+    side.setAttribute("aria-label",
+      `机械臂侧视图：末端半径 ${p[2][0].toFixed(0)} 毫米，高度 ${p[2][1].toFixed(0)} 毫米`);
   }
 
   function drawChart(s){
-    const W=chart.width,H=chart.height; clear(cx,W,H);
-    const hist=s.history||[]; if(hist.length<2) return;
-    const pad=28, t0=hist[0].t, t1=Math.max(hist[hist.length-1].t,t0+1);
-    const X=t=>pad+(t-t0)/(t1-t0)*(W-pad-10);
-    // 电压 9–13V
-    const Yv=v=>H-22-(v-9)/4*(H-40);
-    cx.strokeStyle="#223041"; cx.lineWidth=1;
-    for(let v=9; v<=13; v+=1){ line(cx,pad,Yv(v),W-10,Yv(v),"#1a2634",1);
-      cx.fillStyle=C.text; cx.font="10px monospace"; cx.textAlign="right";
-      cx.fillText(v+"V",pad-4,Yv(v)+3); }
-    cx.strokeStyle=C.red; cx.lineWidth=1.6; cx.beginPath();
-    hist.forEach((p,i)=> i?cx.lineTo(X(p.t),Yv(p.v)):cx.moveTo(X(p.t),Yv(p.v)));
-    cx.stroke();
-    // 温度 20–80℃
-    const Yt=t=>H-22-(t-20)/60*(H-40);
-    cx.strokeStyle=C.amber; cx.lineWidth=1.2; cx.beginPath();
-    hist.forEach((p,i)=> i?cx.lineTo(X(p.t),Yt(p.temp)):cx.moveTo(X(p.t),Yt(p.temp)));
-    cx.stroke();
-    cx.fillStyle=C.text; cx.textAlign="left"; cx.font="11px monospace";
-    cx.fillStyle=C.red; cx.fillText("电压",pad,14);
-    cx.fillStyle=C.amber; cx.fillText("温度",pad+46,14);
-    cx.fillStyle=C.text; cx.textAlign="right"; cx.fillText(`${t0.toFixed(1)}s → ${t1.toFixed(1)}s`,W-10,14);
+    resizeCanvas(chart);
+    const W = chart._w || 1120, H = chart._h || 158, g = cx;
+    clear(g, W, H);
+    const hist = (s.history || []).slice(-600);
+    const padL = 38, padR = 42, padT = 24, padB = 20;
+    if (hist.length < 2) {
+      g.fillStyle = C.faint; g.font = "12px ui-monospace,monospace";
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("运行后显示电压 / 温度曲线", W / 2, H / 2);
+      chart.setAttribute("aria-label", "电压与温度曲线：暂无数据");
+      return;
+    }
+    const t0 = hist[0].t, t1 = Math.max(hist[hist.length - 1].t, t0 + 1);
+    const X = t => padL + (t - t0) / (t1 - t0) * (W - padL - padR);
+    const vmin = Math.min(9, ...hist.map(p => p.v)) - 0.2;
+    const vmax = Math.max(12.8, ...hist.map(p => p.v)) + 0.2;
+    const Yv = v => H - padB - (v - vmin) / (vmax - vmin) * (H - padT - padB);
+    const Yt = t => H - padB - (t - 20) / 60 * (H - padT - padB);
+
+    g.font = "10px ui-monospace,monospace"; g.textBaseline = "middle";
+    for (let i = 0; i <= 4; i++) {
+      const v = vmin + (vmax - vmin) * i / 4, y = Yv(v);
+      line(g, padL, y, W - padR, y, i === 0 ? C.axis : C.grid, 1);
+      g.fillStyle = C.faint; g.textAlign = "right"; g.fillText(v.toFixed(1), padL - 6, y);
+    }
+    [20, 40, 60, 80].forEach(t => {
+      const y = Yt(t);
+      g.fillStyle = C.faint; g.textAlign = "left"; g.fillText(t + "°", W - padR + 6, y);
+    });
+    // 10.8V threshold
+    if (vmin < 10.8 && vmax > 10.8) {
+      line(g, padL, Yv(10.8), W - padR, Yv(10.8), "#f8514966", 1, [4, 4]);
+      g.fillStyle = "#f08a86"; g.textAlign = "left"; g.textBaseline = "bottom";
+      g.fillText("10.8V", padL + 4, Yv(10.8) - 2);
+    }
+
+    // voltage area + line
+    g.beginPath();
+    hist.forEach((p, i) => i ? g.lineTo(X(p.t), Yv(p.v)) : g.moveTo(X(p.t), Yv(p.v)));
+    g.lineTo(X(hist[hist.length - 1].t), H - padB);
+    g.lineTo(X(hist[0].t), H - padB); g.closePath();
+    const grad = g.createLinearGradient(0, padT, 0, H - padB);
+    grad.addColorStop(0, "#f06a6833"); grad.addColorStop(1, "#f06a6800");
+    g.fillStyle = grad; g.fill();
+    g.strokeStyle = C.volt; g.lineWidth = 1.7; g.beginPath();
+    hist.forEach((p, i) => i ? g.lineTo(X(p.t), Yv(p.v)) : g.moveTo(X(p.t), Yv(p.v)));
+    g.stroke();
+
+    // temperature
+    g.strokeStyle = C.temp; g.lineWidth = 1.3; g.beginPath();
+    hist.forEach((p, i) => i ? g.lineTo(X(p.t), Yt(p.temp)) : g.moveTo(X(p.t), Yt(p.temp)));
+    g.stroke();
+
+    const last = hist[hist.length - 1];
+    [ [X(last.t), Yv(last.v), C.volt], [X(last.t), Yt(last.temp), C.temp] ].forEach(([x, y, c]) => {
+      g.fillStyle = c; g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill();
+    });
+
+    g.textBaseline = "top"; g.textAlign = "left"; g.font = "10px ui-monospace,monospace";
+    g.fillStyle = C.volt; g.fillText(`● 电压 ${last.v.toFixed(2)}V`, padL, 6);
+    g.fillStyle = C.temp; g.fillText(`● 温度 ${last.temp.toFixed(0)}℃`, padL + 92, 6);
+    g.fillStyle = C.faint; g.textAlign = "right";
+    g.fillText(`${t0.toFixed(1)}s → ${t1.toFixed(1)}s`, W - padR, 6);
+    chart.setAttribute("aria-label",
+      `电压与温度曲线：最后电压 ${last.v.toFixed(2)} 伏，温度 ${last.temp.toFixed(0)} 摄氏度`);
+    $("chart-range").textContent = `最近 ${hist.length} 采样`;
   }
 
+  function resizeAll(){
+    resizeCanvas(top); resizeCanvas(side); resizeCanvas(chart);
+    resize3D();
+    if (st.s) { drawTop(st.s); drawSide(st.s); drawChart(st.s); }
+  }
+  // ---------------------------------------------------------- 回放
   function replayState(i){
-    const r=st.replay, tr=r.trace;
-    const idx=Math.max(0, Math.min(tr.length-1, Math.floor(i)));
-    const f=tr[idx];
-    const hist=tr.slice(0,idx+1).map(p=>({t:p.t,x:p.x,y:p.y,v:p.v,temp:p.temp}));
-    return {time:f.t, pose:[f.x,f.y,f.yaw],
-      joints:{"1":f.j1,"2":f.j2,"3":f.j3,"4":f.j4},
+    const r = st.replay, tr = r.trace;
+    const idx = Math.max(0, Math.min(tr.length - 1, Math.floor(i)));
+    const f = tr[idx];
+    const hist = tr.slice(0, idx + 1).map(p => ({t:p.t, x:p.x, y:p.y, v:p.v, temp:p.temp}));
+    return {time:f.t, pose:[f.x, f.y, f.yaw],
+      joints:{"1":f.j1, "2":f.j2, "3":f.j3, "4":f.j4},
       ee:f.ee, arm_side:f.arm, voltage:f.v, temp:f.temp, current:0, status:0,
       cutoff:false, wheels:[0,0], cube:null, held:false, history:hist,
-      controls:{v:0,w:0,gripper:1,torque:true,joints:{"1":f.j1,"2":f.j2,"3":f.j3}},
-      options:{slip:0,battery_ocv:f.v,payload_kg:0,drop_rate:0,bus_latency:0,
-               servo_torque:2.94,mu:0.4,grip_force:4,cube_mass:0.05}};
+      controls:{v:0, w:0, gripper:1, torque:true, joints:{"1":f.j1, "2":f.j2, "3":f.j3}},
+      options:{slip:0, battery_ocv:f.v, payload_kg:0, drop_rate:0, bus_latency:0,
+               servo_torque:2.94, mu:0.4, grip_force:4, cube_mass:0.05}};
   }
   function renderReplay(){
-    if(!st.replay) return;
+    if (!st.replay) return;
     render(replayState(st.replay.i));
-    const idx=Math.max(0,Math.min(st.replay.trace.length-1,Math.floor(st.replay.i)));
-    $("clock").textContent = `t ${st.replay.trace[idx].t.toFixed(2)}s`;
+    const idx = Math.max(0, Math.min(st.replay.trace.length - 1, Math.floor(st.replay.i)));
+    $("clock").textContent = "t " + st.replay.trace[idx].t.toFixed(2) + "s";
   }
 
+  // ---------------------------------------------------------- 场景
   async function loadScenarios(){
-    try{
+    try {
       const list = await api("/api/scenarios");
-      const sel = $("scenario");
-      sel.innerHTML = list.map(x=>`<option value="${x.file}">${x.file} · ${x.name}</option>`).join("");
-    }catch(e){ log("场景列表失败："+e.message); }
+      const sel = $("scenario"), keep = sel.value;
+      sel.textContent = "";
+      list.forEach(x => {
+        const o = document.createElement("option");
+        o.value = x.file; o.textContent = x.file + " · " + x.name;
+        sel.appendChild(o);
+      });
+      const preferred = keep || "mission_pick.json";
+      if (list.some(x => x.file === preferred)) sel.value = preferred;
+      $("scenario-count").textContent = list.length + " 个场景 · 选中即载入";
+    } catch (e) {
+      log("场景列表失败：" + e.message, "err");
+      $("scenario-count").textContent = "场景列表读取失败";
+    }
   }
+
   function showResult(r, label){
     st.running = false;
-    st.replay = {trace:r.trace, i:0, playing:false, last:0, log:r.log, ok:r.ok};
+    st.replay = {trace:r.trace, i:0, playing:false, last:0, log:r.log || [], ok:r.ok};
     syncPlay();
-    $("sc-res").textContent = r.ok ? "PASS" : "FAIL";
-    $("sc-res").style.color = r.ok ? "var(--green)" : "var(--red)";
-    $("sc-log").textContent = (r.log||[]).slice(-8).join("\n");
-    renderReplay(); log(`载入 ${label}：${r.trace.length} 帧`);
+    const ok = !!r.ok;
+    $("sc-res").textContent = ok ? "PASS" : "FAIL";
+    $("sc-res").className = ok ? "ok-text" : "bad-text";
+    $("sc-meta").textContent = `${r.trace.length} 帧 · ${r.time.toFixed(1)}s`;
+    const fails = (r.failures || []).slice(0, 2);
+    $("sc-summary").textContent = fails.length ? fails.join("；") :
+      (ok ? "全部断言通过。可看回放或导出。" : "未通过，查看诊断日志。");
+    $("result-card").hidden = false;
+    $("result-card").classList.toggle("pass", ok);
+    $("result-card").classList.toggle("fail", !ok);
+    const ends = (r.log || []).filter(x => x.startsWith("[end]"));
+    const lines = (ok ? ends.slice(-4) : (fails.concat(ends.slice(-3))));
+    $("sc-log").textContent = lines.join("\n");
+    $("export").disabled = false;
+    renderReplay();
+    log(`载入 ${label}：${ok ? "PASS" : "FAIL"}，${r.trace.length} 帧`, ok ? "ok" : "warn");
+    toast(`${label}：${ok ? "通过" : "未通过"}`, ok ? "ok" : "err");
   }
+
   async function runScenario(){
-    const file = $("scenario").value; if(!file) return;
-    $("sc-res").textContent = "运行中…"; $("sc-res").className = "val";
+    const file = $("scenario").value;
+    if (!file) { toast("先选一个场景", "warn"); return; }
+    st.replay = null; st.running = false; $("export").disabled = true; syncPlay();
+    const btn = $("runsc");
+    btn.disabled = true; btn.setAttribute("aria-busy", "true");
+    $("sc-res").textContent = "运行中…"; $("sc-res").className = "";
+    $("sc-meta").textContent = file;
+    $("sc-summary").textContent = "正在运行 " + file + " …";
+    $("result-card").hidden = true;
     $("sc-log").textContent = "";
-    try{ showResult(await api("/api/scenario", {file}), file); }
-    catch(e){ $("sc-res").textContent = "错误"; $("sc-res").style.color="var(--red)";
-      log("场景失败："+e.message); }
-  }
-  $("edit").onclick = async ()=>{
-    const file = $("scenario").value; if(!file) return;
-    try{
-      const r = await api("/api/scenario/source?name="+encodeURIComponent(file));
-      $("sc-text").value = r.json; $("sc-text").classList.add("show");
-      log(`编辑 ${file}`);
-    }catch(e){ log("读场景失败："+e.message); }
-  };
-  $("save").onclick = async ()=>{
-    if(!$("sc-text").value.trim()){ log("先点「编辑」载入场景"); return; }
-    let scene; try{ scene = JSON.parse($("sc-text").value); }
-    catch(e){ log("JSON 错误："+e.message); return; }
-    const name = (prompt("保存为（.json）", "my_scenario.json")||"").trim();
-    if(!name) return;
-    try{
-      await api("/api/scenario/save", {name, scene});
-      await loadScenarios(); log(`已保存 ${name}`);
-    }catch(e){ log("保存失败："+e.message); }
-  };
-  function runEdited(){
-    let scene; try{ scene=JSON.parse($("sc-text").value); }
-    catch(err){ log("JSON 错误："+err.message); return; }
-    api("/api/scenario/run", {scene, name:"editor"})
-      .then(r=>showResult(r, "编辑器")).catch(err=>log("运行失败："+err.message));
-  }
-  $("runedit").onclick = runEdited;
-  $("sc-text").addEventListener("keydown", e=>{
-    if((e.ctrlKey||e.metaKey) && e.code==="Enter"){
-      e.preventDefault(); runEdited();
+    try { showResult(await api("/api/scenario", {file}, 45000), file); }
+    catch (e) {
+      $("sc-res").textContent = "ERROR"; $("sc-res").className = "bad-text";
+      $("sc-meta").textContent = file;
+      $("sc-summary").textContent = e.message;
+      $("result-card").hidden = false;
+      $("sc-log").textContent = "运行失败：" + e.message;
+      log("场景失败：" + e.message, "err");
+      toast("场景运行失败：" + e.message, "err");
+    } finally {
+      btn.disabled = false; btn.removeAttribute("aria-busy");
     }
+  }
+  $("scenario").addEventListener("change", () => {
+    $("scenario-count").textContent = $("scenario").value + " · 点「运行场景」载入";
   });
 
-  // ---------------------------------------------------------- 3D 实时
-  const T3 = {ready:false, renderer:null, scene:null, camera:null,
-              robot:null, arm:[], cube:null, ee:null};
+  // ---------------------------------------------------------- 编辑器
+  let editorName = "";
+  function setEditorStatus(msg, kind){
+    const el = $("editor-status");
+    el.textContent = msg;
+    el.className = kind || "";
+  }
+  function validateEditor(){
+    let scene;
+    try { scene = JSON.parse($("sc-text").value); }
+    catch (e) {
+      const m = /position (\d+)/.exec(e.message);
+      const pos = m ? Number(m[1]) : 0;
+      const line = $("sc-text").value.slice(0, pos).split("\n").length;
+      setEditorStatus("JSON 错误（第 " + line + " 行附近）：" + e.message, "bad-text");
+      return null;
+    }
+    if (!scene || typeof scene !== "object" || !Array.isArray(scene.actions)) {
+      setEditorStatus("场景必须是含 actions 数组的 JSON 对象", "bad-text");
+      return null;
+    }
+    setEditorStatus("JSON 合法 · " + scene.actions.length + " 个动作", "ok-text");
+    return scene;
+  }
+  async function openEditor(){
+    const file = $("scenario").value;
+    if (!file) { toast("先选一个场景", "warn"); return; }
+    try {
+      const r = await api("/api/scenario/source?name=" + encodeURIComponent(file));
+      $("sc-text").value = r.json;
+      $("sc-name").value = file;
+      editorName = file;
+      st.editorDirty = false;
+      $("editor-file").textContent = file;
+      setEditorStatus("Ctrl/⌘ + Enter 运行 · 保存会覆盖同名文件");
+      $("editor-dialog").showModal();
+      setTimeout(() => $("sc-text").focus(), 30);
+      validateEditor();
+      log("编辑 " + file);
+    } catch (e) { toast("读取场景失败：" + e.message, "err"); log("读场景失败：" + e.message, "err"); }
+  }
+  function closeEditor(force){
+    if (!force && st.editorDirty && !confirm("有未保存的修改，确定关闭？")) return;
+    st.editorDirty = false;
+    $("editor-dialog").close();
+  }
+  $("edit").onclick = openEditor;
+  $("close-editor").onclick = () => closeEditor(false);
+  $("cancel-editor").onclick = () => closeEditor(false);
+  $("editor-dialog").addEventListener("cancel", e => { e.preventDefault(); closeEditor(false); });
+  $("sc-text").addEventListener("input", () => {
+    st.editorDirty = true;
+    setEditorStatus("未保存 · Ctrl/⌘ + Enter 运行");
+  });
+  $("sc-name").addEventListener("input", () => { st.editorDirty = true; });
+  $("format-json").onclick = () => {
+    const scene = validateEditor(); if (!scene) return;
+    $("sc-text").value = JSON.stringify(scene, null, 2) + "\n";
+    st.editorDirty = true;
+    setEditorStatus("已格式化 · 未保存", "ok-text");
+  };
+  $("save").onclick = async () => {
+    const scene = validateEditor(); if (!scene) return;
+    const name = $("sc-name").value.trim();
+    if (!/^[A-Za-z0-9._-]+\.json$/.test(name) || name.includes("..")) {
+      setEditorStatus("文件名只能包含字母/数字/._- 且以 .json 结尾", "bad-text");
+      return;
+    }
+    try {
+      await api("/api/scenario/save", {name, scene});
+      await loadScenarios();
+      $("scenario").value = name;
+      st.editorDirty = false;
+      setEditorStatus("已保存 " + name, "ok-text");
+      toast("已保存 " + name, "ok");
+      log("已保存 " + name, "ok");
+    } catch (e) { setEditorStatus("保存失败：" + e.message, "bad-text"); toast("保存失败：" + e.message, "err"); }
+  };
+  async function runEdited(){
+    const scene = validateEditor(); if (!scene) return;
+    setEditorStatus("运行中…");
+    try {
+      const r = await api("/api/scenario/run", {scene, name:"editor"}, 45000);
+      showResult(r, "编辑器");
+      st.editorDirty = false;
+      closeEditor(true);
+      switchTab("scenario");
+    } catch (e) {
+      setEditorStatus("运行失败：" + e.message, "bad-text");
+      toast("运行失败：" + e.message, "err");
+    }
+  }
+  $("runedit").onclick = runEdited;
+  $("sc-text").addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.code === "Enter") { e.preventDefault(); runEdited(); }
+  });
+  window.addEventListener("beforeunload", e => {
+    if (st.editorDirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  // ---------------------------------------------------------- 3D
+  const T3 = {ready:false, renderer:null, scene:null, camera:null, controls:null,
+              robot:null, arm:[], joints:[], cube:null, ee:null, jaws:[]};
   function init3D(){
-    if(!window.THREE){ log("3D：three.js 未加载，跳过"); return; }
-    try{
-    const cv = $("view3d");
-    const r = new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:true});
-    r.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
-    r.setSize(cv.width, cv.height, false);
-    const sc = new THREE.Scene();
-    sc.background = new THREE.Color(0x0b1018);
-    const cam = new THREE.PerspectiveCamera(42, cv.width/cv.height, 1, 3000);
-    cam.up.set(0,0,1);
-    cam.position.set(360, -420, 330);
-    cam.lookAt(0, 0, 40);
-    sc.add(new THREE.AmbientLight(0xffffff, 0.65));
-    const dl = new THREE.DirectionalLight(0xffffff, 0.9);
-    dl.position.set(200, -300, 500); sc.add(dl);
-    const grid = new THREE.GridHelper(800, 16, 0x1d2a3a, 0x141d28);
-    grid.rotation.x = Math.PI/2; sc.add(grid);
-    const robot = new THREE.Group();
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(120, 200, 18),
-      new THREE.MeshStandardMaterial({color:0x2f6f8f, roughness:0.7}));
-    chassis.position.z = 9; robot.add(chassis);
-    const mat = new THREE.MeshStandardMaterial({color:0xd7e4ef, roughness:0.45,
-      metalness:0.15});
-    const arm = [];
-    for(let i=0;i<2;i++){
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(5,5,1,12), mat);
-      robot.add(m); arm.push(m);
-    }
-    const ee = new THREE.Mesh(new THREE.SphereGeometry(7,14,10),
-      new THREE.MeshStandardMaterial({color:0x22d37a}));
-    robot.add(ee);
-    const cube = new THREE.Mesh(new THREE.BoxGeometry(40,40,40),
-      new THREE.MeshStandardMaterial({color:0xc83c28, roughness:0.6}));
-    sc.add(cube);
-    T3.ready = true; T3.renderer=r; T3.scene=sc; T3.camera=cam; T3.robot=robot;
-    T3.arm=arm; T3.cube=cube; T3.ee=ee;
-    }catch(err){
+    if (!window.THREE) { log("3D：three.js 未加载，跳过", "warn"); return; }
+    try {
+      const cv = $("view3d");
+      const r = new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:false});
+      r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+      if (THREE.SRGBColorSpace) r.outputColorSpace = THREE.SRGBColorSpace;
+      if (THREE.ACESFilmicToneMapping) {
+        r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
+      }
+      const sc = new THREE.Scene();
+      sc.background = new THREE.Color(0x0b1119);
+      const cam = new THREE.PerspectiveCamera(42, 1, 1, 3000);
+      cam.up.set(0, 0, 1);
+      cam.position.set(360, -420, 330);
+      if (THREE.OrbitControls) {
+        T3.controls = new THREE.OrbitControls(cam, cv);
+        T3.controls.target.set(0, 0, 45);
+        T3.controls.enableDamping = true;
+        T3.controls.dampingFactor = 0.08;
+        T3.controls.maxPolarAngle = Math.PI * 0.48;
+        T3.controls.minDistance = 140;
+        T3.controls.maxDistance = 1100;
+      }
+      sc.add(new THREE.HemisphereLight(0xffffff, 0x2a3441, 0.95));
+      const dl = new THREE.DirectionalLight(0xfff4e6, 1.15);
+      dl.position.set(220, -320, 520); sc.add(dl);
+      const dl2 = new THREE.DirectionalLight(0x9cc8ff, 0.35);
+      dl2.position.set(-280, 240, 180); sc.add(dl2);
+
+      const grid = new THREE.GridHelper(800, 32, 0x2b4057, 0x172333);
+      grid.rotation.x = Math.PI / 2; grid.position.z = -0.5; sc.add(grid);
+
+      const robot = new THREE.Group();
+      const chassisMat = new THREE.MeshStandardMaterial({color:0x2d5571, roughness:0.62, metalness:0.18});
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(164, 128, 18), chassisMat);
+      chassis.position.z = 22; robot.add(chassis);
+      const wheelMat = new THREE.MeshStandardMaterial({color:0x111820, roughness:0.85});
+      [[-54,-76],[ -54,76],[54,-76],[54,76]].forEach(([x,y]) => {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(32,32,22,20), wheelMat);
+        w.position.set(x, y, 32); robot.add(w);
+      });
+      const alu = new THREE.MeshStandardMaterial({color:0xd5e1ec, roughness:0.38, metalness:0.35});
+      const jointMat = new THREE.MeshStandardMaterial({color:0x1d2a36, roughness:0.55, metalness:0.3});
+      for (let i = 0; i < 2; i++) {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(7,7,1,14), alu);
+        robot.add(m); T3.arm.push(m);
+      }
+      for (let i = 0; i < 3; i++) {
+        const j = new THREE.Mesh(new THREE.SphereGeometry(i === 0 ? 13 : 10, 16, 12), jointMat);
+        robot.add(j); T3.joints.push(j);
+      }
+      const ee = new THREE.Mesh(new THREE.BoxGeometry(12, 28, 12),
+        new THREE.MeshStandardMaterial({color:0xf0b429, roughness:0.45}));
+      robot.add(ee);
+      for (const s of [-1, 1]) {
+        const jaw = new THREE.Mesh(new THREE.BoxGeometry(26, 5, 14),
+          new THREE.MeshStandardMaterial({color:0x2f9e5f, roughness:0.5}));
+        jaw.position.y = s * 13; robot.add(jaw); T3.jaws.push(jaw);
+      }
+      const cube = new THREE.Mesh(new THREE.BoxGeometry(40,40,40),
+        new THREE.MeshStandardMaterial({color:0xc7433a, roughness:0.62}));
+      sc.add(cube);
+
+      T3.ready = true; T3.renderer = r; T3.scene = sc; T3.camera = cam;
+      T3.robot = robot; T3.cube = cube; T3.ee = ee;
+      resize3D();
+      r.render(sc, cam);
+    } catch (err) {
       T3.ready = false;
-      log("3D 不可用："+(err.message||err));
+      log("3D 不可用：" + (err.message || err), "warn");
+      $("view3d").style.display = "none";
     }
+  }
+  function resize3D(){
+    if (!T3.ready) return;
+    const cv = $("view3d");
+    const w = Math.max(1, Math.round(cv.clientWidth || 0));
+    const h = Math.max(1, Math.round(cv.clientHeight || 0));
+    if (!w || !h) return;
+    T3.renderer.setSize(w, h, false);
+    T3.camera.aspect = w / h;
+    T3.camera.updateProjectionMatrix();
   }
   function seg(mesh, a, b){
     const va = new THREE.Vector3(a[0], 0, a[1]);
@@ -518,21 +1522,40 @@
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize());
   }
   function update3D(s){
-    if(!T3.ready) return;
+    if (!T3.ready) return;
     T3.robot.position.set(s.pose[0], s.pose[1], 0);
-    T3.robot.rotation.z = s.pose[2] * Math.PI/180;
+    T3.robot.rotation.z = s.pose[2] * Math.PI / 180;
     const p = s.arm_side;
-    for(let i=0;i<T3.arm.length;i++) seg(T3.arm[i], p[i], p[i+1]);
+    for (let i = 0; i < T3.arm.length; i++) seg(T3.arm[i], p[i], p[i+1]);
+    T3.joints.forEach((j, i) => j.position.set(p[i][0], 0, p[i][1]));
     T3.ee.position.set(p[p.length-1][0], 0, p[p.length-1][1]);
-    T3.cube.position.set(s.cube[0], s.cube[1], s.cube[2]/2);
-    T3.cube.scale.setScalar(s.cube[2]/40);
-    T3.cube.material.color.set(s.held ? 0x22d37a : 0xc83c28);
-    try{ T3.renderer.render(T3.scene, T3.camera); }
-    catch(err){ T3.ready = false; log("3D 渲染停止："+(err.message||err)); }
+    T3.jaws.forEach((j, i) => {
+      j.position.set(p[p.length-1][0] + 14, (i ? 1 : -1) * 15, p[p.length-1][1]);
+      j.rotation.z = s.held ? 0 : (i ? -0.25 : 0.25);
+    });
+    if (s.cube) {
+      T3.cube.visible = true;
+      T3.cube.position.set(s.cube[0], s.cube[1], s.cube[2] / 2);
+      T3.cube.scale.setScalar(s.cube[2] / 40);
+      T3.cube.material.color.set(s.held ? 0x2f9e5f : 0xc7433a);
+    } else T3.cube.visible = false;
+    if (T3.controls) T3.controls.update();
+    try { T3.renderer.render(T3.scene, T3.camera); }
+    catch (err) { T3.ready = false; log("3D 渲染停止：" + (err.message || err), "err"); }
   }
+  $("view3d").addEventListener("keydown", e => {
+    if (e.code === "Home") { e.preventDefault(); document.querySelector("[data-cam-reset]").click(); }
+  });
+  document.querySelectorAll("[data-cam-reset]").forEach(b => b.addEventListener("click", () => {
+    if (!T3.ready) return;
+    T3.camera.position.set(360, -420, 330);
+    if (T3.controls) { T3.controls.target.set(0, 0, 45); T3.controls.update(); }
+    T3.camera.lookAt(0, 0, 45);
+  }));
 
+  // ---------------------------------------------------------- render
   function render(s){
-    $("clock").textContent = `t ${s.time.toFixed(2)}s`;
+    $("clock").textContent = "t " + s.time.toFixed(2) + "s";
     $("s-v").textContent = s.voltage.toFixed(2);
     $("s-t").textContent = s.temp.toFixed(1);
     $("s-i").textContent = s.current.toFixed(2);
@@ -540,57 +1563,108 @@
     $("s-ee").textContent = `${s.ee[0].toFixed(0)},${s.ee[2].toFixed(0)}`;
     const slip = s.grasp && s.grasp.slip && !s.held;
     $("s-held").textContent = s.held ? "夹持中" : (slip ? "滑落" : "空");
-    $("s-held").className = s.held ? "on" : (slip ? "off" : "");
+    $("s-held").parentElement.className = "stat" + (s.held ? " ok" : (slip ? " bad" : ""));
     $("s-held").title = s.grasp ? `摩擦 ${s.grasp.capacity_n}N / 需要 ${s.grasp.required_n}N` : "";
+    $("s-v").parentElement.className = "stat" + (s.voltage < 10.8 ? " bad" : (s.voltage < 11.4 ? " warn" : ""));
+    $("s-t").parentElement.className = "stat" + (s.temp >= 55 ? " bad" : (s.temp >= 45 ? " warn" : ""));
+    if (s.cutoff) $("s-v").parentElement.className = "stat bad";
     drawTop(s); drawSide(s); drawChart(s); update3D(s);
   }
 
-  init3D();
-
+  // ---------------------------------------------------------- boot / loop
   async function boot(){
-    try{
+    document.body.classList.add("booting");
+    $("offline").hidden = true;
+    setConn(null);
+    try {
       const s = await api("/api/state");
       apply(s);
-      // 用服务端状态初始化控件
-      $("v").value = s.controls.v; $("v-val").textContent = `${s.controls.v} mm/s`;
-      $("grip").value = s.controls.gripper;
-      $("grip-val").textContent = s.controls.gripper < .5 ? "闭" : "开";
-      ["j1","j2","j3"].forEach((id,i)=>{
-        const deg = s.controls.joints[String(i+1)]; $(id).value=deg; $(id+"-val").textContent=`${Math.round(deg)}°`;
-      });
+      syncControls(s);
       camLabel((s.options && s.options.camera_mode) || "overhead");
       refreshCam();
-      log("已连接仿真后端");
       await loadScenarios();
       const q = new URLSearchParams(location.search);
       const pick = q.get("scenario");
-      if(pick){
+      if (pick) {
+        const found = Array.from($("scenario").options).some(o => o.value === pick);
+        switchTab("scenario");
+        if (!found) {
+          toast("找不到场景 " + pick, "err");
+          log("找不到场景 " + pick, "err");
+          document.body.classList.remove("booting");
+          setConn(true);
+          return;
+        }
         $("scenario").value = pick;
         await runScenario();
         const fr = Number(q.get("frame") || 0);
-        if(st.replay && fr > 0){ st.replay.i = Math.min(fr, st.replay.trace.length-1); renderReplay(); }
-        if(st.replay && q.get("play") === "1"){ st.replay.playing = true; st.replay.last = performance.now(); syncPlay(); }
+        if (st.replay && fr > 0) {
+          st.replay.i = Math.min(fr, st.replay.trace.length - 1); renderReplay();
+        }
+        if (st.replay && q.get("play") === "1") {
+          st.replay.playing = true; st.replay.last = performance.now(); syncPlay();
+        }
+      } else {
+        let saved = null;
+        try { saved = localStorage.getItem("modkit.tab"); } catch (e) {}
+        switchTab(location.hash.slice(1) || saved || "control");
       }
-    }catch(e){ log("后端不可用："+e.message); }
+      document.body.classList.remove("booting");
+      setConn(true);
+      log("已连接仿真后端", "ok");
+    } catch (e) {
+      setConn(false); showOffline(e.message);
+      log("后端不可用：" + e.message, "err");
+      toast("连不上后端：" + e.message, "err");
+    }
   }
 
+  let resizeTimer = null;
+  const ro = new ResizeObserver(() => {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resizeAll, 80);
+  });
+  [top, side, chart, $("view3d")].forEach(c => ro.observe(c));
+  window.addEventListener("resize", () => { if (resizeTimer) clearTimeout(resizeTimer); resizeTimer = setTimeout(resizeAll, 80); });
+
   function loop(now){
-    if(st.replay && st.replay.playing){
-      const dt=(now-st.replay.last)/1000; st.replay.last=now;
-      st.replay.i += dt/0.02;
-      const max=st.replay.trace.length-1;
-      if(st.replay.i>=max){ st.replay.i=max; st.replay.playing=false; syncPlay(); }
+    if (st.replay && st.replay.playing) {
+      const dt = (now - st.replay.last) / 1000; st.replay.last = now;
+      st.replay.i += dt / 0.02;
+      const max = st.replay.trace.length - 1;
+      if (st.replay.i >= max) { st.replay.i = max; st.replay.playing = false; syncPlay(); }
       renderReplay();
     }
-    if(st.running && !st.busy){
-      const dt = Math.min(0.1, (now - st.last)/1000);
+    if (st.running && !st.busy) {
+      const dt = Math.min(0.1, (now - st.last) / 1000);
       st.last = now;
-      if(dt >= 0.05) step(dt);
+      if (dt >= 0.05) step(dt);
     } else { st.last = now; }
+    if (T3.ready && T3.controls) T3.controls.update();
     requestAnimationFrame(loop);
   }
-  boot(); requestAnimationFrame(loop);
+
+  // mobile view switch
+  document.querySelectorAll("[data-view]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-view]").forEach(b =>
+        b.setAttribute("aria-selected", String(b === btn)));
+      document.body.dataset.view = btn.dataset.view;
+      st.hoverPanel = btn.dataset.view;
+      const grid = $("panels");
+      if (grid.classList.contains("focus-mode")) setFocus(null);
+      setTimeout(resizeAll, 40);
+    });
+  });
+  document.body.dataset.view = "panel-top";
+
+  $("retry").onclick = boot;
+  init3D();
+  syncPlay();
+  boot();
+  requestAnimationFrame(loop);
 })();
+
 </script>
 </body>
 </html>

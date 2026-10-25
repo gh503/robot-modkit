@@ -22,6 +22,11 @@
     var el = $("status");
     el.textContent = text;
     el.className = "status " + (kind || "");
+    var top = $("top-state"), topText = $("top-state-text");
+    if (top) {
+      top.className = "status-pill " + (kind || "");
+      if (topText) topText.textContent = kind === "err" ? "3D 异常" : "3D 就绪";
+    }
   }
   window.addEventListener("error", function (e) {
     setStatus("JS 错误：" + e.message, "err");
@@ -29,10 +34,26 @@
 
   // ------------------------------------------------------------------ 场景
   var canvas = $("view");
-  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if (!window.THREE) {
+    $("webgl-fallback").classList.add("show");
+    setStatus("three.js 未加载：请检查 web/vendor/，参数面板仍可用", "err");
+    return;
+  }
+  var renderer = null;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    if (THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+    if (THREE.ACESFilmicToneMapping) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.0;
+    }
+  } catch (e) {
+    $("webgl-fallback").classList.add("show");
+    setStatus("3D 不可用：" + e.message + "（参数与真机调试仍可用）", "err");
+  }
 
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0xeaeff6);
@@ -41,10 +62,19 @@
   camera.up.set(0, 0, 1);
   camera.position.set(360, -420, 300);
 
-  var controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.target.set(60, 0, 110);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
+  var controls;
+  if (THREE.OrbitControls) {
+    controls = new THREE.OrbitControls(camera, canvas);
+    controls.target.set(60, 0, 110);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 150;
+    controls.maxDistance = 1200;
+    controls.maxPolarAngle = Math.PI * 0.5;
+  } else {
+    controls = { target: { set: function () {} }, update: function () {} };
+    setStatus("OrbitControls 未加载：视角固定", "err");
+  }
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa4b2, 0.95));
   var dir = new THREE.DirectionalLight(0xfff6ec, 1.0);
@@ -267,8 +297,8 @@
     el.value = state[name];
     el.addEventListener("input", function () {
       state[name] = parseFloat(el.value);
-      state.playing = false;
-      $("play").textContent = "▶ 播放抓取动画";
+      stopAnim("手动");
+      animProgress(0);
       applyState();
     });
   });
@@ -279,8 +309,10 @@
     blockMesh.position.set(200, 0, 20);
     $("s-yaw").value = state.yaw; $("s-shoulder").value = state.shoulder;
     $("s-elbow").value = state.elbow; $("s-jaw").value = state.jaw;
-    $("play").textContent = "▶ 播放抓取动画";
+    stopAnim("待机");
+    animProgress(0);
     applyState();
+    toast("已复位", "ok");
   });
 
   // ------------------------------------------------------------------ 动画
@@ -293,6 +325,8 @@
     blockMesh.position.set(200, 0, 20);
     if (state.playing) state.t = 0;
     $("play").textContent = state.playing ? "⏸ 暂停" : "▶ 播放抓取动画";
+    $("phase").textContent = state.playing ? "开始" : "已暂停";
+    if (!state.playing) animProgress(state.t);
   });
 
   function poseAt(t) {
@@ -310,6 +344,7 @@
     state.held = t > SEG * 3.2 && t < SEG * 6.9;
     if (state.held) label = "夹住方块";
     $("phase").textContent = label;
+    animProgress(t);
     applyState();
   }
 
@@ -332,13 +367,22 @@
     side: [[0, -560, 160], [60, 0, 110]],
     top: [[40, -30, 700], [60, 0, 40]]
   };
-  Object.keys(VIEWS).forEach(function (k) {
-    $("view-" + k).addEventListener("click", function () {
-      var v = VIEWS[k];
-      camera.position.set(v[0][0], v[0][1], v[0][2]);
-      controls.target.set(v[1][0], v[1][1], v[1][2]);
-      controls.update();
+  function setView(k) {
+    var v = VIEWS[k];
+    if (!v) return;
+    camera.position.set(v[0][0], v[0][1], v[0][2]);
+    controls.target.set(v[1][0], v[1][1], v[1][2]);
+    controls.update();
+    Object.keys(VIEWS).forEach(function (name) {
+      var b = $("view-" + name);
+      if (!b) return;
+      var on = name === k;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", String(on));
     });
+  }
+  Object.keys(VIEWS).forEach(function (k) {
+    $("view-" + k).addEventListener("click", function () { setView(k); });
   });
 
   // ------------------------------------------------------------------ Web Serial
@@ -356,6 +400,66 @@
   JOINTS.forEach(function (j) {
     fb[j[0]] = { pos: null, speed: 0, load: 0, volts: null, temp: null, status: 0, seen: false };
   });
+
+  function toast(msg, kind) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.className = "toast show" + (kind ? " " + kind : "");
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function () { t.className = "toast"; }, kind === "err" ? 5200 : 3200);
+  }
+
+  function setSerialState(connected, text) {
+    var el = $("serial-state");
+    if (el) {
+      el.textContent = text || (connected ? "已连接" : "未连接");
+      el.className = "pill " + (connected ? "ok" : "");
+    }
+    ["serial-disconnect", "serial-torque", "serial-send", "serial-follow", "serial-record"]
+      .forEach(function (id) { if ($(id)) $(id).disabled = !connected; });
+    var es = $("serial-estop");
+    if (es) { es.disabled = !connected; es.classList.toggle("show", !!connected); }
+  }
+  setSerialState(false);
+
+  var safetyOK = false, pendingSafety = null;
+  function guardSafety(fn) {
+    if (safetyOK || demo) { fn(); return; }
+    pendingSafety = fn;
+    $("safety-check").checked = false;
+    $("safety-ok").disabled = true;
+    $("safety-dialog").showModal();
+  }
+  function closeSafety() {
+    pendingSafety = null;
+    $("safety-dialog").close();
+  }
+  $("safety-check").addEventListener("change", function () {
+    $("safety-ok").disabled = !this.checked;
+  });
+  $("safety-ok").addEventListener("click", function () {
+    if (!$("safety-check").checked) return;
+    safetyOK = true;
+    var fn = pendingSafety;
+    $("safety-dialog").close(); pendingSafety = null;
+    if (fn) fn();
+    toast("已确认安全：本次会话不再重复弹窗", "ok");
+  });
+  $("safety-cancel").addEventListener("click", closeSafety);
+  $("safety-cancel-x").addEventListener("click", closeSafety);
+
+  function animProgress(t) {
+    var total = (S.keyframes.length - 1) * SEG - 0.6;
+    var pct = Math.max(0, Math.min(100, total > 0 ? t / total * 100 : 0));
+    var bar = $("anim-progress"), wrap = bar && bar.parentElement;
+    if (bar) bar.style.width = pct.toFixed(1) + "%";
+    if (wrap) wrap.setAttribute("aria-valuenow", String(Math.round(pct)));
+  }
+  function stopAnim(label) {
+    state.playing = false;
+    $("play").textContent = "▶ 播放抓取动画";
+    $("phase").textContent = label || "待机";
+  }
 
   function frame(id, instr, params) {
     var len = params.length + 2;
@@ -402,26 +506,61 @@
     });
     torqueOn = on;
     $("serial-torque").textContent = on ? "卸力" : "使能扭矩";
-    $("serial-torque").className = on ? "danger" : "";
+    $("serial-torque").className = on ? "action danger" : "action";
     log(on ? "已使能扭矩（保持当前位置）" : "已卸力", on ? "ok" : "");
   }
 
   async function connect() {
     if (!("serial" in navigator)) {
       log("这个浏览器不支持 Web Serial（用 Chrome/Edge，且需 https 或 localhost）", "err");
+      setStatus("当前浏览器不支持 Web Serial", "err");
       return;
     }
+    if (port) { toast("串口已连接，先断开再重选", "warn"); return; }
+    if (demo) {
+      toggleDemo();
+      $("serial-demo").textContent = "演示数据（无硬件）";
+      $("serial-demo").className = "action";
+    }
+    var btn = $("serial-connect");
+    btn.disabled = true; btn.textContent = "选择串口中…";
     try {
       port = await navigator.serial.requestPort();
       await port.open({ baudRate: 1000000 });
       writer = port.writable.getWriter();
-      $("serial-state").textContent = "已连接 1Mbps";
-      $("serial-state").className = "pill ok";
+      setSerialState(true, "已连接 1Mbps");
       log("串口已连接，1Mbps 8N1；先「使能扭矩」再下发", "ok");
+      toast("串口已连接", "ok");
       readLoop();
     } catch (e) {
+      if (port) { try { await port.close(); } catch (err) {} }
+      port = null; writer = null;
+      setSerialState(false, "未连接");
       log("连接失败：" + e.message, "err");
+      toast("连接失败：" + e.message, "err");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = port ? "重新选择串口" : "连接串口";
     }
+  }
+
+  async function disconnect() {
+    reading = false;
+    stopPolling();
+    if (reader) { try { await reader.cancel(); } catch (e) {} }
+    if (writer) { try { writer.releaseLock(); } catch (e) {} writer = null; }
+    if (port) { try { await port.close(); } catch (e) { log("关闭串口：" + e.message, "warn"); } }
+    port = null; reader = null;
+    torqueOn = false;
+    state.follow = false;
+    $("serial-follow").textContent = "跟随反馈";
+    $("serial-follow").className = "action";
+    $("serial-torque").textContent = "使能扭矩";
+    $("serial-torque").className = "action";
+    setSerialState(false, "未连接");
+    $("serial-connect").textContent = "连接串口";
+    log("串口已断开", "ok");
+    toast("串口已断开", "ok");
   }
 
   function onFrame(f) {
@@ -462,11 +601,12 @@
   async function readLoop() {
     if (!port || !port.readable) return;
     reading = true;
-    reader = port.readable.getReader();
+    var rd = port.readable.getReader();
+    reader = rd;
     var buf = [];
     try {
       while (reading) {
-        var r = await reader.read();
+        var r = await rd.read();
         if (r.done) break;
         for (var i = 0; i < r.value.length; i++) buf.push(r.value[i]);
         while (buf.length >= 6) {
@@ -477,9 +617,10 @@
         }
       }
     } catch (e) {
-      log("读失败：" + e.message, "err");
+      if (reading) log("读失败：" + e.message, "err");
     } finally {
-      if (reader) { try { reader.releaseLock(); } catch (e) {} }
+      try { rd.releaseLock(); } catch (e) {}
+      if (reader === rd) reader = null;
     }
   }
 
@@ -524,7 +665,10 @@
   }
 
   $("serial-connect").addEventListener("click", connect);
-  $("serial-torque").addEventListener("click", function () { setTorque(!torqueOn); });
+  $("serial-disconnect").addEventListener("click", disconnect);
+  $("serial-torque").addEventListener("click", function () {
+    guardSafety(function () { setTorque(!torqueOn); });
+  });
 
   $("serial-estop").addEventListener("click", function () {
     if (!writer) { log("未连接：急停请直接关主电源", "err"); return; }
@@ -532,8 +676,11 @@
       send(frame(S.ids[j[0]], 0x03, [REG_TORQUE, 0]), "卸力 ID " + S.ids[j[0]]);
     });
     torqueOn = false;
+    state.follow = false;
+    $("serial-follow").textContent = "跟随反馈";
+    $("serial-follow").className = "action";
     $("serial-torque").textContent = "使能扭矩";
-    $("serial-torque").className = "";
+    $("serial-torque").className = "action";
     log("已全部卸力", "ok");
   });
 
@@ -541,25 +688,28 @@
     if (!writer) { log("先连接串口", "err"); return; }
     state.follow = !state.follow;
     $("serial-follow").textContent = state.follow ? "停止跟随" : "跟随反馈";
-    $("serial-follow").className = state.follow ? "primary" : "";
+    $("serial-follow").className = state.follow ? "action primary" : "action";
     if (state.follow) { startPolling(); log("跟随：每 250ms 读 0x38 + 0x41（只读）", "ok"); }
     else { stopPolling(); log("停止跟随"); }
   });
 
   $("serial-send").addEventListener("click", function () {
     if (!writer) { log("未连接", "err"); return; }
-    if (!torqueOn) {
-      setTorque(true);
-      log("下发前自动使能扭矩；若姿态差很多请先手动摆近", "ok");
-    }
-    JOINTS.forEach(function (j) {
-      var name = j[0], t = ticks(targetOf(name));
-      // 0x2A 起 6 字节：位置(2) + 时间(2) + 速度(2)。时间 0 = 用速度控制
-      send(frame(S.ids[name], 0x03, [REG_GOAL, t & 0xff, t >> 8, 0, 0, 0xE8, 0x03]),
-           null, true);
+    guardSafety(function () {
+      if (!torqueOn) {
+        setTorque(true);
+        log("下发前自动使能扭矩；若姿态差很多请先手动摆近", "ok");
+      }
+      JOINTS.forEach(function (j) {
+        var name = j[0], t = ticks(targetOf(name));
+        // 0x2A 起 6 字节：位置(2) + 时间(2) + 速度(2)。时间 0 = 用速度控制
+        send(frame(S.ids[name], 0x03, [REG_GOAL, t & 0xff, t >> 8, 0, 0, 0xE8, 0x03]),
+             null, true);
+      });
+      log("已下发 4 轴目标（速度 1000）", "ok");
+      toast("已下发姿态", "ok");
+      startPolling();
     });
-    log("已下发 4 轴目标（速度 1000）", "ok");
-    startPolling();
   });
 
   function pushCsv(name) {
@@ -574,13 +724,13 @@
       csv = ["time_ms,joint,id,target_deg,actual_deg,err_deg,temp_c,volts_v,load,status"];
       recording = true;
       $("serial-record").textContent = "停止并下载 CSV";
-      $("serial-record").className = "primary";
+      $("serial-record").className = "action primary";
       log("开始记录（跟随/轮询时写入）", "ok");
       startPolling();
     } else {
       recording = false;
       $("serial-record").textContent = "开始记录 CSV";
-      $("serial-record").className = "";
+      $("serial-record").className = "action";
       var blob = new Blob([csv.join("\n")], { type: "text/csv" });
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -616,22 +766,90 @@
     }
   }
   $("serial-demo").addEventListener("click", function () {
+    if (port) { toast("先断开串口再进入演示数据", "warn"); return; }
     toggleDemo();
     $("serial-demo").textContent = demo ? "退出演示数据" : "演示数据（无硬件）";
-    $("serial-demo").className = demo ? "primary" : "";
+    $("serial-demo").className = demo ? "action primary" : "action";
   });
   // 通过 ?demo 自动进入，方便截图与自测
   if (/[?&]demo/.test(location.search)) {
     toggleDemo();
     $("serial-demo").textContent = "退出演示数据";
-    $("serial-demo").className = "primary";
+    $("serial-demo").className = "action primary";
+    switchPanel("hardware");
   }
+
+  // ------------------------------------------------------------------ 面板 / 帮助 / 快捷键
+  function switchPanel(name) {
+    if (name !== "hardware") name = "model";
+    var model = name === "model";
+    $("tabbtn-model").setAttribute("aria-selected", String(model));
+    $("tabbtn-hardware").setAttribute("aria-selected", String(!model));
+    $("tabbtn-model").tabIndex = model ? 0 : -1;
+    $("tabbtn-hardware").tabIndex = model ? -1 : 0;
+    $("panel-model").hidden = !model;
+    $("panel-hardware").hidden = model;
+    try { history.replaceState(null, "", location.pathname + location.search + "#" + name); } catch (e) {}
+  }
+  $("tabbtn-model").addEventListener("click", function () { switchPanel("model"); });
+  $("tabbtn-hardware").addEventListener("click", function () { switchPanel("hardware"); });
+  [$("tabbtn-model"), $("tabbtn-hardware")].forEach(function (b) {
+    b.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      var next = this.id === "tabbtn-model" ? "hardware" : "model";
+      switchPanel(next);
+      $(next === "model" ? "tabbtn-model" : "tabbtn-hardware").focus();
+    });
+  });
+  if (location.hash === "#hardware") switchPanel("hardware");
+  window.addEventListener("hashchange", function () {
+    switchPanel(location.hash === "#hardware" ? "hardware" : "model");
+  });
+
+  function openHelp() { $("help-dialog").showModal(); }
+  function closeHelp() { $("help-dialog").close(); }
+  $("help").addEventListener("click", openHelp);
+  $("close-help").addEventListener("click", closeHelp);
+  $("help-ok").addEventListener("click", closeHelp);
+
+  var tip = $("tip");
+  try {
+    if (localStorage.getItem("modkit.tip.dismissed") === "1") tip.hidden = true;
+  } catch (e) {}
+  $("dismiss-tip").addEventListener("click", function () {
+    tip.hidden = true;
+    try { localStorage.setItem("modkit.tip.dismissed", "1"); } catch (e) {}
+  });
+
+  $("clear-log").addEventListener("click", function () { $("log").textContent = ""; });
+
+  document.addEventListener("keydown", function (e) {
+    if (document.querySelector("dialog[open]")) return;
+    var tag = (e.target && e.target.tagName) || "";
+    if (/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(tag) || (e.target && e.target.isContentEditable)) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (!e.repeat) $("play").click();
+    } else if (e.code === "KeyR") {
+      e.preventDefault(); $("reset").click();
+    } else if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+      e.preventDefault(); openHelp();
+    } else if (/^Digit[1-4]$/.test(e.code)) {
+      e.preventDefault();
+      setView(["iso", "front", "side", "top"][Number(e.code.slice(-1)) - 1]);
+    }
+  });
+
+  $("safety-dialog").addEventListener("cancel", function () {
+    pendingSafety = null;
+  });
 
   // ------------------------------------------------------------------ 渲染循环
   function resize() {
     var w = canvas.clientWidth, h = canvas.clientHeight;
     if (w === 0 || h === 0) return;
-    renderer.setSize(w, h, false);
+    if (renderer) renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
@@ -644,7 +862,7 @@
     last = now;
     try { tickAnim(dt); } catch (e) { setStatus("动画异常：" + e.message, "err"); state.playing = false; }
     controls.update();
-    renderer.render(scene, camera);
+    if (renderer) renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
 
@@ -655,6 +873,7 @@
     state.t = parseFloat(mT[1]);
     poseAt(state.t);
     $("play").textContent = "▶ 播放抓取动画";
+    $("phase").textContent = "预览";
   } else if (/autoplay/.test(location.search)) {
     state.playing = true;
     $("play").textContent = "⏸ 暂停";
@@ -662,6 +881,7 @@
 
   applyState();
   resize();
-  setStatus("就绪：拖动滑杆改关节角，或点「播放抓取动画」", "ok");
+  if (renderer) setStatus("就绪：拖动滑杆改关节角，或点「播放抓取动画」", "ok");
+  else setStatus("3D 不可用：参数面板仍可用；换浏览器或开启硬件加速", "err");
   requestAnimationFrame(loop);
 })();

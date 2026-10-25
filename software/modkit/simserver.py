@@ -318,10 +318,12 @@ def make_handler(session: SimSession):
             path = urlsplit(self.path).path
             if path in ("/", "/index.html"):
                 self._send(200, _HTML.read_bytes(), "text/html; charset=utf-8")
-            elif path == "/vendor/three.min.js":
+            elif path in ("/vendor/three.min.js", "/vendor/OrbitControls.js"):
                 data = (pathlib.Path(__file__).resolve().parents[2] /
-                        "web" / "vendor" / "three.min.js").read_bytes()
+                        "web" / "vendor" / path.rsplit("/", 1)[-1]).read_bytes()
                 self._send(200, data, "text/javascript; charset=utf-8")
+            elif path == "/favicon.ico":
+                self._send(204, b"", "image/x-icon")
             elif path.startswith("/api/state"):
                 self._json(session.state())
             elif path.startswith("/api/camera"):

@@ -67,6 +67,12 @@ class Robot:
             temp_c=raw[7],
         )
 
+    def status(self, sid: int) -> int:
+        f = self.link.transact(
+            p.encode(sid, p.READ, bytes([p.REG_STATUS, 1])), sid, 0.05
+        )
+        return f.params[0] if f.params else 0
+
     def position_ticks(self, sid: int) -> int:
         f = self.link.transact(
             p.encode(sid, p.READ, bytes([p.REG_PRESENT_POS, 2])), sid, 0.05

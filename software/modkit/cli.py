@@ -25,6 +25,7 @@ from . import selftest as st
 from . import kinematics as kin
 from . import nav as nv
 from . import mission as ms
+from . import telemetry as tm
 from . import vision as vis
 from . import protocol as p
 from .bus import SerialLink, SimLink
@@ -290,6 +291,35 @@ def cmd_backlash(args) -> int:
         print(f"已写入 {out}（可直接给 Compensator.load 用）")
         return 0 if jp.ok else 1
     raise SystemExit("未知动作")
+
+
+def cmd_record(args) -> int:
+    link = _make_link(args)
+    bot = Robot(link)
+    ids = [int(v) for v in args.ids.split(",")]
+    path, n = tm.record(bot, ids, args.seconds, args.hz, args.out)
+    sm = tm.summarize(tm.read_log(path))
+    print(f"已记录 {n} 条 → {path}")
+    print(f"电压 {sm['v_min']}–{sm['v_max']}V，最高温 {sm['t_max']}℃，"
+          f"故障 {sm['faults']} 条")
+    return 0
+
+
+def cmd_replay(args) -> int:
+    try:
+        samples = tm.read_log(args.log)
+    except FileNotFoundError:
+        sys.exit(f"没有这个日志：{args.log}")
+    sm = tm.summarize(samples)
+    if args.json:
+        out = pathlib.Path(args.json)
+        out.write_text(json.dumps(sm, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"已写入 {out}")
+    else:
+        print(json.dumps(sm, ensure_ascii=False, indent=2))
+    pct, state = tm.battery(sm.get("v_end", 12.0))
+    print(f"末电压 {sm.get('v_end')}V ≈ {pct:.0f}%（{state}）")
+    return 0
 
 
 def cmd_mission(args) -> int:
@@ -590,6 +620,18 @@ def main(argv: list[str] | None = None) -> int:
     nvp.add_argument("--closed-loop", action="store_true",
                      help="用里程计反馈闭环（目前仅 --sim）")
     nvp.set_defaults(func=cmd_nav)
+
+    rc = sub.add_parser("record", help="记录舵机反馈到 CSV")
+    rc.add_argument("--ids", default="1,2,3,4")
+    rc.add_argument("--seconds", type=float, default=3.0)
+    rc.add_argument("--hz", type=float, default=5.0)
+    rc.add_argument("--out", default="telemetry.csv")
+    rc.set_defaults(func=cmd_record)
+
+    rp = sub.add_parser("replay", help="回放/汇总 CSV 日志")
+    rp.add_argument("--log", required=True)
+    rp.add_argument("--json", help="另存汇总 JSON")
+    rp.set_defaults(func=cmd_replay)
 
     mp = sub.add_parser("mission", help="M4 任务状态机（目前仅 --sim）")
     mp.add_argument("--pick", type=lambda s: tuple(float(v) for v in s.split(",")),

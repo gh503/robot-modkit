@@ -228,3 +228,24 @@ def format_status(rec: Commission) -> str:
     else:
         lines.append("这是 simulated 演示，不计入物理；开始实测请新建记录。")
     return "\n".join(lines)
+
+
+def readonly_check(bot, expect: int = 6) -> dict:
+    """只读检查：scan + 读反馈，不发任何运动/扭矩指令。"""
+    ids = bot.scan()
+    rows = []
+    faults = 0
+    for sid in ids:
+        try:
+            fb = bot.feedback(sid)
+            rows.append({"id": sid, "position_deg": round(fb.position_deg, 1),
+                         "voltage": round(fb.voltage, 2), "temp_c": fb.temp_c,
+                         "faults": fb.faults})
+            if fb.faults:
+                faults += 1
+        except Exception as e:  # 单个舵机读失败不影响其余
+            rows.append({"id": sid, "error": f"{type(e).__name__}: {e}"})
+            faults += 1
+    return {"ids": ids, "count": len(ids), "expect": expect,
+            "ok": len(ids) >= expect and faults == 0,
+            "faults": faults, "rows": rows}

@@ -441,6 +441,28 @@ def cmd_bringup(args) -> int:
         print("下一步：按 docs/42 §3 做第 1 步，再 record。")
         print(bu.format_steps(rec))
         return 0
+    if args.action == "check":
+        if args.sim:
+            link = SimLink(list(range(1, 7)))
+        elif args.port:
+            link = SerialLink(args.port, args.baud).open()
+        else:
+            sys.exit("check 需要 --port 或 --sim（只读，不会动）")
+        try:
+            res = bu.readonly_check(Robot(link), args.expect)
+        finally:
+            if hasattr(link, "close"):
+                link.close()
+        print(f"只读扫描：{res['count']}/{res['expect']} 个；故障 {res['faults']}")
+        for r in res["rows"]:
+            if "error" in r:
+                print(f"  ID {r['id']}: 读失败 {r['error']}")
+            else:
+                print(f"  ID {r['id']}: {r['position_deg']:6.1f}°  {r['voltage']:.2f}V  "
+                      f"{r['temp_c']}℃" + (f"  故障 {r['faults']}" if r["faults"] else ""))
+        print("下一步：把输出存成 logs/scan.txt，再 --action record --step 2。")
+        return 0 if res["ok"] else 1
+
     if args.action == "simulate":
         rec = bu.Commission.simulated(args.serial or "DEMO-0000", args.operator or "sim")
         rec.save(path)
@@ -922,7 +944,7 @@ def main(argv: list[str] | None = None) -> int:
 
     bup = sub.add_parser("bringup", help="硬件 bring-up 11 步证据（不代替实测）")
     bup.add_argument("--action", default="status",
-                     choices=["list", "init", "record", "status", "simulate", "verify"])
+                     choices=["list", "init", "record", "status", "check", "simulate", "verify"])
     bup.add_argument("--file", default="records/bringup.json")
     bup.add_argument("--serial")
     bup.add_argument("--operator")
@@ -931,6 +953,9 @@ def main(argv: list[str] | None = None) -> int:
     bup.add_argument("--evidence")
     bup.add_argument("--note")
     bup.add_argument("--json")
+    bup.add_argument("--expect", type=int, default=6)
+    bup.add_argument("--sim", action="store_true", default=argparse.SUPPRESS,
+                     help="只读仿真检查（也可用全局 --sim）")
     bup.add_argument("--force", action="store_true")
     bup.set_defaults(func=cmd_bringup)
 

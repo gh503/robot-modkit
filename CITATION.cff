@@ -1,4 +1,4 @@
-cff-version: 1.2.0
+cff-version: 1.2.1
 message: "如果这个项目对你的工作有帮助，请按以下格式引用。"
 title: "modkit：可拆装模块化机器人（差速底盘 + 4 自由度臂 + 夹爪）"
 abstract: >-
@@ -8,7 +8,7 @@ abstract: >-
 authors:
   - alias: gh503
     name: gh503
-version: 1.2.0
+version: 1.2.1
 date-released: 2026-10-25
 license: MIT
 repository-code: "https://github.com/gh503/robot-modkit"

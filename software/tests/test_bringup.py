@@ -53,3 +53,12 @@ def test_milestone_needs_all_steps(tmp_path):
     assert c.milestone("M1") == "pass"
     assert c.milestone("M2") == "pending"
     assert c.next_step().n == 4
+
+
+def test_readonly_check_does_not_move():
+    from modkit.bus import SimLink
+    from modkit.robot import Robot
+    bot = Robot(SimLink(list(range(1, 7))))
+    res = bu.readonly_check(bot, expect=6)
+    assert res["ok"] and res["count"] == 6 and res["faults"] == 0
+    assert all(r["position_deg"] == 180.0 for r in res["rows"])

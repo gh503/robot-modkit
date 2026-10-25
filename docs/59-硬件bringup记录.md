@@ -16,6 +16,11 @@
 # 看 11 步与对应闸门
 modkit bringup --action list
 
+# 只读检查：scan + 读反馈；不发运动/扭矩指令
+modkit --port /dev/ttyUSB0 bringup --action check
+# 无硬件时只读仿真
+modkit bringup --action check --sim
+
 # 建记录（序列号建议与质检记录一致）
 modkit bringup --action init --serial M1-2026-0001 --operator 老王
 
@@ -77,5 +82,5 @@ modkit bringup --action simulate --file /tmp/demo-bringup.json
 
 ## 6. 测试
 
-`software/tests/test_bringup.py` 5 项：步骤唯一、pass 必须有非空证据、sha256 篡改可抓、
-simulated 不计入物理、里程碑必须全步通过。
+`software/tests/test_bringup.py` 6 项：步骤唯一、pass 必须有非空证据、sha256 篡改可抓、
+simulated 不计入物理、里程碑必须全步通过、只读检查不动关节。

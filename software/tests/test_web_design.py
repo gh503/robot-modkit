@@ -178,6 +178,18 @@ def test_mesh_collision_and_torque_ui():
         assert token in core
 
 
+def test_landed_cost_ui_and_stage_presets():
+    design = (WEB / "design.html").read_text(encoding="utf-8")
+    for key in ('value="bench_joint"', 'value="bench_arm"', 'value="rover_base"',
+                'value="m1_pen"', 'id="landed"', 'id="export-procure"'):
+        assert key in design, key
+    js = (WEB / "designer.js").read_text(encoding="utf-8")
+    for token in ("function landedCost", "function exportProcure", "0.08", "target"):
+        assert token in js, token
+    data = (WEB / "data" / "assemblies.js").read_text(encoding="utf-8")
+    assert '"m1_pen"' in data and '"bench_joint"' in data
+
+
 def test_mobile_a11y_i18n_and_pwa_install():
     design = (WEB / "design.html").read_text(encoding="utf-8")
     view = (WEB / "view.html").read_text(encoding="utf-8")

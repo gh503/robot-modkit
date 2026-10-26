@@ -51,7 +51,11 @@
     <div class="stagebar">
       <label for="preset" data-i18n="preset">预设</label>
       <select id="preset" aria-label="加载预设装配">
-        <option value="m1_budget">M1 预算版 · ¥968</option>
+        <option value="bench_joint">阶段 0 · 单关节台架</option>
+        <option value="bench_arm">阶段 1 · 三轴笔架</option>
+        <option value="rover_base">阶段 2 · 差速底盘</option>
+        <option value="m1_pen">阶段 3 · 预算绘图车 · 落地 ¥961</option>
+        <option value="m1_budget">M1 预算版 · BOM ¥968</option>
         <option value="m1">M1 塔式</option>
         <option value="mini_rover">迷你轮式</option>
         <option value="pan_tilt">云台</option>
@@ -163,7 +167,11 @@
       <div class="sect">
         <h2>BOM 估算</h2>
         <div class="tablewrap"><table class="bom" id="bom"></table></div>
+        <div id="landed" class="landed"></div>
         <div class="note" id="bom-note"></div>
+        <div class="actions">
+          <button class="btn" id="export-procure" data-i18n="btn.procure">下载采购清单 CSV</button>
+        </div>
       </div>
       <div class="sect">
         <h2>预算优化</h2>

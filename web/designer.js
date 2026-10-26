@@ -33,7 +33,7 @@
     projectId: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.23.0";
+  var STUDIO_VERSION = "1.24.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -1346,20 +1346,43 @@
     });
   }
 
+  function landedCost(r) {
+    var parts = r.totalCost || 0;
+    var spares = parts * 0.08;
+    var shipping = 30, wire = 25;
+    var total = parts + spares + shipping + wire;
+    var budget = state.assembly && state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
+    var target = (budget - shipping - wire) / 1.08;
+    return { parts: parts, spares: spares, shipping: shipping, wire: wire,
+      total: total, budget: budget, target: Math.max(0, target), over: Math.max(0, total - budget) };
+  }
+
   function renderBOM() {
     var r = state.report;
-    if (!r || !r.bom.length) { $("bom").innerHTML = ""; $("bom-note").textContent = ""; return; }
+    if (!r || !r.bom.length) { $("bom").innerHTML = ""; if ($("landed")) $("landed").innerHTML = ""; $("bom-note").textContent = ""; return; }
     var html = '<thead><tr><th>物料</th><th>规格</th><th>数量</th><th>单价</th><th>小计</th></tr></thead><tbody>';
     r.bom.forEach(function (b) {
       html += '<tr><td>' + esc(b.name) + '</td><td>' + esc(b.spec) + '</td><td class="n">' + b.qty + '</td><td class="n">¥' + b.unit_cost + '</td><td class="n">¥' + Math.round(b.cost) + '</td></tr>';
     });
     html += '</tbody>';
     $("bom").innerHTML = html;
-    var budget = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
-    var over = r.totalCost > budget;
-    $("bom-note").innerHTML = '合计 <b>¥' + Math.round(r.totalCost) + '</b>、约 <b>' + Math.round(r.totalMass) + 'g</b>；预算 <b>¥' + Math.round(budget) + '</b>，' +
-      (over ? '<b style="color:var(--bad)">超 ¥' + Math.round(r.totalCost - budget) + '</b>' : '<b style="color:var(--ok)">余 ¥' + Math.round(budget - r.totalCost) + '</b>') +
-      '。这是组件库保守估算，不是供应商报价；打印件/线材/紧固件按 BOM 行计。';
+    var e = landedCost(r);
+    if ($("landed")) {
+      $("landed").innerHTML = '<div class="landed-head">落地成本 <b>¥' + Math.round(e.total) +
+        '</b><span class="' + (e.over > 0 ? "bad" : "ok") + '">' +
+        (e.over > 0 ? '超预算 ¥' + Math.round(e.over) : '预算内 · 余 ¥' + Math.round(e.budget - e.total)) +
+        '</span></div><div class="landed-grid">' +
+        '<span>BOM ¥' + Math.round(e.parts) + '</span>' +
+        '<span>备件 8% ¥' + Math.round(e.spares) + '</span>' +
+        '<span>运费 ¥' + e.shipping + '</span>' +
+        '<span>线材 ¥' + e.wire + '</span></div>';
+    }
+    $("bom-note").innerHTML = 'BOM <b>¥' + Math.round(r.totalCost) + '</b>、约 <b>' + Math.round(r.totalMass) +
+      'g</b>；落地 <b>¥' + Math.round(e.total) + '</b>（含 8% 备件/¥' + e.shipping + ' 运费/¥' + e.wire +
+      ' 线材端子）。预算 <b>¥' + Math.round(e.budget) + '</b>；' +
+      (e.over > 0 ? '要落地 ≤ 预算，BOM 需 ≤ <b>¥' + Math.round(e.target) + '</b>（当前多 ¥' +
+        Math.round(e.parts - e.target) + '）' : '当前落地价在预算内') +
+      '。单价是组件库保守估算，不是供应商报价。';
   }
 
   function renderPlan() {
@@ -1610,6 +1633,19 @@
     var csv = rows.map(function (r) { return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","); }).join("\n");
     download(designFileName("csv"), new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
     toast("已导出 BOM CSV", "ok");
+  }
+  function exportProcure() {
+    if (!state.report) return;
+    var rows = [["类别", "物料", "规格", "用量", "采购/打印量", "备件", "单价", "小计", "备注"]];
+    state.report.bom.forEach(function (b) {
+      rows.push([b.category === "purchased" ? "采购" : "打印/自制", b.name, b.spec,
+        b.qty, b.qty, 0, b.unit_cost, b.cost, b.category === "purchased" ? "采购" : "打印/自制"]);
+    });
+    var csv = rows.map(function (r) {
+      return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",");
+    }).join("\n");
+    download(designFileName("procure.csv"), new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+    toast("已导出采购清单 CSV（备件预算见 BOM 说明）", "ok");
   }
   function exportSVG() {
     if (!state.report) return;
@@ -2105,6 +2141,7 @@
     $("export-optimizer").addEventListener("click", exportOptimizerReport);
     $("export-json").addEventListener("click", exportJSON);
     $("export-csv").addEventListener("click", exportCSV);
+    if ($("export-procure")) $("export-procure").addEventListener("click", exportProcure);
     $("export-stl").addEventListener("click", exportSTL);
     $("export-glb").addEventListener("click", exportGLB);
     $("export-3mf").addEventListener("click", export3MF);

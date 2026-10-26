@@ -1,0 +1,84 @@
+{
+  "name": "bench-arm",
+  "description": "三自由度桌面笔架：偏航/肩/肘 + 笔夹；主控/电源/急停放桌面，先验证逆解与画图。",
+  "budget_cny": 800,
+  "payload_g": 0,
+  "max_accel_m_s2": 0.2,
+  "components": [
+    {
+      "id": "deck",
+      "type": "frame.deck_160x100"
+    },
+    {
+      "id": "yaw",
+      "type": "joint.yaw",
+      "parent": "deck",
+      "port": "top",
+      "servo_id": 1
+    },
+    {
+      "id": "a1",
+      "type": "adapter.disc_grid",
+      "parent": "yaw",
+      "port": "out"
+    },
+    {
+      "id": "shoulder",
+      "type": "joint.pitch",
+      "parent": "a1",
+      "port": "out",
+      "servo_id": 2
+    },
+    {
+      "id": "a2",
+      "type": "adapter.disc_grid",
+      "parent": "shoulder",
+      "port": "out"
+    },
+    {
+      "id": "upper",
+      "type": "link.beam_100",
+      "parent": "a2",
+      "port": "out"
+    },
+    {
+      "id": "elbow",
+      "type": "joint.elbow",
+      "parent": "upper",
+      "port": "out",
+      "servo_id": 3
+    },
+    {
+      "id": "a3",
+      "type": "adapter.disc_grid",
+      "parent": "elbow",
+      "port": "out"
+    },
+    {
+      "id": "pen",
+      "type": "tool.pen",
+      "parent": "a3",
+      "port": "out"
+    },
+    {
+      "id": "esp32",
+      "type": "electronics.esp32",
+      "offboard": true
+    },
+    {
+      "id": "buck",
+      "type": "electronics.buck_5v",
+      "offboard": true
+    },
+    {
+      "id": "estop",
+      "type": "power.estop",
+      "offboard": true
+    },
+    {
+      "id": "pwr",
+      "type": "power.adapter_12v5a",
+      "offboard": true
+    }
+  ]
+}

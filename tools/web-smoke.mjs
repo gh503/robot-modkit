@@ -124,13 +124,16 @@ async function main() {
   await cdp.send("Network.enable");
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
 
-  await run("Studio 打开且 7 个预设", async () => {
+  await run("Studio 打开且 11 个预设", async () => {
     await cdp.navigate(`${BASE}/design.html?smoke=1`);
     await waitFor(() => cdp.eval("!!window.MODKIT_STUDIO && !!window.MODKIT_ASSEMBLIES"), 8000, "Studio 初始化");
     const presets = await cdp.eval("Object.keys(window.MODKIT_ASSEMBLIES).sort()");
-    check(presets.length === 7, `预设数 ${presets.length} != 7`);
+    check(presets.length === 11, `预设数 ${presets.length} != 11`);
     const options = await cdp.eval('document.querySelectorAll("#preset option").length');
-    check(options >= 7, `预设下拉只有 ${options} 项`);
+    check(options >= 11, `预设下拉只有 ${options} 项`);
+    for (const k of ["bench_joint", "bench_arm", "rover_base", "m1_pen"]) {
+      check(presets.includes(k), `缺少阶段预设 ${k}`);
+    }
   });
 
   await run("逐个预设求解", async () => {
@@ -262,7 +265,44 @@ async function main() {
     check(r.cards >= 1 && r.planShown, "约束 UI 没有渲染");
   });
 
+  await run("分阶段/落地成本", async () => {
+    await cdp.eval('MODKIT_STUDIO.loadPreset("m1_budget")');
+    await sleep(200);
+    const budget = await cdp.eval(`(() => ({
+      landed: document.getElementById("landed").textContent,
+      note: document.getElementById("bom-note").textContent,
+      btn: !!document.getElementById("export-procure")
+    }))()`);
+    check(budget.landed.includes("1100") && budget.landed.includes("超预算"), "m1_budget 落地价不超预算？");
+    check(budget.note.includes("875"), "没有给出落地预算反推 BOM 上限");
+    check(budget.btn, "缺少采购清单导出按钮");
+
+    await cdp.eval('MODKIT_STUDIO.loadPreset("bench_joint")');
+    await sleep(200);
+    const stage = await cdp.eval(`(() => ({
+      cost: MODKIT_STUDIO.state.report.totalCost,
+      landed: document.getElementById("landed").textContent,
+      ok: MODKIT_STUDIO.state.report.ok
+    }))()`);
+    check(Math.abs(stage.cost - 288) < 1, `单关节 BOM ¥${stage.cost}`);
+    check(stage.landed.includes("366") && stage.landed.includes("预算内"), "单关节落地价不对");
+    check(stage.ok, "单关节台架校验失败");
+
+    await cdp.eval('MODKIT_STUDIO.loadPreset("m1_pen")');
+    await sleep(200);
+    const pen = await cdp.eval(`(() => ({
+      cost: MODKIT_STUDIO.state.report.totalCost,
+      landed: document.getElementById("landed").textContent,
+      ok: MODKIT_STUDIO.state.report.ok
+    }))()`);
+    check(Math.abs(pen.cost - 839) < 1, `绘图车 BOM ¥${pen.cost}`);
+    check(pen.landed.includes("961") && pen.landed.includes("预算内"), "绘图车落地价不在预算内");
+    check(pen.ok, "绘图车校验失败");
+  });
+
   await run("网格碰撞/关节力矩", async () => {
+    await cdp.eval('MODKIT_STUDIO.loadPreset("m1")');
+    await sleep(200);
     const r = await cdp.eval(`(() => {
       const A = window.MODKIT_ASSEMBLY, m = window.MODKIT_ASSEMBLIES.m1;
       const rep = A.validate(m);
@@ -409,7 +449,7 @@ async function main() {
     console.error(`\nweb smoke: ${failures} 项失败`);
     process.exit(1);
   }
-  console.log("\nweb smoke: PASS（13 项）");
+  console.log("\nweb smoke: PASS（14 项）");
 }
 
 main().catch((e) => {

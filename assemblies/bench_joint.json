@@ -1,0 +1,46 @@
+{
+  "name": "bench-joint",
+  "description": "单关节台架：桌面电源/主控/急停放在桌面上，只有关节和转接板装在甲板上。",
+  "budget_cny": 400,
+  "payload_g": 0,
+  "max_accel_m_s2": 0.2,
+  "components": [
+    {
+      "id": "deck",
+      "type": "frame.deck_160x100"
+    },
+    {
+      "id": "joint",
+      "type": "joint.yaw",
+      "parent": "deck",
+      "port": "top",
+      "servo_id": 1
+    },
+    {
+      "id": "adapter",
+      "type": "adapter.disc_grid",
+      "parent": "joint",
+      "port": "out"
+    },
+    {
+      "id": "esp32",
+      "type": "electronics.esp32",
+      "offboard": true
+    },
+    {
+      "id": "buck",
+      "type": "electronics.buck_5v",
+      "offboard": true
+    },
+    {
+      "id": "estop",
+      "type": "power.estop",
+      "offboard": true
+    },
+    {
+      "id": "pwr",
+      "type": "power.adapter_12v5a",
+      "offboard": true
+    }
+  ]
+}

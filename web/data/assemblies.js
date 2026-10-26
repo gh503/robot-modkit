@@ -106,6 +106,136 @@ window.MODKIT_ASSEMBLIES = {
    }
   ]
  },
+ "bench_arm": {
+  "name": "bench-arm",
+  "description": "三自由度桌面笔架：偏航/肩/肘 + 笔夹；主控/电源/急停放桌面，先验证逆解与画图。",
+  "budget_cny": 800,
+  "payload_g": 0,
+  "max_accel_m_s2": 0.2,
+  "components": [
+   {
+    "id": "deck",
+    "type": "frame.deck_160x100"
+   },
+   {
+    "id": "yaw",
+    "type": "joint.yaw",
+    "parent": "deck",
+    "port": "top",
+    "servo_id": 1
+   },
+   {
+    "id": "a1",
+    "type": "adapter.disc_grid",
+    "parent": "yaw",
+    "port": "out"
+   },
+   {
+    "id": "shoulder",
+    "type": "joint.pitch",
+    "parent": "a1",
+    "port": "out",
+    "servo_id": 2
+   },
+   {
+    "id": "a2",
+    "type": "adapter.disc_grid",
+    "parent": "shoulder",
+    "port": "out"
+   },
+   {
+    "id": "upper",
+    "type": "link.beam_100",
+    "parent": "a2",
+    "port": "out"
+   },
+   {
+    "id": "elbow",
+    "type": "joint.elbow",
+    "parent": "upper",
+    "port": "out",
+    "servo_id": 3
+   },
+   {
+    "id": "a3",
+    "type": "adapter.disc_grid",
+    "parent": "elbow",
+    "port": "out"
+   },
+   {
+    "id": "pen",
+    "type": "tool.pen",
+    "parent": "a3",
+    "port": "out"
+   },
+   {
+    "id": "esp32",
+    "type": "electronics.esp32",
+    "offboard": true
+   },
+   {
+    "id": "buck",
+    "type": "electronics.buck_5v",
+    "offboard": true
+   },
+   {
+    "id": "estop",
+    "type": "power.estop",
+    "offboard": true
+   },
+   {
+    "id": "pwr",
+    "type": "power.adapter_12v5a",
+    "offboard": true
+   }
+  ]
+ },
+ "bench_joint": {
+  "name": "bench-joint",
+  "description": "单关节台架：桌面电源/主控/急停放在桌面上，只有关节和转接板装在甲板上。",
+  "budget_cny": 400,
+  "payload_g": 0,
+  "max_accel_m_s2": 0.2,
+  "components": [
+   {
+    "id": "deck",
+    "type": "frame.deck_160x100"
+   },
+   {
+    "id": "joint",
+    "type": "joint.yaw",
+    "parent": "deck",
+    "port": "top",
+    "servo_id": 1
+   },
+   {
+    "id": "adapter",
+    "type": "adapter.disc_grid",
+    "parent": "joint",
+    "port": "out"
+   },
+   {
+    "id": "esp32",
+    "type": "electronics.esp32",
+    "offboard": true
+   },
+   {
+    "id": "buck",
+    "type": "electronics.buck_5v",
+    "offboard": true
+   },
+   {
+    "id": "estop",
+    "type": "power.estop",
+    "offboard": true
+   },
+   {
+    "id": "pwr",
+    "type": "power.adapter_12v5a",
+    "offboard": true
+   }
+  ]
+ },
  "m1": {
   "name": "modkit-m1-standard",
   "description": "标准 M1：240×200 差速底盘 + 3 关节 + 40mm 夹爪；四自由度（含夹爪）。",
@@ -368,6 +498,127 @@ window.MODKIT_ASSEMBLIES = {
    }
   ]
  },
+ "m1_pen": {
+  "name": "modkit-m1-pen",
+  "description": "预算绘图车：240 底盘 + 偏航/肩 + 固定上臂 + 笔夹；两关节平面绘图，落地 ≤¥1000。",
+  "budget_cny": 1000,
+  "payload_g": 0,
+  "max_accel_m_s2": 0.5,
+  "components": [
+   {
+    "id": "chassis",
+    "type": "frame.chassis_240"
+   },
+   {
+    "id": "drive_l",
+    "type": "drive.wheel_65",
+    "parent": "chassis",
+    "port": "drive_left",
+    "servo_id": 4
+   },
+   {
+    "id": "drive_r",
+    "type": "drive.wheel_65",
+    "parent": "chassis",
+    "port": "drive_right",
+    "servo_id": 5
+   },
+   {
+    "id": "caster_f",
+    "type": "drive.caster",
+    "parent": "chassis",
+    "port": "caster_front"
+   },
+   {
+    "id": "caster_r",
+    "type": "drive.caster",
+    "parent": "chassis",
+    "port": "caster_rear"
+   },
+   {
+    "id": "esp32",
+    "type": "electronics.esp32",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     60,
+     -60
+    ]
+   },
+   {
+    "id": "buck",
+    "type": "electronics.buck_5v",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     80,
+     -20
+    ]
+   },
+   {
+    "id": "pwr",
+    "type": "power.adapter_12v5a",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     -60,
+     -60
+    ]
+   },
+   {
+    "id": "estop",
+    "type": "power.estop",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     -60,
+     60
+    ]
+   },
+   {
+    "id": "yaw",
+    "type": "joint.yaw",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     20,
+     0
+    ],
+    "servo_id": 1
+   },
+   {
+    "id": "a1",
+    "type": "adapter.disc_grid",
+    "parent": "yaw",
+    "port": "out"
+   },
+   {
+    "id": "shoulder",
+    "type": "joint.pitch",
+    "parent": "a1",
+    "port": "out",
+    "servo_id": 2
+   },
+   {
+    "id": "a2",
+    "type": "adapter.disc_grid",
+    "parent": "shoulder",
+    "port": "out"
+   },
+   {
+    "id": "upper",
+    "type": "link.beam_100",
+    "parent": "a2",
+    "port": "out"
+   },
+   {
+    "id": "gripper",
+    "type": "tool.pen",
+    "parent": "upper",
+    "port": "out"
+   }
+  ]
+ },
  "mini_rover": {
   "name": "modkit-mini-rover",
   "description": "160×140 小差速底盘 + ESP32 + ToF；电池/台面电源离板，先验证移动平台接口。",
@@ -515,6 +766,80 @@ window.MODKIT_ASSEMBLIES = {
      -40,
      -20
     ]
+   }
+  ]
+ },
+ "rover_base": {
+  "name": "rover-base",
+  "description": "差速底盘阶段：先验证轮速闭环/里程计/急停，不装机械臂。",
+  "budget_cny": 700,
+  "payload_g": 0,
+  "max_accel_m_s2": 0.5,
+  "components": [
+   {
+    "id": "chassis",
+    "type": "frame.chassis_160"
+   },
+   {
+    "id": "drive_l",
+    "type": "drive.wheel_65",
+    "parent": "chassis",
+    "port": "drive_left",
+    "servo_id": 1
+   },
+   {
+    "id": "drive_r",
+    "type": "drive.wheel_65",
+    "parent": "chassis",
+    "port": "drive_right",
+    "servo_id": 2
+   },
+   {
+    "id": "caster_f",
+    "type": "drive.caster",
+    "parent": "chassis",
+    "port": "caster_front"
+   },
+   {
+    "id": "caster_r",
+    "type": "drive.caster",
+    "parent": "chassis",
+    "port": "caster_rear"
+   },
+   {
+    "id": "esp32",
+    "type": "electronics.esp32",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     -40,
+     -20
+    ]
+   },
+   {
+    "id": "buck",
+    "type": "electronics.buck_5v",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     40,
+     -20
+    ]
+   },
+   {
+    "id": "estop",
+    "type": "power.estop",
+    "parent": "chassis",
+    "port": "top",
+    "at": [
+     40,
+     20
+    ]
+   },
+   {
+    "id": "pwr",
+    "type": "power.adapter_12v5a",
+    "offboard": true
    }
   ]
  },

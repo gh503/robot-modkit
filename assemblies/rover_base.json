@@ -1,0 +1,74 @@
+{
+  "name": "rover-base",
+  "description": "差速底盘阶段：先验证轮速闭环/里程计/急停，不装机械臂。",
+  "budget_cny": 700,
+  "payload_g": 0,
+  "max_accel_m_s2": 0.5,
+  "components": [
+    {
+      "id": "chassis",
+      "type": "frame.chassis_160"
+    },
+    {
+      "id": "drive_l",
+      "type": "drive.wheel_65",
+      "parent": "chassis",
+      "port": "drive_left",
+      "servo_id": 1
+    },
+    {
+      "id": "drive_r",
+      "type": "drive.wheel_65",
+      "parent": "chassis",
+      "port": "drive_right",
+      "servo_id": 2
+    },
+    {
+      "id": "caster_f",
+      "type": "drive.caster",
+      "parent": "chassis",
+      "port": "caster_front"
+    },
+    {
+      "id": "caster_r",
+      "type": "drive.caster",
+      "parent": "chassis",
+      "port": "caster_rear"
+    },
+    {
+      "id": "esp32",
+      "type": "electronics.esp32",
+      "parent": "chassis",
+      "port": "top",
+      "at": [
+        -40,
+        -20
+      ]
+    },
+    {
+      "id": "buck",
+      "type": "electronics.buck_5v",
+      "parent": "chassis",
+      "port": "top",
+      "at": [
+        40,
+        -20
+      ]
+    },
+    {
+      "id": "estop",
+      "type": "power.estop",
+      "parent": "chassis",
+      "port": "top",
+      "at": [
+        40,
+        20
+      ]
+    },
+    {
+      "id": "pwr",
+      "type": "power.adapter_12v5a",
+      "offboard": true
+    }
+  ]
+}

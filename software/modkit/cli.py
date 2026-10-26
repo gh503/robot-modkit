@@ -28,6 +28,7 @@ from . import envelope as env
 from . import components as comps
 from . import assembly as asm
 from . import optimizer as opt
+from . import procure as proc
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -343,6 +344,31 @@ def cmd_assemble(args) -> int:
     if args.strict:
         strict = True
     rep = asm.validate(name, inst, payload, accel, strict, raw)
+
+    if args.action == "procure":
+        e = proc.estimate(rep, shipping=args.shipping, spares=args.spares,
+                          wire=args.wire, tax=args.tax)
+        if args.out:
+            paths = proc.write_outputs(rep, args.out, shipping=args.shipping,
+                                       spares=args.spares, wire=args.wire, tax=args.tax)
+            print(f"采购报告：{paths['markdown']}")
+            print(f"采购 CSV：{paths['csv']}")
+        if args.json:
+            print(json.dumps({"landed": e.as_dict(),
+                              "rows": proc.purchase_rows(rep, spares=args.spares)},
+                             ensure_ascii=False, indent=2))
+            return 0
+        print(f"落地成本：{name}  BOM ¥{e.parts_cny:.1f} + 备件 ¥{e.spares_cny:.1f} + "
+              f"运费 ¥{e.shipping_cny:.1f} + 线材 ¥{e.wire_cny:.1f} + 税 ¥{e.tax_cny:.1f} "
+              f"= ¥{e.total_cny:.1f}")
+        if e.budget_cny is not None:
+            if e.within_budget:
+                print(f"  预算 ¥{e.budget_cny:.0f}：余 ¥{e.budget_cny - e.total_cny:.1f}")
+            else:
+                print(f"  预算 ¥{e.budget_cny:.0f}：超 ¥{e.over_cny:.1f}；"
+                      f"要落地 ≤ 预算，BOM 需 ≤ ¥{e.target_bom_cny:.1f}（当前 ¥{e.parts_cny:.1f}）")
+        print("  采购量=BOM 用量；备件按 8% 现金储备单列，不强制每行买双份。")
+        return 0
 
     if args.action == "suggest":
         data = json.loads(json.dumps(raw, ensure_ascii=False))
@@ -1163,10 +1189,10 @@ def main(argv: list[str] | None = None) -> int:
     co.set_defaults(func=cmd_components)
 
     ab = sub.add_parser("assemble", help="装配图：校验/BOM/安全配置/预览")
-    ab.add_argument("action", choices=("validate", "plan", "preview", "suggest"), default="validate",
-                    nargs="?")
+    ab.add_argument("action", choices=("validate", "plan", "preview", "suggest", "procure"),
+                    default="validate", nargs="?")
     ab.add_argument("file")
-    ab.add_argument("--out", help="plan 输出目录，或 preview 的 .svg 路径")
+    ab.add_argument("--out", help="plan/procure 输出目录，或 preview 的 .svg 路径")
     ab.add_argument("--payload", type=float, help="工具端载荷 g（默认用装配文件）")
     ab.add_argument("--max-accel", type=float, help="设计加速度 m/s²，用于稳定性余量")
     ab.add_argument("--strict", action="store_true", help="把包围盒重叠升级为错误")
@@ -1185,6 +1211,10 @@ def main(argv: list[str] | None = None) -> int:
     ab.add_argument("--max-mass", dest="max_mass_g", type=float, help="约束：最大质量 g")
     ab.add_argument("--max-risk", choices=("low", "medium", "high"),
                     help="约束：规划步骤的最高风险")
+    ab.add_argument("--shipping", type=float, default=30.0, help="procure：运费（默认 ¥30）")
+    ab.add_argument("--spares", type=float, default=0.08, help="procure：备件现金储备率（默认 8%%）")
+    ab.add_argument("--wire", type=float, default=25.0, help="procure：线材/端子/扎带（默认 ¥25）")
+    ab.add_argument("--tax", type=float, default=0.0, help="procure：税率（默认 0）")
     ab.add_argument("--json", action="store_true")
     ab.set_defaults(func=cmd_assemble)
 

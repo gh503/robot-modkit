@@ -19,6 +19,7 @@
     "btn.share": "Share",
     "btn.view3d": "3D view",
     "btn.validate": "Validate",
+    "btn.procure": "Download purchase CSV",
     "motion.play": "▶ Play motion",
     "motion.reset": "Reset joints",
     "motion.speed": "Speed",

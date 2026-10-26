@@ -33,7 +33,7 @@
     projectId: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.33.0";
+  var STUDIO_VERSION = "1.33.1";
 
   function toast(msg, kind) {
     var el = $("toast");

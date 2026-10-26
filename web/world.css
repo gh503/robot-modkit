@@ -66,3 +66,8 @@ textarea{min-height:150px;resize:vertical;font:11.5px/1.5 var(--mono);white-spac
   .stage{height:58vh}
   .panel{order:2;border-right:0;border-top:1px solid var(--line)}
 }
+
+.topnav{display:flex;gap:2px;margin-left:8px}
+.topnav a{color:#9fb3c8;text-decoration:none;font-size:12px;padding:6px 8px;border-radius:6px}
+.topnav a:hover{background:#162636;color:#d8ecff}
+@media (max-width:760px){.topnav{display:none}}

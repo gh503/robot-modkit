@@ -1,0 +1,185 @@
+{
+  "schema": "modkit.world/1",
+  "name": "厨房湿区",
+  "description": "4x3m；台面、水槽和地面水渍。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "kitchen",
+  "objects": [
+    {
+      "id": "floor",
+      "type": "box",
+      "name": "地面",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        4.0,
+        3.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#5f6b7a",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "counter",
+      "type": "box",
+      "name": "台面",
+      "position": [
+        -0.8,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        2.0,
+        0.7,
+        0.9
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#d8d2c4",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "table",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "sink",
+      "type": "box",
+      "name": "水槽",
+      "position": [
+        0.4,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.6,
+        0.5,
+        0.3
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#aeb9c6",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "tank",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "water",
+      "type": "tank",
+      "fluid": "water",
+      "name": "水槽水",
+      "position": [
+        0.4,
+        0,
+        0.1
+      ],
+      "size": [
+        0.6,
+        0.5,
+        0.3
+      ],
+      "level": 0.55,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 35,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    },
+    {
+      "id": "spill",
+      "type": "puddle",
+      "fluid": "water",
+      "name": "地面水渍",
+      "position": [
+        -0.2,
+        -1.2,
+        0.1
+      ],
+      "size": [
+        1.0,
+        0.6,
+        0.005
+      ],
+      "level": 1.0,
+      "radius": null,
+      "height": null,
+      "volume_m3": 0.002,
+      "flow_m3_s": 0.0,
+      "temperature_c": 20.0,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/m1_pen.json",
+    "position": [
+      1.2,
+      0.8,
+      0.1
+    ],
+    "yaw_deg": 180,
+    "task": "wipe"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        0.4,
+        0,
+        0.4
+      ],
+      "target": "water",
+      "unit": "m",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

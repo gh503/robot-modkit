@@ -1,0 +1,171 @@
+{
+  "schema": "modkit.world/1",
+  "name": "实验室水槽实验",
+  "description": "6x4m 实验室；工作台 + 0.6m 水槽。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "lab",
+  "objects": [
+    {
+      "id": "floor",
+      "type": "box",
+      "name": "地面",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        6.0,
+        4.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#4b5563",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "bench",
+      "type": "box",
+      "name": "工作台",
+      "position": [
+        -1.2,
+        0.4,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        2.0,
+        0.8,
+        0.85
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#8a6a3f",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "table",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "sink",
+      "type": "box",
+      "name": "水槽",
+      "position": [
+        1.4,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        0.8,
+        0.6,
+        0.4
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#9aa7b8",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "tank",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "water",
+      "type": "tank",
+      "fluid": "water",
+      "name": "水槽水",
+      "position": [
+        1.4,
+        0,
+        0.1
+      ],
+      "size": [
+        0.8,
+        0.6,
+        0.4
+      ],
+      "level": 0.7,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 22,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/bench_arm.json",
+    "position": [
+      0,
+      0,
+      0.1
+    ],
+    "yaw_deg": 0,
+    "task": "manipulate"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        1.4,
+        0,
+        0.5
+      ],
+      "target": "water",
+      "unit": "m",
+      "metadata": {}
+    },
+    {
+      "id": "pressure",
+      "type": "pressure",
+      "position": [
+        1.4,
+        0,
+        0.3
+      ],
+      "target": "water",
+      "unit": "Pa",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

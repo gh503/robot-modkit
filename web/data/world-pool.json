@@ -1,0 +1,154 @@
+{
+  "schema": "modkit.world/1",
+  "name": "泳池清洗实验",
+  "description": "8x4m，水深 1.2m；泳池机器人的典型场景。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "pool",
+  "objects": [
+    {
+      "id": "deck",
+      "type": "box",
+      "name": "池边地坪",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        10.0,
+        6.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#6b7280",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "pool_shell",
+      "type": "box",
+      "name": "池体",
+      "position": [
+        0,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        8.0,
+        4.0,
+        1.5
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#34495e",
+      "opacity": 0.25,
+      "collider": "box",
+      "semantic": "pool",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "water",
+      "type": "pool",
+      "fluid": "water",
+      "name": "池水",
+      "position": [
+        0,
+        0,
+        0.1
+      ],
+      "size": [
+        8.0,
+        4.0,
+        1.5
+      ],
+      "level": 0.8,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 26,
+      "salinity_ppt": 2,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/m1_pen.json",
+    "position": [
+      4.5,
+      0,
+      0.1
+    ],
+    "yaw_deg": 0,
+    "task": "pool_clean"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        0,
+        0,
+        1.5
+      ],
+      "target": "water",
+      "unit": "m",
+      "metadata": {}
+    },
+    {
+      "id": "temp",
+      "type": "temperature",
+      "position": [
+        0,
+        0,
+        2.0
+      ],
+      "target": "water",
+      "unit": "C",
+      "metadata": {}
+    },
+    {
+      "id": "turb",
+      "type": "turbidity",
+      "position": [
+        0,
+        0,
+        2.0
+      ],
+      "target": "water",
+      "unit": "NTU",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135,
+    "sun_elevation_deg": 55,
+    "intensity": 1.2,
+    "ambient": 0.45,
+    "sky": "#0a1622"
+  },
+  "georeference": null,
+  "metadata": {}
+}

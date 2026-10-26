@@ -1,0 +1,142 @@
+{
+  "schema": "modkit.world/1",
+  "name": "管道检查",
+  "description": "6m 水平管道；水 + 检查机器人。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "pipeline",
+  "objects": [
+    {
+      "id": "floor",
+      "type": "box",
+      "name": "地面",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        8.0,
+        3.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#3f4a57",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "pipe",
+      "type": "cylinder",
+      "name": "管道",
+      "position": [
+        0,
+        0,
+        0.6
+      ],
+      "rotation": [
+        90,
+        0,
+        0
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ],
+      "radius": 0.3,
+      "height": 6.0,
+      "material": "default",
+      "color": "#7f8c9a",
+      "opacity": 0.45,
+      "collider": "box",
+      "semantic": "pipe",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "water",
+      "type": "pipe",
+      "fluid": "water",
+      "name": "管道水",
+      "position": [
+        0,
+        0,
+        0.3
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ],
+      "level": 0.6,
+      "radius": 0.3,
+      "height": 6.0,
+      "volume_m3": null,
+      "flow_m3_s": 0.002,
+      "temperature_c": 18,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/bench_joint.json",
+    "position": [
+      0,
+      0,
+      0.1
+    ],
+    "yaw_deg": 0,
+    "task": "inspect"
+  },
+  "sensors": [
+    {
+      "id": "flow",
+      "type": "flow",
+      "position": [
+        0,
+        0,
+        0.3
+      ],
+      "target": "water",
+      "unit": "m3/s",
+      "metadata": {}
+    },
+    {
+      "id": "pressure",
+      "type": "pressure",
+      "position": [
+        2.8,
+        0,
+        0.3
+      ],
+      "target": "water",
+      "unit": "Pa",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

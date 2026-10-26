@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080b10">
+<title>modkit World · 三维世界与流体实验</title>
+<link rel="icon" href="./favicon.svg">
+<link rel="stylesheet" href="./world.css">
+</head>
+<body>
+<a class="skip" href="#stage">跳到三维视图</a>
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="brand" href="./index.html">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 17 12 3l8 14-8 4z"/><path d="M12 7v10M8 15l4 4 4-4"/></svg>
+      </span>
+      <span><span class="brand-name">modkit World</span><span class="brand-sub">三维环境 · 流体 · 数字孪生</span></span>
+    </a>
+    <span class="badge" id="schema-badge">modkit.world/1</span>
+    <span class="spacer"></span>
+    <div class="run-status" id="run-status"><span class="dot"></span><span id="run-label">视觉预览</span></div>
+    <div class="btns">
+      <button id="play" class="primary" type="button" aria-pressed="true">暂停</button>
+      <button id="reset-view" type="button">重置视角</button>
+      <button id="export" type="button">导出 JSON</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="panel" aria-label="世界与流体控制">
+    <section>
+      <h1>世界</h1>
+      <label class="field">环境预设
+        <select id="preset">
+          <option value="pool">泳池清洗</option>
+          <option value="lab">实验室水槽</option>
+          <option value="kitchen">厨房湿区</option>
+          <option value="greenhouse">温室灌溉</option>
+          <option value="pipeline">管道检查</option>
+          <option value="factory">车间冷却液</option>
+          <option value="outdoor">室外地形</option>
+          <option value="aquarium">水族箱</option>
+        </select>
+      </label>
+      <div class="row2">
+        <button id="load-preset" type="button">加载预设</button>
+        <label class="file">导入 JSON<input id="file" type="file" accept="application/json,.json"></label>
+      </div>
+      <p class="hint" id="world-desc">8x4m 泳池，水深 1.2m；泳池机器人的典型场景。</p>
+    </section>
+
+    <section>
+      <h2>流体对象</h2>
+      <label class="field">对象<select id="body"></select></label>
+      <label class="field">材料<select id="fluid"></select></label>
+      <label class="field">液位 <output id="level-out">80%</output>
+        <input id="level" type="range" min="0" max="100" step="1" value="80">
+      </label>
+      <div class="row2">
+        <label class="field">温度 °C<input id="temp" type="number" min="-5" max="100" step="1" value="26"></label>
+        <label class="field">盐度 ppt<input id="salinity" type="number" min="0" max="60" step="1" value="2"></label>
+      </div>
+      <button id="apply" class="wide" type="button">应用流体属性</button>
+      <dl class="props" id="props"></dl>
+    </section>
+
+    <section>
+      <h2>实验</h2>
+      <p class="hint">查看器只做**视觉预览**；权威的浅水/水箱/管道求解在 CLI：
+        <code>modkit world run --file world.json</code>。</p>
+      <div class="row2">
+        <button id="load-frames" type="button">载入帧</button>
+        <input id="frames-file" type="file" accept="application/json,.json" hidden>
+      </div>
+      <p class="hint" id="frames-note">可选：载入 <code>frames.json</code> 看高度场快照。</p>
+    </section>
+
+    <section>
+      <h2>JSON</h2>
+      <textarea id="json" spellcheck="false" aria-label="世界 JSON"></textarea>
+      <div class="row2">
+        <button id="apply-json" type="button">应用 JSON</button>
+        <button id="copy-json" type="button">复制</button>
+      </div>
+      <p class="hint" id="json-note">修改后点“应用 JSON”；服务端会做完整 schema 校验。</p>
+    </section>
+
+    <section>
+      <h2>统计</h2>
+      <dl class="props" id="stats"></dl>
+    </section>
+  </aside>
+
+  <main id="stage" class="stage" aria-label="三维世界视图">
+    <canvas id="canvas"></canvas>
+    <div class="overlay" id="overlay">
+      <strong>拖动旋转 · 滚轮缩放 · 右键平移</strong>
+      <span>水体的颜色/透明度来自材料库；地形/碰撞体按 JSON 尺寸</span>
+    </div>
+    <div class="legend" id="legend"></div>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="./vendor/three.min.js"></script>
+<script src="./world.js"></script>
+</body>
+</html>

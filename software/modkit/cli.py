@@ -32,6 +32,8 @@ from . import procure as proc
 from . import pack as hp
 from . import draw as dr
 from . import stage as sg
+from . import fluid as fd
+from . import world as wd
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -1238,6 +1240,230 @@ def cmd_nav(args) -> int:
     return 0 if ok else 1
 
 
+
+# ---------------------------------------------------------------- 流体 / 世界
+def _fluid_rows(rows) -> str:
+    out = [f"{'key':16} {'name':14} {'category':10} {'rho':>8} {'mu':>10} "
+           f"{'sigma':>8} {'yield':>8}"]
+    for f in rows:
+        out.append(f"{f.key:16} {f.name:14} {f.category:10} {f.density:8.1f} "
+                   f"{f.viscosity:10.5f} {f.surface_tension:8.4f} {f.yield_stress:8.2f}")
+    return "\n".join(out)
+
+
+def cmd_fluid(args) -> int:
+    action = args.action
+    if action == "list":
+        rows = fd.list_fluids(args.category)
+        if args.json:
+            print(json.dumps([fd.summarize(f) for f in rows], ensure_ascii=False, indent=2))
+        else:
+            print(_fluid_rows(rows))
+            print(f"\n{len(rows)} 种；自定义用 `modkit fluid add --file x.json`")
+        return 0
+    if action == "add":
+        if not args.file:
+            print("需要 --file x.json（单个对象或数组）")
+            return 2
+        rows = fd.load_file(args.file, replace_existing=args.force)
+        if args.out:
+            fd.save_file(args.out)
+            print(f"已合并并导出 {args.out}（{len(fd.FLUIDS)} 种）")
+        else:
+            print(f"已加载 {len(rows)} 种；进程结束后不保留；加 --out 导出注册表")
+        return 0
+    if action == "export":
+        if not args.out:
+            print("export 需要 --out fluids.json")
+            return 2
+        keys = [args.key] if args.key else None
+        p = fd.save_file(args.out, keys)
+        print(f"已导出 {p}（{len(keys) if keys else len(fd.FLUIDS)} 种）")
+        return 0
+    key = args.fluid_key or args.key or "water"
+    try:
+        fluid = fd.get(key)
+        if args.temp is not None:
+            fluid = fluid.at_temperature(args.temp)
+        if args.salinity is not None:
+            fluid = fluid.at_salinity(args.salinity)
+    except fd.FluidError as e:
+        print(str(e))
+        return 2
+
+    if action == "show":
+        d = fd.summarize(fluid)
+        if args.json:
+            print(json.dumps(d, ensure_ascii=False, indent=2))
+        else:
+            print(f"{fluid.name} / {fluid.name_en}  [{fluid.key}]")
+            for k, v in d.items():
+                print(f"  {k:28} {v}")
+            print(f"  notes                        {fluid.notes}")
+            print(f"  source                       {fluid.source}")
+        return 0
+    if action == "compare":
+        if not args.other:
+            print("compare 需要两个 key：modkit fluid compare water seawater")
+            return 2
+        try:
+            a = fd.get(args.fluid_key or args.key or "water"); b = fd.get(args.other or "seawater")
+        except fd.FluidError as e:
+            print(str(e)); return 2
+        if args.json:
+            print(json.dumps({"a": fd.summarize(a), "b": fd.summarize(b)},
+                             ensure_ascii=False, indent=2))
+        else:
+            print(f"{'property':26} {a.key:>14} {b.key:>14}")
+            for name, av, bv in (
+                ("density kg/m3", a.density, b.density),
+                ("viscosity Pa.s", a.viscosity, b.viscosity),
+                ("kinematic m2/s", a.kinematic_viscosity, b.kinematic_viscosity),
+                ("surface tension N/m", a.surface_tension, b.surface_tension),
+                ("yield stress Pa", a.yield_stress, b.yield_stress),
+            ):
+                print(f"{name:26} {av:14.6g} {bv:14.6g}")
+        return 0
+    if action == "pipe":
+        try:
+            r = fd.pipe_drop(fluid, args.flow, args.diameter, args.length,
+                             roughness=args.roughness, minor_k=args.minor_k)
+        except fd.FluidError as e:
+            print(str(e)); return 2
+        if args.json:
+            print(json.dumps(r, ensure_ascii=False, indent=2))
+        else:
+            print(f"管道 {args.diameter*1000:.1f}mm × {args.length:g}m；流量 "
+                  f"{args.flow*1000:.2f} L/s；流速 {r['velocity_m_s']:.3f} m/s")
+            print(f"Re {r['reynolds']:.0f}（{r['regime']}）；f {r['friction_factor']:.5f}；"
+                  f"压降 {r['dp_total_pa']/1000:.2f} kPa / {r['head_loss_m']:.3f} m")
+            if r["warning"]:
+                print("⚠ " + r["warning"])
+        return 0
+    if action == "tank":
+        from . import fluid_sim as fs
+        try:
+            t = fs.Tank(fluid, area_m2=args.area, height_m=args.height,
+                        outlet_area_m2=args.outlet, inflow_m3_s=args.flow,
+                        level_m=args.level)
+        except (fs.FluidSimError, fd.FluidError) as e:
+            print(str(e)); return 2
+        t.advance(args.seconds, dt=args.dt or 0.01)
+        d = t.metrics()
+        if args.json:
+            print(json.dumps(d, ensure_ascii=False, indent=2))
+        else:
+            print(f"水箱 {args.area:g}m² × {args.height:g}m；出口 {args.outlet*1e4:.2f}cm²；"
+                  f"补液 {args.flow*1000:.2f} L/s")
+            print(f"{args.seconds:g}s 后液位 {d['level_m']:.3f}m；出口流量 "
+                  f"{d['outlet_flow_m3_s']*1000:.2f} L/s；累计排出 "
+                  f"{d['outflow_total_m3']*1000:.1f} L；溢出 {d['overflow']}")
+            print(f"无补液排空时间约 {fd.tank_drain_time(args.area,args.outlet,args.level,fluid):.1f}s")
+        return 0
+    if action == "drag":
+        r = fd.drag_force(fluid, args.velocity, args.area, args.cd)
+        print(f"阻力 {r:.3f} N（{fluid.key}，{args.velocity:g} m/s，{args.area:g} m²，Cd {args.cd:g}）")
+        return 0
+    if action == "terminal":
+        v = fd.terminal_velocity(fluid, args.diameter, args.particle_density)
+        print(f"终端速度 {v*1000:.3f} mm/s（d={args.diameter*1000:g}mm，"
+              f"ρp={args.particle_density:g} kg/m³）")
+        return 0
+    print(f"未知 action {action}")
+    return 2
+
+
+def cmd_world(args) -> int:
+    action = args.action
+    if action == "list":
+        rows = wd.presets()
+        if args.json:
+            print(json.dumps(rows, ensure_ascii=False, indent=2))
+        else:
+            for k, v in rows.items():
+                print(f"{k:14} {v}")
+        return 0
+    if action == "init" or action == "demo":
+        if action == "demo":
+            out = pathlib.Path(args.out or "out/worlds")
+            out.mkdir(parents=True, exist_ok=True)
+            for k in wd.presets():
+                w = wd.from_preset(k)
+                w.save(out / f"{k}.json")
+                print(f"{k:14} -> {out / (k + '.json')}")
+            return 0
+        w = wd.from_preset(args.preset)
+        p = w.save(args.out)
+        v = w.validate()
+        if args.json:
+            print(json.dumps({"path": str(p), **v}, ensure_ascii=False, indent=2))
+        else:
+            print(f"世界：{w.name} -> {p}")
+            print(f"对象 {len(w.objects)}；流体 {len(w.fluids)}；"
+                  f"水体积 {w.summary()['water_volume_m3']:.3f} m³")
+            print("校验：" + ("PASS" if v["ok"] else "FAIL"))
+            for x in v["errors"]:
+                print("  ✗ " + x)
+            for x in v["warnings"]:
+                print("  ! " + x)
+        return 0 if v["ok"] else 2
+    if not args.file:
+        print("需要 --file world.json")
+        return 2
+    try:
+        w = wd.World.load(args.file)
+    except (OSError, wd.WorldError, json.JSONDecodeError) as e:
+        print(f"读取失败：{e}")
+        return 2
+    if action == "validate":
+        v = w.validate()
+        if args.json:
+            print(json.dumps(v, ensure_ascii=False, indent=2))
+        else:
+            print("PASS" if v["ok"] else "FAIL")
+            for x in v["errors"]:
+                print("  ✗ " + x)
+            for x in v["warnings"]:
+                print("  ! " + x)
+        return 0 if v["ok"] else 2
+    if action == "summary":
+        d = w.summary()
+        if args.json:
+            print(json.dumps(d, ensure_ascii=False, indent=2))
+        else:
+            print(f"{w.name}（{w.environment}）：对象 {d['objects']}，流体 {d['fluids']}，"
+                  f"水体积 {d['water_volume_m3']:.3f} m³")
+            print(f"包围盒 {d['bounds']}")
+        return 0 if d["ok"] else 2
+    if action == "run":
+        from . import world_sim as ws
+        try:
+            r = ws.run_world(w, duration=args.duration, dt=args.dt, dx=args.dx,
+                             frame_every=args.frame_every, out=args.out)
+        except (wd.WorldError, fd.FluidError, ValueError) as e:
+            print(f"运行失败：{e}")
+            return 2
+        if args.json:
+            print(json.dumps(r, ensure_ascii=False, indent=2))
+        else:
+            print(f"世界仿真：{w.name}，{args.duration:g}s")
+            for k, v in r["fluids"].items():
+                m = v.get("metrics", {})
+                if "volume_m3" in m:
+                    print(f"  {k}: 体积 {m['volume_m3']:.4f} m³，最大水深 "
+                          f"{m.get('max_depth_m', 0):.3f} m，误差 "
+                          f"{m.get('volume_error_rel', 0):.2e}")
+                elif "dp_total_pa" in v:
+                    print(f"  {k}: 压降 {v['dp_total_pa']/1000:.2f} kPa")
+                elif "level_m" in m:
+                    print(f"  {k}: 液位 {m['level_m']:.3f} m")
+            if args.out:
+                print(f"输出：{args.out}/metrics.json、frames.json、report.md")
+        return 0
+    print(f"未知 action {action}")
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
@@ -1571,6 +1797,48 @@ def main(argv: list[str] | None = None) -> int:
     dv.add_argument("--w", type=float, default=0.0, help="deg/s")
     dv.add_argument("--seconds", type=float, default=2.0)
     dv.set_defaults(func=cmd_drive)
+
+
+    flp = sub.add_parser("fluid", help="流体材料库/工程计算")
+    flp.add_argument("action", choices=["list", "show", "compare", "pipe", "tank",
+                                        "drag", "terminal", "export", "add"])
+    flp.add_argument("key", nargs="?")
+    flp.add_argument("other", nargs="?")
+    flp.add_argument("--fluid", dest="fluid_key", help="流体 key（也可用位置参数）")
+    flp.add_argument("--category")
+    flp.add_argument("--temp", type=float)
+    flp.add_argument("--salinity", type=float)
+    flp.add_argument("--flow", type=float, default=0.001)
+    flp.add_argument("--diameter", type=float, default=0.02)
+    flp.add_argument("--length", type=float, default=5.0)
+    flp.add_argument("--roughness", type=float, default=1.5e-6)
+    flp.add_argument("--minor-k", type=float, default=0.0)
+    flp.add_argument("--area", type=float, default=1.0)
+    flp.add_argument("--height", type=float, default=1.0)
+    flp.add_argument("--outlet", type=float, default=0.01)
+    flp.add_argument("--level", type=float, default=1.0)
+    flp.add_argument("--velocity", type=float, default=0.5)
+    flp.add_argument("--cd", type=float, default=1.0)
+    flp.add_argument("--particle-density", type=float, default=2500.0)
+    flp.add_argument("--seconds", type=float, default=10.0)
+    flp.add_argument("--dt", type=float)
+    flp.add_argument("--file")
+    flp.add_argument("--out")
+    flp.add_argument("--force", action="store_true")
+    flp.add_argument("--json", action="store_true")
+    flp.set_defaults(func=cmd_fluid)
+
+    wp = sub.add_parser("world", help="三维世界/实验环境（JSON + 流体仿真）")
+    wp.add_argument("action", choices=["list", "init", "demo", "validate", "summary", "run"])
+    wp.add_argument("--preset", default="pool")
+    wp.add_argument("--file")
+    wp.add_argument("--out", default="out/world")
+    wp.add_argument("--duration", type=float, default=5.0)
+    wp.add_argument("--dt", type=float)
+    wp.add_argument("--dx", type=float, default=0.2)
+    wp.add_argument("--frame-every", type=int, default=10)
+    wp.add_argument("--json", action="store_true")
+    wp.set_defaults(func=cmd_world)
 
     args = ap.parse_args(argv)
     return args.func(args)

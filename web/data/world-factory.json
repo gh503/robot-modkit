@@ -1,0 +1,168 @@
+{
+  "schema": "modkit.world/1",
+  "name": "车间冷却液",
+  "description": "12x8m；冷却液罐 + 泄漏水坑。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "factory",
+  "objects": [
+    {
+      "id": "floor",
+      "type": "box",
+      "name": "地坪",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        12.0,
+        8.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#4a4f57",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "tank_shell",
+      "type": "box",
+      "name": "冷却液罐",
+      "position": [
+        -3.5,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.2,
+        1.2,
+        1.5
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#6d7682",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "tank",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "coolant",
+      "type": "tank",
+      "fluid": "glycol50",
+      "name": "冷却液",
+      "position": [
+        -3.5,
+        0,
+        0.1
+      ],
+      "size": [
+        1.2,
+        1.2,
+        1.5
+      ],
+      "level": 0.65,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 40,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    },
+    {
+      "id": "spill",
+      "type": "puddle",
+      "fluid": "glycol50",
+      "name": "泄漏",
+      "position": [
+        0.5,
+        -2.0,
+        0.1
+      ],
+      "size": [
+        2.0,
+        1.2,
+        0.01
+      ],
+      "level": 1.0,
+      "radius": null,
+      "height": null,
+      "volume_m3": 0.02,
+      "flow_m3_s": 0.0,
+      "temperature_c": 20.0,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/m1_pen.json",
+    "position": [
+      2,
+      1,
+      0.1
+    ],
+    "yaw_deg": 180,
+    "task": "inspect"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        -3.5,
+        0,
+        1.6
+      ],
+      "target": "coolant",
+      "unit": "m",
+      "metadata": {}
+    },
+    {
+      "id": "temp",
+      "type": "temperature",
+      "position": [
+        -3.5,
+        0,
+        1.2
+      ],
+      "target": "coolant",
+      "unit": "C",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

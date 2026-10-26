@@ -1,4 +1,4 @@
-# modkit M1 · 可拆装模块化机器人
+# modkit M1 · 可拆装模块化机器人 + 流体/3D 世界仿真
 
 [![CI](https://github.com/gh503/robot-modkit/actions/workflows/ci.yml/badge.svg)](https://github.com/gh503/robot-modkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -6,213 +6,88 @@
 [![Live](https://img.shields.io/badge/live-3D%20viewer-4c78a8)](https://gh503.github.io/robot-modkit/)
 [![Studio](https://img.shields.io/badge/live-Studio-2f80c9)](https://gh503.github.io/robot-modkit/design.html)
 
-> 一台"接口先定、形态后长"的机器人：**差速底盘 + 4 自由度臂 + 夹爪**，
-> 目标不是演示视频，而是**能独立完成物理任务**（导航到指定位置 → 识别目标 → 抓取 → 放到另一处）。
+> **一台接口先定、形态后长的机器人**：差速底盘 + 4 自由度臂 + 夹爪，目标不是演示视频，
+> 而是能完成真实物理任务。组件有端口和数据，换构型只改 JSON；软件侧可在没有硬件时
+> 跑通装配、运动学、安全、绘图、硬件准备包和阶段 bring-up。
 >
-> v1.5 起，底盘/关节/连杆/夹爪/传感器是**有端口和数据的组件**：换构型不改代码，
-> 用 JSON 拼装后生成 BOM、功率、重心和 `safety.json`。见
-> [docs/65-组件库与自由组装.md](docs/65-组件库与自由组装.md)。
->
-> v1.6 新增 [网页设计器](https://gh503.github.io/robot-modkit/design.html)：
-> 在浏览器里加件/换件/删件、拖关节、播放运动学、导出 JSON/BOM/STL/SVG/STEP。
-> v1.7 加了**预算模式**和 ¥968 的 `m1_budget` 两关节定点抓放方案。
-> v1.8 加了**预算优化器**：从当前装配生成“换小件/缩短方梁/去掉肘关节”的候选，
-> 每条都重新校验，按 BOM 省钱排序；v1.9 增加 CLI `modkit assemble suggest`。
-> 见 [docs/68-预算优化器.md](docs/68-预算优化器.md)。
->
-> 面向新手：从零基础到能自己改图纸、改固件、加传感器，手册在 [docs/07-小白操作手册.md](docs/07-小白操作手册.md)。
+> 当前正在扩展**流体材料 + 三维虚拟世界 + 可复现实验环境**，面向泳池/管道/灌溉/
+> 水下服务机器人等商业场景。物理闸门仍是 **0/5**：没有采购、打印、装配、上电和标定。
 
-![关节模块装配预览](docs/images/assembly.png)
-
-**在线看：<https://gh503.github.io/robot-modkit/>**；**自由设计：<https://gh503.github.io/robot-modkit/design.html>**。
-查看器里拖动滑杆改关节角、播放抓取动画，
-也可以直接连总线舵机（Chrome/Edge 的 Web Serial）。v1.4 在界面上加了**运动预检与
-fail-closed 联锁**：温度/电压/故障/限位/单步/几何包络任一不过，拒绝下发；标定文件可覆盖
-零位/方向/限位。物理闸门仍是 0/5，界面通过不等于实物通过。
-
-[![实时查看器](docs/images/viewer.png)](https://gh503.github.io/robot-modkit/)
+**在线看**：<https://gh503.github.io/robot-modkit/> · **自由设计**：<https://gh503.github.io/robot-modkit/design.html>  
+**状态与完整版本历史**：[docs/80](docs/80-项目状态与版本历史.md)（唯一可信状态表）
 
 ![整机](docs/images/hero.png)
 
-## 它现在到了哪一步
+## 现在能做什么
 
-| 层 | 状态 | 证据 |
+| 能力 | 入口 | 状态 |
 |---|---|---|
-| 机械：关节模块（M0） | ✅ 可用 | 5 个零件、33 项几何自检（干涉/间隙/壁厚/水密） |
-| 机械：底盘 + 夹爪 + 相机架（M1） | ✅ 出图 | 新增 7 个零件，几何自检 **85 项全 PASS**（含校准件/工装） |
-| 生产：可制造性 + 工程图 + 成本 | ✅ 可用 | 13 页 A4 图纸；方向/悬垂/壁厚/时长；三档成本 ¥1392/¥1808 |
-| 生产：设计校核（力矩/刚度/强度/公差/驱动） | ✅ 可用 | 肩余量 2.8×、连杆 100g 挠度 0.60mm、最弱强度 9.2× |
-| 生产：工装 + 质检 + 批次 | ✅ 可用 | 三件套夹具；Q1/Q2/Q3 判据；`modkit qc` 序列号与良率 |
-| 生产：工序卡 + 打印参数 + 线束 | ✅ 可用 | 17 道工序/7.0h（与 BOM 对账）；逐件壁数/填充；14 根线束裁线表 |
-| 生产：公差与精度 | ✅ 有量化 | 装配良率 99.98%；开环末端 p95 6.24mm → 回差补偿目标 3.5mm |
-| 生产：检验/追溯/包装 | ✅ 可用 | 27 件逐件检验表；20 条需求追溯（16 已验证）；箱规与跌落判据 |
-| 固件：总线协议 + 驱动 + 底盘闭环 + 低压保护 | ✅ 可用 | **77 项** C++ 单测 + **5 个在环场景**（119 断言） |
-| 固件：ESP32 平台层 | 🟡 编译通过 | esp32s3 交叉编译 OK；⚠️ 未上真实硬件 |
-| 上位机：协议/运动学/仿真/CLI | ✅ 可用 | **311 项** pytest（IK/标定/自检/里程计/回差/导航/视觉/日志/仿真/质检/台架/安全预检/组件装配/网页设计器）；无硬件可跑全流程 |
-| 仿真：三维视图 + **数字孪生** | ✅ 可用 | 16 个硬件场景全过 + 浏览器工作台（`modkit simui`） |
-| 打印校准件 + 四张拼盘 + 工装 | ✅ 可用 | `print_gauge`、`plate_01..04.stl`（27 件）、jigs 三件套 |
-| 自主任务（导航+视觉+抓取） | 🟡 软件链通 | `mission` 仿真 16.4s；真机未跑 |
-| 整机实测 | ⬜ 硬件阻塞 | 0/5 个物理闸门；顺序见 [docs/42](docs/42-完成度审计.md) |
-| 数字孪生验收 | ✅ 采购前目标达成 | 17 条逐项对照见 [docs/45](docs/45-数字孪生验收.md) |
-| **v1.0 ready-to-build** | ✅ 软件/设计侧完成 | 声明与边界见 [docs/52](docs/52-v1.0完成声明.md) |
-| **v1.1 五项增强** | ✅ 已验收 | 畸变/手眼、接触动态、3D、排板、编辑器；见 [docs/58](docs/58-v1.1验收.md) |
-| **v1.2 交付硬化** | ✅ 已验收 | bring-up 证据、协议异常流、发布校验和；见 [docs/60](docs/60-v1.2验收.md) |
-| **v1.3 产品级 UI** | ✅ 已验收 | 工作台/查看器重做、键盘与安全确认、移动端；见 [docs/61](docs/61-v1.3-UI优化.md) |
-| **v1.4 预硬件安全** | ✅ 离线验收 | 软限位/单步/温度/电压/故障联锁、几何+路径包络、`preflight`、到货执行单；物理仍 0/5；见 [docs/64](docs/64-v1.4-预硬件验收.md) |
-| **v1.5 组件库** | ✅ 离线验收 | 36 个组件 + 6 个装配示例；BOM/功率/重心/静载/安全配置；`components`/`assemble`；物理仍 0/5；见 [docs/66](docs/66-v1.5验收.md) |
-| **v1.6 网页设计器** | ✅ 离线验收 | 浏览器加/换/删件、关节滑杆/运动学播放、参数编辑、JSON/BOM/STL/SVG/STEP 导出；物理仍 0/5；见 [docs/67](docs/67-网页设计器.md) |
-| **v1.7 预算模式** | ✅ 离线验收 | 设计预算字段/余量提示；`m1_budget` 15 组件/¥968/两关节定点抓放；物理仍 0/5；见 [docs/67](docs/67-网页设计器.md) |
-| **v1.8 预算优化器** | ✅ 离线验收 | `web/budget-core.js` 生成单步降本候选，逐个重新校验；m1 可降到 15 组件/¥968；物理仍 0/5；见 [docs/68](docs/68-预算优化器.md) |
-| **v1.9 CLI 优化器** | ✅ 离线验收 | `modkit assemble suggest` 同语义列候选/写报告/`--apply` 输出新 JSON；测试 271；物理仍 0/5；见 [docs/68](docs/68-预算优化器.md) |
-| **v1.10 报告/撤销** | ✅ 离线验收 | 网页导出预算 Markdown + Studio 撤销/重做（40 步）；测试 272；物理仍 0/5；见 [docs/67](docs/67-网页设计器.md) |
-| **v1.11 目标规划** | ✅ 离线验收 | “规划达标”/`--goal` 逐步到预算；m1 ¥1000 一步可达，¥900 会明确显示差 ¥64；测试 275；物理仍 0/5；见 [docs/68](docs/68-预算优化器.md) |
-| **v1.12 精确规划** | ✅ 离线验收 | 深度受限穷举，步数优先、成本次之，200 节点上限；m1 结果不变但组合路径不再被贪心漏掉；测试 276；物理仍 0/5；见 [docs/68](docs/68-预算优化器.md) |
-| **v1.13 分享/离线** | ✅ 离线验收 | 分享链接、导入形状校验、本地草稿元数据、PWA 离线壳；断网刷新实测可开；测试 278；物理仍 0/5；见 [docs/67](docs/67-网页设计器.md) |
-| **v1.14 报告/可访问性** | ✅ 离线验收 | 规划报告 + 截断提示、标签页键盘导航、noscript、SW 版本同步；测试 278；物理仍 0/5；见 [docs/68](docs/68-预算优化器.md) |
-| **v1.15 同价减重** | ✅ 离线验收 | 勾选/`--mass` 显示成本不升、重量下降的候选；m1 换 160 底盘 -80g；测试 280；物理仍 0/5；见 [docs/68](docs/68-预算优化器.md) |
-| **v1.15.1 离线热修** | ✅ 离线验收 | SW 对脚本/样式 network-first，发布后首次刷新不再拿旧 JS；测试 280；物理仍 0/5；见 [docs/67](docs/67-网页设计器.md) |
-| **v1.16 导入/快照修复** | ✅ 离线验收 | offboard 预设（sensor_tower 等）可导入；分享载入后清地址栏、不覆盖草稿；测试 280；物理仍 0/5；见 [docs/67](docs/67-网页设计器.md) |
-| **v1.17 结构查看器** | ✅ 离线验收 | 自由设计可独立 3D 查看：`view.html#d=...`、Studio“3D 查看”、`index.html#d=` 重定向；测试 281；物理仍 0/5；见 [docs/69](docs/69-结构查看器.md) |
-| **v1.18 运动/交互/冒烟** | ✅ 离线验收 | 查看器关节滑杆/播放/爆炸；设计器复制粘贴/拖拽导入/3D 高亮；Chrome CDP 冒烟进 CI；测试 282；物理仍 0/5；见 [docs/70](docs/70-浏览器冒烟测试.md) |
-| **v1.19 导出/离线 STEP** | ✅ 离线验收 | 新增 GLB、3MF、打印 BOM/PDF；36 个 STEP 预缓存；测试 283；物理仍 0/5；见 [docs/71](docs/71-导出格式.md) |
-| **v1.20 项目/版本/schema** | ✅ 离线验收 | 浏览器项目库、版本快照、20×20 上限、旧草稿与字段迁移；测试 284；物理仍 0/5；见 [docs/72](docs/72-项目与版本.md) |
-| **v1.21 Pareto/约束规划** | ✅ 离线验收 | 成本/质量 Pareto、关节/组件/质量/风险约束、6 步 600 节点、CLI 同步；测试 286；物理仍 0/5；见 [docs/73](docs/73-多目标与约束.md) |
-| **v1.22 网格碰撞/力矩** | ✅ 离线验收 | AABB 粗筛 + 三角面盒网格、静+动力矩、servo_id、UI/CLI 报告；测试 288；物理仍 0/5；见 [docs/74](docs/74-网格碰撞与关节力矩.md) |
-| **v1.23 移动/无障碍/PWA** | ✅ 离线验收 | 手机断点/触控目标、skip/focus/reduced-motion、核心中英切换、PWA 安装/图标/离线；测试 289；物理仍 0/5；见 [docs/75](docs/75-移动端无障碍与PWA.md) |
-| **v1.24 分阶段/落地成本** | ✅ 离线验收 | `procure` 落地价/采购 CSV；阶段 0/1/2/3 预设；`m1_pen` 落地 ¥961；测试 293；物理仍 0/5；见 [docs/76](docs/76-分阶段构建与落地成本.md) |
-| **v1.25 硬件准备包** | ✅ 离线验收 | `assemble pack` 生成 bring-up/接线/装配/打印/验收/固件配置；测试 297；物理仍 0/5；见 [docs/77](docs/77-硬件准备包.md) |
-| **v1.26 离线绘图** | ✅ 离线验收 | `draw` 3DOF 方/圆/三角、2DOF 圆弧、CSV/SVG、仿真/真机安全回放；测试 302；物理仍 0/5；见 [docs/78](docs/78-离线绘图任务.md) |
-| **v1.27 阶段记录** | ✅ 离线验收 | `stage` 按装配生成 6–13 步 bring-up；证据 + sha256；Web 复制硬件包命令；测试 307；物理仍 0/5；见 [docs/79](docs/79-阶段化bringup记录.md) |
-| **v1.28 记录冻结** | ✅ 离线验收 | 阶段计划冻结 + 装配 sha256 变更检测；测试 309；物理仍 0/5；见 [docs/79](docs/79-阶段化bringup记录.md) |
-| **v1.29 固件头** | ✅ 离线验收 | `assemble pack` 额外生成 `firmware.h`（引脚/ID/宏）；测试 310；物理仍 0/5；见 [docs/77](docs/77-硬件准备包.md) |
-| **v1.30 完整采购包** | ✅ 离线验收 | `pack` 带 `procure.md/csv`；11 个预设全量回归；测试 311；物理仍 0/5；见 [docs/77](docs/77-硬件准备包.md) |
-| **v1.31 臂绘图验收** | ✅ 离线验收 | `bench_arm` bring-up/验收加入 100mm 方框；测试 311；物理仍 0/5；见 [docs/77](docs/77-硬件准备包.md) |
+| 装配/换件/预算/导出 | [Studio](https://gh503.github.io/robot-modkit/design.html) 或 `modkit assemble` | ✅ 离线可用 |
+| 运动学/安全/绘图 | `modkit pose`、`draw`、`preflight` | ✅ 离线可用 |
+| 阶段硬件包 | `modkit assemble pack` | ✅ 生成 bring-up/接线/装配/打印/采购/验收/固件配置 |
+| 阶段 bring-up 记录 | `modkit stage` | ✅ 证据 + sha256；不伪造实测 |
+| 流体材料/工程计算 | `modkit fluid` | ✅ 15 种材料 + 工程公式；见 [81](docs/81-流体材料与工程计算.md) |
+| 3D 世界/环境 | `modkit world` + [world.html](https://gh503.github.io/robot-modkit/world.html) | ✅ 8 预设 + 流体实验；见 [82](docs/82-三维世界与环境.md)、[83](docs/83-仿真实验环境.md) |
+| 整机实测 | 按 [docs/63](docs/63-硬件到货执行单.md) 执行 | ⬜ 0/5，硬件阻塞 |
 
-> 这张表是**唯一可信的状态声明**。任何"应该能行"都不写进来。
+完整能力地图（仿真、生产、采购、验收）见 [docs/80 §80.2](docs/80-项目状态与版本历史.md)。
 
-## 可视化 / 仿真
-
-| 想做什么 | 怎么做 |
-|---|---|
-| 网页里实时转、实时摆姿态 | 打开 <https://gh503.github.io/robot-modkit/>（或本地 `cd web && python3 -m http.server`） |
-| **网页里自由装配/换件/仿真** | 打开 <https://gh503.github.io/robot-modkit/design.html>；BOM → 预算优化；见 [docs/67](docs/67-网页设计器.md)、[68](docs/68-预算优化器.md) |
-| 生成高质量四视图 / 爆炸图 | `make -C sim shots`（需本机有 Chrome） |
-| 抓取动画 GIF | `make -C sim grasp` 或 `make -C sim shots` |
-| 底盘闭环仿真 | `make -C sim drive` |
-| **硬件仿真**（舵机/电池/丢帧） | `modkit simrun --all sim/scenarios` |
-| **交互式仿真工作台** | `modkit simui --open`，浏览器里拖滑杆/注故障 |
-| **抓取摩擦锥** | `modkit simrun --scenario sim/scenarios/slippery_cube.json` |
-| **蒙特卡洛 / 参数辨识** | `modkit simsweep ...` / `modkit identify --log telemetry.csv` |
-| **车载相机手眼** | `modkit simrun --scenario sim/scenarios/mission_onboard.json` |
-| **工作台验收** | 逐条证据见 [docs/50](docs/50-仿真工作台验收.md) |
-| **相机畸变/手眼标定** | `modkit simrun --scenario sim/scenarios/mission_distortion.json`；见 [docs/53](docs/53-相机畸变与手眼标定.md) |
-| **接触滑动/六维力** | `modkit simrun --scenario sim/scenarios/fast_transport.json`；见 [docs/54](docs/54-接触动力学与六维力.md) |
-| **3D 实时 / 场景编辑** | `modkit simui`，四宫格 3D + JSON 编辑器；见 [docs/56](docs/56-工作台3D实时视图.md)、[57](docs/57-场景编辑器与回归基线.md) |
-| **回归基线** | `modkit simdiff --baseline ... --current ...` |
-| **硬件 bring-up** | `modkit --port ... bringup --action check`（只读）；11 步证据见 [docs/59](docs/59-硬件bringup记录.md) |
-| **运动预检/联锁** | `modkit --sim preflight` 或 `modkit --port ... preflight --write-limits`；见 [docs/63](docs/63-硬件到货执行单.md) |
-| **离线姿态包络** | `modkit envelope --x 100 --y 0 --z 120`；桌面/底座/折叠越界返回 2 |
-| **物理约束台账** | 逐项覆盖与缺口见 [docs/62](docs/62-物理约束台账.md) |
-| **自由拼机器人（网页）** | 打开 [Studio](https://gh503.github.io/robot-modkit/design.html)；左侧点组件、右侧改参数、导出 JSON/STL/STEP；见 [docs/67](docs/67-网页设计器.md) |
-| **自由拼机器人（CLI）** | `modkit components` 看库；`modkit assemble plan assemblies/m1.json --out out/`；见 [docs/65](docs/65-组件库与自由组装.md) |
-| **组件 CAD 批导出** | `make components-cad` → `cad/out/components/`（36 个 STEP/STL + manifest） |
-| 仿真调试图 | `modkit simplot --scenario sim/scenarios/nav_square.json --out sq.png` |
-| 相机仿真 | `modkit camsim --out cube.png --cube 200,0,40 --detect` |
-| 打印前先验证打印机精度 | 打 `cad/out/print_gauge.stl`（`build.py` 顺带导出），流程见 [docs/13](docs/13-业界实践对照.md) |
-| 拼打印板 | `cd cad && python plate.py --copies 1` → `plate_01..04.stl`；批量见 [docs/55](docs/55-按数量排板.md) |
-
-## 三分钟上手（不需要任何硬件）
+## 三分钟上手
 
 ```bash
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
-make doctor                                          # 环境自检
-make check-fast                                      # 311 项测试 + 16 场景 + 11 个装配示例
-make web-smoke                                       # Chrome 无头冒烟（需本机 Chrome）
-./.venv/bin/python -m modkit.cli --sim scan          # 扫描仿真舵机
-./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150   # 逆解到点
-./.venv/bin/python -m modkit.cli --sim demo          # 逐关节摆动
+make doctor
+make check-fast          # 当前 333 项测试 + 16 场景 + 11 装配示例
+make web-smoke           # 需本机 Chrome
 ```
 
-看整机长什么样、动作顺不顺（不需要硬件）：
+不接硬件跑一遍：
 
 ```bash
-make -C sim views    # 四视图 + 尺寸图 + 工作空间
-make -C sim grasp    # 抓取动画 GIF
-make -C sim drive    # 底盘闭环仿真（打印判据）
+./.venv/bin/python -m modkit.cli --sim scan
+./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150
+./.venv/bin/python -m modkit.cli draw --shape square --z 150 --play --sim
 ```
 
-看图纸、跑自检：
+生成某一阶段的完整硬件包：
 
 ```bash
-cd cad && ../.venv/bin/python build.py     # 生成 STEP/STL + 33 项几何断言
-../.venv/bin/python render.py              # 出三视图预览
+cd software
+../.venv/bin/python -m modkit.cli assemble pack ../assemblies/bench_joint.json \
+  --out ../out/pack-bench-joint
 ```
 
-跑测试（ROS 环境下的 pytest 插件会互相打架，见下方"已知坑"）：
+## 边界（先看这一段）
 
-```bash
-cd software && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 ../.venv/bin/python -m pytest
-cd firmware && make test
-```
+- **物理闸门 0/5**：设计/仿真通过 ≠ 实物通过；没有实测证据不写“已验证”。
+- 价格是 2026-10 估算，不是供应商报价；线束是逻辑检查表，不是按长度下料图。
+- `m1_pen` 是 2DOF 固定上臂，只能画圆弧；3DOF `bench_arm` 才能画方框。
+- 流体/世界模型是**工程级降阶模型**，不是认证 CFD；用于方案比较、控制/任务调试和
+  数字孪生交互，不替代水池试验、安规和第三方认证。
+- 所有“物理结论”必须回到 [docs/62 物理约束台账](docs/62-物理约束台账.md) 和实测记录。
 
 ## 目录
 
 ```
-docs/     00 计划 · 01 系统设计 · 02 接口 · 03 配电 · 04 BOM · 11 零件清单 · 12 仿真
-          05 装配 · 06 调试测试 · 07 小白手册 · 08 学习路径 · 09 故障排查 · 10 决策
-cad/      params.py（唯一尺寸源）· parts.py（M0）· parts_m1.py（整机）· build.py · render.py
-sim/      model.py（可动模型）· draw.py（多视图）· anim_grasp.py（动画）· drive.py（闭环仿真）
-firmware/ src/（协议+驱动，可脱离硬件测试）· esp32/（平台层）· test/（假总线）
-software/ modkit/（协议/运动学/仿真/CLI）· tests/
+docs/       设计与验收文档；80 是状态/版本/使用地图
+cad/        params.py（唯一尺寸源）· 零件/整机/出图
+sim/        可动模型、多视图、抓取/底盘仿真
+firmware/   总线协议/驱动 + ESP32 平台层
+software/   modkit Python 包（装配/运动/安全/绘图/硬件包/流体/世界）
+web/        Studio、3D 查看器、PWA
+assemblies/ 11 个可复现装配
 ```
 
-## 设计主张（为什么长这样）
+## 设计主张
 
-1. **接口先于形态**：全机一个 20mm M3 网格、一种螺钉、一条三线总线。换构型改的是"用哪几块板"。
-2. **免测量优先**：舵机靠浅槽+压盖固定，不依赖官方未公布的安装孔坐标。
-3. **间隙是设计值**：旋转件与固定件 0.6mm、舵机与盖板 0.4mm，由脚本断言而非试装。
-4. **每层可独立验证**：CAD 有几何断言、协议有字节断言、运动学有数值断言、平台层可仿真。硬件坏了，软件照样能测。
+1. **接口先于形态**：20mm M3 网格、一种螺钉、一条三线总线。
+2. **每层可独立验证**：CAD 几何断言、协议字节断言、运动学数值断言、流体守恒断言。
+3. **先离线后硬件**：能在仿真里证伪的，不带到实物上；不能仿真的，明确标“待实测”。
+4. **商业场景从约束出发**：泳池/管道/灌溉的流体与空间约束先建模，再谈机器人形态。
 
-## 已知坑（踩过，记下来）
+## 参与 / 许可
 
-- ROS 2 Humble 的 `launch_testing` 会被 pytest 自动加载并因缺 `pyyaml` 报错 → 用 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`。
-- 本机 `~/Documents/infra-dev` 是另一个项目（Jarvis），故本项目独立在 `~/Documents/robot-modkit`，独立 git 仓库。
-- 机械臂逆解的肩角符号写反过一次，被 `test_forward_ik_roundtrip` 抓住 —— 所以那条测试必须保留。
-
-## 参与
-
-- 想改东西：先看 [CONTRIBUTING.md](CONTRIBUTING.md)（五条必跑命令 + 六条硬规则）
-- 想提问题：用 [issue 模板](.github/ISSUE_TEMPLATE/)
-- **要有尺寸的图纸**：[13 页工程图](docs/drawings/modkit-m1-drawings.pdf)（A4 可直接打印）
-- **要真的造出来**：[docs/15-生产链路总览](docs/15-生产链路总览.md)（八个环节 + 每环门禁）
-- **要评估风险/改版**：[FMEA](docs/22-FMEA与风险.md) · [版本与兼容矩阵](docs/23-版本与兼容.md)
-- **要开工前自查**：[28-生产就绪检查](docs/28-生产就绪检查.md)（G0–G8 放行清单）
-- **要小批量做**：[docs/21-批量生产](docs/21-批量生产.md)（序列号/烧录/抽检/包装）
-- **要算成本/排产**：[docs/17-成本模型](docs/17-成本模型.md)（五档 × 1/5/20 台）
-- **要下单**：[docs/51-下单清单](docs/51-下单清单.md)（含预算差额/货期/链接）
-- **要打件**：[docs/16-可制造性报告](docs/16-可制造性报告.md)（方向/悬垂/壁厚/时长）
-- 文档怎么找：[docs/README.md](docs/README.md)（按角色 + 按类型两张表）
-- 想了解"为什么这么做"：[docs/13-业界实践对照](docs/13-业界实践对照.md) 把 SO-ARM100、OSHWA、
-  Diátaxis、REP-103 逐项对照过，并列出还欠什么
-
-## 版本
-
-当前 **v1.31.0**：结构查看器支持关节滑杆/播放/爆炸视图；设计器支持复制/粘贴/
-拖拽导入和 3D 问题高亮；Chrome CDP 冒烟测试进 CI。预算优化器现在能看两类候选——
-省钱的，以及成本不升但更轻的（勾选“同价减重”/`--mass`）。m1 换 160 底盘成本不变、减重 80g。规划仍是
-深度受限精确搜索，m1 目标 ¥1000 一步 ¥968，目标 ¥900 诚实显示“最多 ¥964.4，
-仍差 ¥64.4”。Studio 还支持分享链接、断网刷新、导入形状校验和撤销/重做。
-`m1` 的"去掉肘关节"候选为 **15 组件 / 3 关节 / ¥968**。完整 M1 仍是 ¥1127，
-预算版是有意识的裁剪，不是三关节通用臂。实物未采购/未装配，物理闸门 **0/5**。边界见
-[docs/52](docs/52-v1.0完成声明.md)、[58](docs/58-v1.1验收.md)、[60](docs/60-v1.2验收.md)、
-[61](docs/61-v1.3-UI优化.md)、[64](docs/64-v1.4-预硬件验收.md)、
-[66](docs/66-v1.5验收.md)、[67](docs/67-网页设计器.md)、[68](docs/68-预算优化器.md)、[69](docs/69-结构查看器.md)、[70](docs/70-浏览器冒烟测试.md)、[71](docs/71-导出格式.md)、[72](docs/72-项目与版本.md)、[73](docs/73-多目标与约束.md)、[74](docs/74-网格碰撞与关节力矩.md)，逐项约束见 [docs/62](docs/62-物理约束台账.md)，
-完整变更见 [CHANGELOG.md](CHANGELOG.md)。
-
-## 许可
-
-MIT（代码、CAD、文档统一）。为什么暂不改 CERN-OHL：见 [D17](docs/10-决策记录.md)。
-
-
-MIT，见 [LICENSE](LICENSE)。硬件图纸同样 MIT，商用注明出处即可。
+- 改东西前看 [CONTRIBUTING.md](CONTRIBUTING.md)；问题用 [issue 模板](.github/ISSUE_TEMPLATE/)。
+- 文档入口：[docs/README.md](docs/README.md)。
+- MIT；硬件图纸同样 MIT，商用注明出处即可。

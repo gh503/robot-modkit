@@ -1,0 +1,130 @@
+{
+  "schema": "modkit.world/1",
+  "name": "室外地形",
+  "description": "20x20m；缓坡 + 水坑；用于户外/农业机器人。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "outdoor",
+  "objects": [
+    {
+      "id": "ground",
+      "type": "box",
+      "name": "地面",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        20.0,
+        20.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#4e5b43",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "ground",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "slope",
+      "type": "box",
+      "name": "缓坡",
+      "position": [
+        0,
+        4,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        12,
+        4,
+        0.3
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#55624a",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "obstacle",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "puddle",
+      "type": "puddle",
+      "fluid": "water",
+      "name": "水坑",
+      "position": [
+        2,
+        -3,
+        0.1
+      ],
+      "size": [
+        3.0,
+        2.0,
+        0.15
+      ],
+      "level": 0.6,
+      "radius": null,
+      "height": null,
+      "volume_m3": 0.54,
+      "flow_m3_s": 0.0,
+      "temperature_c": 16,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/rover_base.json",
+    "position": [
+      0,
+      0,
+      0.1
+    ],
+    "yaw_deg": 0,
+    "task": "traverse"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        2,
+        -3,
+        0.2
+      ],
+      "target": "puddle",
+      "unit": "m",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

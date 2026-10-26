@@ -336,6 +336,34 @@ async function main() {
   });
 
   const viewerUrl = await cdp.eval("MODKIT_STUDIO.viewerURL()");
+  await run("World 三维场景/流体面板", async () => {
+    await cdp.navigate(`${BASE}/world.html?smoke=1`);
+    await waitFor(() => cdp.eval("!!window.MODKIT_WORLD && !!MODKIT_WORLD.state.world"), 10000, "World 初始化");
+    const r = await cdp.eval(`(() => ({
+      presets: MODKIT_WORLD.presets.length,
+      env: MODKIT_WORLD.state.world.environment,
+      objects: MODKIT_WORLD.state.world.objects.length,
+      fluids: MODKIT_WORLD.state.world.fluids.length,
+      water: MODKIT_WORLD.state.water.length,
+      triangles: MODKIT_WORLD.state.renderer.info.render.triangles,
+      fluidOptions: document.querySelectorAll("#fluid option").length,
+      bodyOptions: document.querySelectorAll("#body option").length
+    }))()`);
+    check(r.presets === 8, `预设 ${r.presets} != 8`);
+    check(r.env === "pool" && r.objects >= 2 && r.fluids >= 1, "默认泳池世界不完整");
+    check(r.water >= 1, "没有水体网格");
+    check(r.triangles > 100, `三角形 ${r.triangles} 太少`);
+    check(r.fluidOptions >= 15, `流体材料 ${r.fluidOptions} < 15`);
+    check(r.bodyOptions >= 1, "流体对象下拉为空");
+    await cdp.eval('MODKIT_WORLD.loadPreset("lab")');
+    await waitFor(() => cdp.eval('MODKIT_WORLD.state.world.environment === "lab"'), 5000, "加载 lab");
+    const lab = await cdp.eval('(() => ({ objects: MODKIT_WORLD.state.world.objects.length, fluids: MODKIT_WORLD.state.world.fluids.length, errors: MODKIT_WORLD.validateBasic(MODKIT_WORLD.state.world).length }))()');
+    check(lab.objects >= 3 && lab.fluids >= 1 && lab.errors === 0, "lab 世界不完整");
+    await cdp.eval('document.querySelector("#level").value = 42; document.querySelector("#apply").click()');
+    await sleep(200);
+    check(await cdp.eval('Math.abs(MODKIT_WORLD.state.world.fluids[0].level - 0.42) < 1e-9'), "液位没有应用");
+  });
+
   await run("查看器渲染 + 关节/爆炸", async () => {
     await cdp.navigate(viewerUrl);
     await waitFor(() => cdp.eval("!!window.MODKIT_VIEW && !!MODKIT_VIEW.state.renderer"), 8000, "查看器初始化");
@@ -449,7 +477,7 @@ async function main() {
     console.error(`\nweb smoke: ${failures} 项失败`);
     process.exit(1);
   }
-  console.log("\nweb smoke: PASS（14 项）");
+  console.log("\nweb smoke: PASS（16 项）");
 }
 
 main().catch((e) => {

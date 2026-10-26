@@ -57,7 +57,7 @@
 - 浏览器“移动/无障碍/i18n”组：切 EN 后导航/播放/placeholder/标题变化，
   切回中文；标注 ≥20；`MODKIT_PWA` 与安装按钮存在。
 - PWA 组：SW activated、壳缓存、STEP 预缓存、manifest 图标 ≥3。
-- 总计 **311 项** pytest；`make web-smoke` **14 组**。
+- 总计 **333 项** pytest；`make web-smoke` **16 组**。
 
 ## 75.6 边界
 
@@ -69,4 +69,4 @@
 ## 75.7 版本
 
 - **v1.23.0**：移动断点/触控目标、skip/focus/reduced-motion、核心 i18n、
-  PWA 安装提示/图标/离线状态；测试 311；smoke 14 组。
+  PWA 安装提示/图标/离线状态；测试 333；smoke 16 组。

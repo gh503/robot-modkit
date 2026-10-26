@@ -1,0 +1,142 @@
+{
+  "schema": "modkit.world/1",
+  "name": "水族箱",
+  "description": "1.2x0.6x0.6m 玻璃缸；海水/淡水实验。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "aquarium",
+  "objects": [
+    {
+      "id": "floor",
+      "type": "box",
+      "name": "地面",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        2.0,
+        1.5,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#3b4652",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "glass",
+      "type": "box",
+      "name": "缸体",
+      "position": [
+        0,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.2,
+        0.6,
+        0.6
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#8fd3ff",
+      "opacity": 0.18,
+      "collider": "box",
+      "semantic": "tank",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "water",
+      "type": "tank",
+      "fluid": "seawater",
+      "name": "海水",
+      "position": [
+        0,
+        0,
+        0.1
+      ],
+      "size": [
+        1.2,
+        0.6,
+        0.6
+      ],
+      "level": 0.8,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 25,
+      "salinity_ppt": 35,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/bench_joint.json",
+    "position": [
+      0,
+      0,
+      0.1
+    ],
+    "yaw_deg": 0,
+    "task": "observe"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        0,
+        0,
+        0.7
+      ],
+      "target": "water",
+      "unit": "m",
+      "metadata": {}
+    },
+    {
+      "id": "temp",
+      "type": "temperature",
+      "position": [
+        0,
+        0,
+        0.45
+      ],
+      "target": "water",
+      "unit": "C",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

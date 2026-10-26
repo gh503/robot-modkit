@@ -1,0 +1,229 @@
+{
+  "schema": "modkit.world/1",
+  "name": "温室灌溉",
+  "description": "10x6m 温室；种植槽 + 1m³ 灌溉罐。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "greenhouse",
+  "objects": [
+    {
+      "id": "floor",
+      "type": "box",
+      "name": "地面",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        10.0,
+        6.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#4f5b45",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "bed0",
+      "type": "box",
+      "name": "种植槽 1",
+      "position": [
+        -3.0,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.2,
+        4.0,
+        0.35
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#6b4f2a",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "obstacle",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "bed1",
+      "type": "box",
+      "name": "种植槽 2",
+      "position": [
+        0.0,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.2,
+        4.0,
+        0.35
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#6b4f2a",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "obstacle",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "bed2",
+      "type": "box",
+      "name": "种植槽 3",
+      "position": [
+        3.0,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.2,
+        4.0,
+        0.35
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#6b4f2a",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "obstacle",
+      "source": "",
+      "metadata": {}
+    },
+    {
+      "id": "tank_shell",
+      "type": "box",
+      "name": "灌溉罐",
+      "position": [
+        4.2,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.0,
+        1.0,
+        1.2
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#7d8b99",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "tank",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "water",
+      "type": "tank",
+      "fluid": "water",
+      "name": "灌溉水",
+      "position": [
+        4.2,
+        0,
+        0.1
+      ],
+      "size": [
+        1.0,
+        1.0,
+        1.2
+      ],
+      "level": 0.75,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 24,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/m1_pen.json",
+    "position": [
+      0,
+      -2.4,
+      0.1
+    ],
+    "yaw_deg": 90,
+    "task": "irrigate"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        4.2,
+        0,
+        1.3
+      ],
+      "target": "water",
+      "unit": "m",
+      "metadata": {}
+    },
+    {
+      "id": "flow",
+      "type": "flow",
+      "position": [
+        4.2,
+        0,
+        0.6
+      ],
+      "target": "water",
+      "unit": "L/min",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

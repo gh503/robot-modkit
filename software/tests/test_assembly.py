@@ -135,6 +135,9 @@ def test_collision_warning_and_strict(tmp_path):
         {"id": "p2", "type": "power.adapter_12v5a", "parent": "m2", "port": "top"}]}
     r = A.load_and_validate(write(tmp_path, data))
     assert any(x.code == "collision.aabb" for x in r.warnings)
+    assert any(x.code == "collision.mesh" for x in r.warnings)
+    assert r.collision_stats.get("mesh_hits", 0) >= 1
+    assert r.collision_mesh
 
     data["strict"] = True
     r = A.load_and_validate(write(tmp_path, data))
@@ -197,3 +200,22 @@ def test_cli_components_and_assemble(capsys, tmp_path):
     out = capsys.readouterr().out
     assert "PASS" in out and "舵机" in out
     assert cli.main(["assemble", "validate", str(tmp_path / "missing.json")]) == 2
+
+
+def test_mesh_hit_and_dynamic_joint_torque():
+    from modkit import components as C
+    ident = C.mat_identity()
+    box = (0, 0, 0, 10, 10, 10)
+    assert A._mesh_hit(ident, box, ident, (5, 5, 5, 15, 15, 15)) is True
+    assert A._mesh_hit(ident, box, ident, (11, 0, 0, 21, 10, 10)) is False
+    assert A._mesh_hit(ident, box, ident, (2, 2, 2, 8, 8, 8)) is True
+    rot = C.mat_mul(C.Transform((0, 0, 0), (0, 0, 45)).matrix(), ident)
+    assert A._mesh_hit(ident, (-5, -5, 0, 5, 5, 10), rot, (-5, -5, 0, 5, 5, 10)) is True
+
+    r = A.load_and_validate(ROOT / "assemblies" / "m1.json")
+    assert r.joint_loads and all(j.load_nm > 0 for j in r.joint_loads)
+    for j in r.joint_loads:
+        assert abs(j.load_nm - (j.gravity_nm + j.dynamic_nm)) < 1e-6
+        assert j.dynamic_nm > 0 and j.arm_mm > 0
+        assert j.margin_nm == j.rated_nm - j.load_nm
+        assert j.ok

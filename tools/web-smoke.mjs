@@ -262,6 +262,28 @@ async function main() {
     check(r.cards >= 1 && r.planShown, "约束 UI 没有渲染");
   });
 
+  await run("网格碰撞/关节力矩", async () => {
+    const r = await cdp.eval(`(() => {
+      const A = window.MODKIT_ASSEMBLY, m = window.MODKIT_ASSEMBLIES.m1;
+      const rep = A.validate(m);
+      const box = [0, 0, 0, 10, 10, 10];
+      return {
+        hit: A.meshHit(A.identity(), box, A.identity(), [5, 5, 5, 15, 15, 15]),
+        miss: A.meshHit(A.identity(), box, A.identity(), [11, 0, 0, 21, 10, 10]),
+        contained: A.meshHit(A.identity(), box, A.identity(), [2, 2, 2, 8, 8, 8]),
+        loads: rep.jointLoads.map(j => ({ name: j.name, load: j.load, gravity: j.gravity,
+          dynamic: j.dynamic, ratio: j.ratio, ok: j.ok })),
+        stats: rep.collisionStats, mesh: rep.collisionMesh,
+        rows: document.querySelectorAll("#torque tbody tr").length
+      };
+    })()`);
+    check(r.hit === true && r.miss === false && r.contained === true, "三角面网格相交不对");
+    check(r.loads.length === 3 && r.loads.every(j => j.load > 0 && j.ok), "关节力矩缺失/超限");
+    check(r.loads.every(j => Math.abs(j.load - j.gravity - j.dynamic) < 1e-6), "力矩分项对不上");
+    check(r.rows === 3, `力矩表行数 ${r.rows}`);
+    check(r.stats && typeof r.stats.meshTests === "number", "碰撞统计缺失");
+  });
+
   await run("Studio 生成查看器链接", async () => {
     await cdp.eval('MODKIT_STUDIO.loadPreset("m1")');
     await sleep(200);
@@ -354,7 +376,7 @@ async function main() {
     console.error(`\nweb smoke: ${failures} 项失败`);
     process.exit(1);
   }
-  console.log("\nweb smoke: PASS（11 项）");
+  console.log("\nweb smoke: PASS（12 项）");
 }
 
 main().catch((e) => {

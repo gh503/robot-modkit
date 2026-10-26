@@ -1,7 +1,8 @@
 /* 浏览器端装配求解/校验核心。
  *
- * 这是 software/modkit/assembly.py 的"同语义子集"：只做刚性端口装配、
- * BOM/质量/功率/重心、AABB 碰撞、关节静载；不假装是网格碰撞或动力学。
+ * 这是 software/modkit/assembly.py 的"同语义子集"：刚性端口装配、
+ * BOM/质量/功率/重心、AABB + 三角面盒网格碰撞、关节静+动载；
+ * 盒网格不是 STEP/B-Rep，力矩不是完整动力学。
  * 纯函数 + 列主序 4×4 矩阵（和 three.js 一致），可在 node 里直接测试。
  */
 (function (root, factory) {
@@ -155,8 +156,75 @@
     ];
   }
 
+  function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function vcross(a, b) {
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  }
+  function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+
+  function boxCorners(world, bbox) {
+    var out = [];
+    [bbox[2], bbox[5]].forEach(function (z) {
+      [bbox[1], bbox[4]].forEach(function (y) {
+        [bbox[0], bbox[3]].forEach(function (x) { out.push(apply(world, [x, y, z])); });
+      });
+    });
+    return out;
+  }
+  function boxTris(p) {
+    var f = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
+      [0, 1, 5], [0, 5, 4], [1, 3, 7], [1, 7, 5],
+      [2, 6, 7], [2, 7, 3], [0, 4, 6], [0, 6, 2]];
+    return f.map(function (t) { return [p[t[0]], p[t[1]], p[t[2]]]; });
+  }
+  function pointInTri(p, a, b, c, n, eps) {
+    eps = eps || 1e-6;
+    n = n || vcross(vsub(b, a), vsub(c, a));
+    if (Math.abs(vdot(vsub(p, a), n)) > eps * Math.max(1, Math.sqrt(vdot(n, n)))) return false;
+    var v0 = vsub(c, a), v1 = vsub(b, a), v2 = vsub(p, a);
+    var d00 = vdot(v0, v0), d01 = vdot(v0, v1), d11 = vdot(v1, v1);
+    var d20 = vdot(v2, v0), d21 = vdot(v2, v1);
+    var den = d00 * d11 - d01 * d01;
+    if (Math.abs(den) < 1e-12) return false;
+    var u = (d11 * d20 - d01 * d21) / den;
+    var v = (d00 * d21 - d01 * d20) / den;
+    return u >= -eps && v >= -eps && u + v <= 1 + eps;
+  }
+  function segTri(p, q, a, b, c, eps) {
+    eps = eps || 1e-7;
+    var n = vcross(vsub(b, a), vsub(c, a));
+    var den = vdot(n, vsub(q, p));
+    if (Math.abs(den) < eps) return false;
+    var t = vdot(n, vsub(a, p)) / den;
+    if (t < -eps || t > 1 + eps) return false;
+    var x = [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2])];
+    return pointInTri(x, a, b, c, n, eps);
+  }
+  function insideObb(world, bbox, p) {
+    var q = apply(invertRigid(world), p), eps = 1e-4;
+    return q[0] >= bbox[0] - eps && q[0] <= bbox[3] + eps &&
+      q[1] >= bbox[1] - eps && q[1] <= bbox[4] + eps &&
+      q[2] >= bbox[2] - eps && q[2] <= bbox[5] + eps;
+  }
+  function meshHit(wa, ba, wb, bb) {
+    var ca = boxCorners(wa, ba), cb = boxCorners(wb, bb);
+    if (ca.every(function (p) { return insideObb(wb, bb, p); }) ||
+        cb.every(function (p) { return insideObb(wa, ba, p); })) return true;
+    var ta = boxTris(ca), tb = boxTris(cb);
+    for (var i = 0; i < ta.length; i++) for (var j = 0; j < tb.length; j++) {
+      var a = ta[i], b = tb[j];
+      for (var k = 0; k < 3; k++) {
+        if (segTri(a[k], a[(k + 1) % 3], b[0], b[1], b[2])) return true;
+        if (segTri(b[k], b[(k + 1) % 3], a[0], a[1], a[2])) return true;
+      }
+    }
+    return false;
+  }
+
   function validate(assembly, opts) {
     opts = opts || {};
+    var maxAccel = Number(assembly.max_accel_m_s2 == null ? 0.5 : assembly.max_accel_m_s2) || 0;
+    var collisionStats = { aabbPairs: 0, meshTests: 0, meshHits: 0 }, collisionMesh = [];
     var issues = [];
     var ignore = {};
     (assembly.ignore_collision || []).forEach(function (p) {
@@ -287,8 +355,18 @@
         Math.min(ba[5], bb[5]) - Math.max(ba[2], bb[2])];
       if (ov.every(function (v) { return v > 1; })) {
         var vol = ov[0] * ov[1] * ov[2];
+        collisionStats.aabbPairs += 1;
+        var hit = meshHit(ia.world, ia.component.bbox, ib.world, ib.component.bbox);
+        collisionStats.meshTests += 1;
+        if (hit) {
+          collisionStats.meshHits += 1;
+          collisionMesh.push({ a: ia.id, b: ib.id, volume_mm3: Math.round(vol * 10) / 10 });
+          add((opts.strict || assembly.strict) ? ERROR : WARN, "collision.mesh",
+            ia.id + " 与 " + ib.id + " 实体盒网格相交（AABB " + Math.round(vol) + "mm³）", ia.id);
+        }
         add(((opts.strict || assembly.strict) && vol > 500) ? ERROR : WARN, "collision.aabb",
-          ia.id + " 与 " + ib.id + " 包围盒重叠约 " + Math.round(vol) + "mm³", ia.id);
+          ia.id + " 与 " + ib.id + " 包围盒重叠约 " + Math.round(vol) + "mm³" +
+          (hit ? "" : "，但实体盒网格未相交"), ia.id);
       }
     }
 
@@ -393,22 +471,29 @@
       }
       var sub = solved.filter(function (x) { return ids[x.id] && x.id !== i.id; });
       var mass = sub.reduce(function (s, x) { return s + (x.component.mass_g || 0); }, 0);
-      var wx = 0, wy = 0;
+      var wx = 0, wy = 0, wz = 0;
       sub.forEach(function (x) {
         var bb = x.component.bbox;
-        var c = apply(x.world, [(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, 0]);
-        wx += c[0] * (x.component.mass_g || 0); wy += c[1] * (x.component.mass_g || 0);
+        var c = apply(x.world, [(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2]);
+        var w = x.component.mass_g || 0;
+        wx += c[0] * w; wy += c[1] * w; wz += c[2] * w;
       });
-      if (payloadAt && payload > 0) { mass += payload; wx += payloadAt[0] * payload; wy += payloadAt[1] * payload; }
+      if (payloadAt && payload > 0) {
+        mass += payload; wx += payloadAt[0] * payload; wy += payloadAt[1] * payload; wz += payloadAt[2] * payload;
+      }
       if (mass <= 0) return;
       var center = apply(i.world, i.joint.center || [0, 0, 30]);
-      var arm = Math.hypot(wx / mass - center[0], wy / mass - center[1]);
-      var load = mass / 1000 * 9.81 * arm / 1000;
+      var arm = Math.sqrt(Math.pow(wx / mass - center[0], 2) +
+        Math.pow(wy / mass - center[1], 2) + Math.pow(wz / mass - center[2], 2));
+      var gravity = mass / 1000 * 9.81 * arm / 1000;
+      var dynamic = mass / 1000 * Math.max(0, maxAccel) * arm / 1000;
+      var load = gravity + dynamic;
       var ratio = load / Math.max(i.joint.rated_torque_nm || 1e-9, 1e-9);
       loads.push({ instance: i.id, name: i.joint.name, servo_id: i.servo_id, rated: i.joint.rated_torque_nm,
-        load: load, ratio: ratio, mass: mass, arm: arm });
-      if (ratio > 1) add(ERROR, "joint.overload", i.id + "(" + i.joint.name + ") 静载 " + load.toFixed(2) + "N·m > 额定", i.id);
-      else if (ratio > 0.5) add(WARN, "joint.margin", i.id + "(" + i.joint.name + ") 静载超过额定 50%", i.id);
+        load: load, ratio: ratio, mass: mass, arm: arm, gravity: gravity, dynamic: dynamic,
+        accel: maxAccel, margin: i.joint.rated_torque_nm - load, ok: ratio <= 1 });
+      if (ratio > 1) add(ERROR, "joint.overload", i.id + "(" + i.joint.name + ") 静+动载 " + load.toFixed(2) + "N·m > 额定", i.id);
+      else if (ratio > 0.5) add(WARN, "joint.margin", i.id + "(" + i.joint.name + ") 静+动载超过额定 50%", i.id);
     });
 
     // 位置关节名唯一 + safety
@@ -434,6 +519,7 @@
       power: { supply: supply, idle: idle, peak: peak, planning: planning, sources: sources },
       stability: { com: com, support: hull, margin: margin, tip: tip, inside: inside },
       jointLoads: loads, servoIds: servoIds,
+      collisionMesh: collisionMesh, collisionStats: collisionStats,
       safety: Object.keys(joints).length ? { robot: assembly.name || "unnamed", calibrated: false, joints: joints } : null,
       calibration: Object.keys(cal).length ? { robot: assembly.name || "unnamed", created: "", joints: cal } : null,
       payload: payload
@@ -569,7 +655,7 @@
     ERROR: ERROR, WARN: WARN, INFO: INFO, GRID: GRID,
     identity: identity, multiply: multiply, translation: translation,
     rotX: rotX, rotY: rotY, rotZ: rotZ, fromPose: fromPose,
-    invertRigid: invertRigid, apply: apply, aabb: aabb,
+    invertRigid: invertRigid, apply: apply, aabb: aabb, meshHit: meshHit,
     compatible: compatible, getComp: getComp, components: components,
     check: check, validate: validate, svgReport: svgReport, convexHull: convexHull,
     pointInPoly: pointInPoly, minEdge: minEdge

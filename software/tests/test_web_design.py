@@ -167,6 +167,17 @@ def test_workspace_projects_versions_and_schema_migration():
     assert '"modkit.workspace.v2"' in js
 
 
+def test_mesh_collision_and_torque_ui():
+    design = (WEB / "design.html").read_text(encoding="utf-8")
+    assert 'id="torque"' in design and "关节力矩" in design
+    js = (WEB / "designer.js").read_text(encoding="utf-8")
+    assert "function renderTorque" in js and "renderTorque();" in js
+    core = (WEB / "assembly-core.js").read_text(encoding="utf-8")
+    for token in ("function meshHit", "collisionStats", "collisionMesh",
+                  "gravity", "dynamic", "maxAccel"):
+        assert token in core
+
+
 def test_browser_smoke_harness_is_wired_into_ci():
     smoke = (ROOT / "tools" / "web-smoke.mjs").read_text(encoding="utf-8")
     assert "MODKIT_STUDIO.select" in smoke and "view-joints" in smoke

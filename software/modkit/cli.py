@@ -472,6 +472,15 @@ def cmd_assemble(args) -> int:
     for x in rep.issues:
         mark = "✗" if x.level == "error" else ("!" if x.level == "warn" else "·")
         print(f"  {mark} [{x.code}] {x.instance or '-'}: {x.message}")
+    if rep.joint_loads:
+        worst = max(rep.joint_loads, key=lambda j: j.ratio)
+        print(f"  关节：最大 {worst.name} {worst.load_nm:.2f}N·m / 额定 "
+              f"{worst.rated_nm:.2f}（{worst.ratio:.2f}×，重力 {worst.gravity_nm:.2f} + "
+              f"动态 {worst.dynamic_nm:.2f}）")
+    if rep.collision_stats:
+        print(f"  碰撞：AABB {rep.collision_stats.get('aabb_pairs', 0)} 对 / "
+              f"网格 {rep.collision_stats.get('mesh_tests', 0)} 次 / "
+              f"相交 {rep.collision_stats.get('mesh_hits', 0)} 对")
     if rep.power:
         print(f"  电源：规划 {rep.power.planning_a:.2f}A / 峰值 {rep.power.peak_a:.2f}A "
               f"/ 电源 {rep.power.supply_a:.1f}A")

@@ -259,3 +259,5 @@ body.drop-active #drop-hint{display:grid}
 .opt-constraints select { padding:2px 4px; font-size:10px; }
 .pareto-badge { display:inline-block; margin-left:5px; padding:0 4px; border-radius:3px;
   background:#e6f4ea; color:#1e7b3c; font-size:8px; font-weight:700; }
+table.bom tr.bad td { color:#b42318; background:#fff4f2; }
+table.bom tr.warn td { color:#8a5a00; background:#fffaf0; }

@@ -1,5 +1,30 @@
 # 更新日志
 
+## v1.22.0 — 2026-10-26
+
+### 碰撞
+
+- 保留 AABB 粗筛；对非相邻、AABB 重叠 >1mm 的组件，用 bbox 的 12 个三角面
+  做三角-三角相交（边-三角双向 + 完全包含）。
+- 命中记 `collision.mesh`（strict 下 error），同时保留 `collision.aabb`。
+- `collision_stats` / `collision_mesh` 进入 JSON；合成碰撞测试覆盖相交/分离/包含/旋转。
+
+### 关节力矩
+
+- 力臂从“当前姿态 XY 水平距离”改为 **3D 距离**（最坏姿态），
+  解决 m1 竖直臂静载为 0 的假安全。
+- `load = gravity + dynamic`；`dynamic = m × max_accel × arm`；
+  新增 `gravity_nm/dynamic_nm/accel/margin/ok`。
+- `joint.overload` / `joint.margin` 改用合计；修正 `JointLoad.servo_id` 一直为 0。
+- Studio 校验页新增力矩表；CLI 人类可读输出增加最大力矩与碰撞统计；
+  `assembly.md` 增加重力/动态/合计列。
+- `make web-smoke` 增至 12 组；测试 286 → **288**。
+
+### 边界
+
+- 仍是 bbox 盒网格，不是 STEP/B-Rep；力矩是静+动上界，不含角加速度/惯量/摩擦。
+- 物理闸门仍 **0/5**。
+
 ## v1.21.0 — 2026-10-26
 
 ### 多目标与约束

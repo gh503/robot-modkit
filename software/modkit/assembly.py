@@ -152,12 +152,21 @@ class JointLoad:
     ratio: float
     mass_g: float
     arm_mm: float
+    gravity_nm: float = 0.0
+    dynamic_nm: float = 0.0
+    accel_m_s2: float = 0.0
+    margin_nm: float = 0.0
+    ok: bool = True
 
     def as_dict(self) -> dict:
         return {"instance": self.instance, "name": self.name,
                 "servo_id": self.servo_id, "rated_nm": round(self.rated_nm, 2),
                 "load_nm": round(self.load_nm, 2), "ratio": round(self.ratio, 2),
-                "mass_g": round(self.mass_g, 1), "arm_mm": round(self.arm_mm, 1)}
+                "mass_g": round(self.mass_g, 1), "arm_mm": round(self.arm_mm, 1),
+                "gravity_nm": round(self.gravity_nm, 2),
+                "dynamic_nm": round(self.dynamic_nm, 2),
+                "accel_m_s2": round(self.accel_m_s2, 2),
+                "margin_nm": round(self.margin_nm, 2), "ok": self.ok}
 
 
 @dataclass
@@ -171,6 +180,8 @@ class Report:
     power: PowerResult | None = None
     stability: Stability | None = None
     joint_loads: list[JointLoad] = field(default_factory=list)
+    collision_mesh: list[dict] = field(default_factory=list)
+    collision_stats: dict = field(default_factory=dict)
     servo_ids: dict[str, int] = field(default_factory=dict)
     safety: dict | None = None
     calibration: dict | None = None
@@ -210,6 +221,8 @@ class Report:
             "power": self.power.as_dict() if self.power else None,
             "stability": self.stability.as_dict() if self.stability else None,
             "joint_loads": [j.as_dict() for j in self.joint_loads],
+            "collision_mesh": self.collision_mesh,
+            "collision_stats": self.collision_stats,
             "servo_ids": self.servo_ids,
             "safety": self.safety,
             "calibration": self.calibration,
@@ -484,6 +497,79 @@ def _aabb(world: C.Mat, bbox: tuple[float, float, float, float, float, float]) -
             max(p[0] for p in pts), max(p[1] for p in pts), max(p[2] for p in pts))
 
 
+def _box_corners(world: C.Mat, bbox: tuple[float, float, float, float, float, float]):
+    x0, y0, z0, x1, y1, z1 = bbox
+    # 索引 i = x + 2*y + 4*z，和 _box_tris 的面表一致。
+    return [C.mat_apply(world, x, y, z) for z in (z0, z1)
+            for y in (y0, y1) for x in (x0, x1)]
+
+
+def _box_tris(pts: list[tuple[float, float, float]]):
+    # 顶点顺序：(x,y,z) 的 0/1 组合，索引 i = x + 2*y + 4*z
+    f = ((0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7),
+         (0, 1, 5), (0, 5, 4), (1, 3, 7), (1, 7, 5),
+         (2, 6, 7), (2, 7, 3), (0, 4, 6), (0, 6, 2))
+    return [(pts[a], pts[b], pts[c]) for a, b, c in f]
+
+
+def _sub(a, b): return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+def _cross(a, b): return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+                          a[0] * b[1] - a[1] * b[0])
+def _dot(a, b): return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _point_in_tri(p, a, b, c, n=None, eps: float = 1e-6) -> bool:
+    if n is None:
+        n = _cross(_sub(b, a), _sub(c, a))
+    if abs(_dot(_sub(p, a), n)) > eps * max(1.0, math.sqrt(_dot(n, n))):
+        return False
+    v0, v1, v2 = _sub(c, a), _sub(b, a), _sub(p, a)
+    d00, d01, d11 = _dot(v0, v0), _dot(v0, v1), _dot(v1, v1)
+    d20, d21 = _dot(v2, v0), _dot(v2, v1)
+    den = d00 * d11 - d01 * d01
+    if abs(den) < 1e-12:
+        return False
+    u = (d11 * d20 - d01 * d21) / den
+    v = (d00 * d21 - d01 * d20) / den
+    return u >= -eps and v >= -eps and u + v <= 1 + eps
+
+
+def _seg_tri(p, q, a, b, c, eps: float = 1e-7) -> bool:
+    n = _cross(_sub(b, a), _sub(c, a))
+    den = _dot(n, _sub(q, p))
+    if abs(den) < eps:
+        return False
+    t = _dot(n, _sub(a, p)) / den
+    if t < -eps or t > 1 + eps:
+        return False
+    x = (p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2]))
+    return _point_in_tri(x, a, b, c, n, eps)
+
+
+def _inside_obb(world: C.Mat, bbox, pt, eps: float = 1e-4) -> bool:
+    inv = C.mat_inv_rigid(world)
+    x, y, z = C.mat_apply(inv, *pt)
+    return (bbox[0] - eps <= x <= bbox[3] + eps and
+            bbox[1] - eps <= y <= bbox[4] + eps and
+            bbox[2] - eps <= z <= bbox[5] + eps)
+
+
+def _mesh_hit(wa, ba, wb, bb) -> bool:
+    ca, cb = _box_corners(wa, ba), _box_corners(wb, bb)
+    # 完全包含：一个盒子的 8 个角都在另一个盒子里。
+    if all(_inside_obb(wb, bb, p) for p in ca) or all(_inside_obb(wa, ba, p) for p in cb):
+        return True
+    ta, tb = _box_tris(ca), _box_tris(cb)
+    for a in ta:
+        for b in tb:
+            for i in range(3):
+                if _seg_tri(a[i], a[(i + 1) % 3], *b):
+                    return True
+                if _seg_tri(b[i], b[(i + 1) % 3], *a):
+                    return True
+    return False
+
+
 def _descendants(inst: Instance, instances: list[Instance]) -> list[Instance]:
     out = []
     changed = True
@@ -599,7 +685,8 @@ def _stability(root: Instance, com: tuple[float, float, float] | None,
 
 
 def _joint_loads(report: Report, instances: list[Instance], payload_g: float,
-                 payload_at: tuple[float, float, float] | None) -> list[JointLoad]:
+                 payload_at: tuple[float, float, float] | None,
+                 max_accel: float = 0.0) -> list[JointLoad]:
     out: list[JointLoad] = []
     for i in instances:
         if i.component is None or i.world is None or i.offboard or i.component.joint is None:
@@ -612,32 +699,43 @@ def _joint_loads(report: Report, instances: list[Instance], payload_g: float,
         if not masses and payload_g <= 0:
             continue
         total = sum(x.component.mass_g for x in masses)  # type: ignore[union-attr]
-        sx = sy = 0.0
+        sx = sy = sz = 0.0
         for x in masses:
             b = x.component.bbox  # type: ignore[union-attr]
-            cx, cy = (b[0] + b[3]) / 2, (b[1] + b[4]) / 2
-            wx, wy, _ = C.mat_apply(x.world, cx, cy, 0)  # type: ignore[arg-type]
+            cx, cy, cz = (b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2
+            wx, wy, wz = C.mat_apply(x.world, cx, cy, cz)  # type: ignore[arg-type]
             sx += wx * x.component.mass_g  # type: ignore[union-attr]
             sy += wy * x.component.mass_g  # type: ignore[union-attr]
+            sz += wz * x.component.mass_g  # type: ignore[union-attr]
         if payload_at and payload_g > 0:
             total += payload_g
             sx += payload_at[0] * payload_g
             sy += payload_at[1] * payload_g
+            sz += payload_at[2] * payload_g
         if total <= 0:
             continue
-        cx, cy = sx / total, sy / total
-        ox, oy, _ = C.mat_apply(i.world, *js.center)
-        arm = math.hypot(cx - ox, cy - oy)
-        load = (total / 1000.0) * 9.81 * (arm / 1000.0)
+        cx, cy, cz = sx / total, sy / total, sz / total
+        ox, oy, oz = C.mat_apply(i.world, *js.center)
+        # 保守：把力臂取 3D 距离，等价于“手臂转到水平”的最坏姿态；
+        # 不假装是当前姿态的瞬时动力学。
+        arm = math.sqrt((cx - ox) ** 2 + (cy - oy) ** 2 + (cz - oz) ** 2)
+        gravity = (total / 1000.0) * 9.81 * (arm / 1000.0)
+        dynamic = (total / 1000.0) * max(0.0, max_accel) * (arm / 1000.0)
+        load = gravity + dynamic
         ratio = load / max(js.rated_torque_nm, 1e-9)
-        out.append(JointLoad(i.id, js.name, 0, js.rated_torque_nm, load, ratio, total, arm))
+        out.append(JointLoad(i.id, js.name, report.servo_ids.get(i.id, 0),
+                             js.rated_torque_nm, load, ratio,
+                             total, arm, gravity, dynamic, max_accel,
+                             js.rated_torque_nm - load, ratio <= 1.0))
         if ratio > 1.0:
             report.add(ERROR, "joint.overload",
-                       f"{i.id}({js.name}) 静态力矩 {load:.2f} N·m > 额定 {js.rated_torque_nm:.2f}",
+                       f"{i.id}({js.name}) 静+动力矩 {load:.2f} N·m > 额定 "
+                       f"{js.rated_torque_nm:.2f}（重力 {gravity:.2f} + 动态 {dynamic:.2f}）",
                        i.id)
         elif ratio > 0.5:
             report.add(WARN, "joint.margin",
-                       f"{i.id}({js.name}) 静态力矩 {load:.2f} N·m 超过额定的 50%", i.id)
+                       f"{i.id}({js.name}) 静+动力矩 {load:.2f} N·m 超过额定的 50% "
+                       f"（重力 {gravity:.2f} + 动态 {dynamic:.2f}）", i.id)
     return out
 
 
@@ -796,8 +894,20 @@ def validate(name: str, instances: list[Instance], payload_g: float,
                        min(ba[5], bb[5]) - max(ba[2], bb[2])]
             if all(v > 1.0 for v in overlap):
                 vol = overlap[0] * overlap[1] * overlap[2]
-                msg = f"{ia.id} 与 {ib.id} 的包围盒重叠约 {vol:.0f}mm³"
-                report.add(ERROR if (strict and vol > 500) else WARN, "collision.aabb", msg, ia.id)
+                report.collision_stats["aabb_pairs"] = report.collision_stats.get("aabb_pairs", 0) + 1
+                hit = _mesh_hit(ia.world, ia.component.bbox, ib.world, ib.component.bbox)  # type: ignore[arg-type]
+                report.collision_stats["mesh_tests"] = report.collision_stats.get("mesh_tests", 0) + 1
+                if hit:
+                    report.collision_stats["mesh_hits"] = report.collision_stats.get("mesh_hits", 0) + 1
+                    report.collision_mesh.append({"a": ia.id, "b": ib.id, "volume_mm3": round(vol, 1)})
+                    msg = f"{ia.id} 与 {ib.id} 的实体盒网格相交（AABB 重叠约 {vol:.0f}mm³）"
+                    report.add(ERROR if strict else WARN, "collision.mesh", msg, ia.id)
+                    # 保留 AABB 粗查代码，旧报告/测试仍能按原口径过滤。
+                    report.add(ERROR if (strict and vol > 500) else WARN, "collision.aabb",
+                               f"{ia.id} 与 {ib.id} 的包围盒重叠约 {vol:.0f}mm³", ia.id)
+                else:
+                    msg = f"{ia.id} 与 {ib.id} 的包围盒重叠约 {vol:.0f}mm³，但实体盒网格未相交"
+                    report.add(ERROR if (strict and vol > 500) else WARN, "collision.aabb", msg, ia.id)
 
     # 工具/载荷
     roots = [i for i in instances if not i.parent and not i.offboard]
@@ -816,7 +926,7 @@ def validate(name: str, instances: list[Instance], payload_g: float,
 
     ids = _assign_servos(report, solved)
     report.servo_ids = ids
-    for jl in _joint_loads(report, solved, payload_g, payload_at):
+    for jl in _joint_loads(report, solved, payload_g, payload_at, max_accel):
         jl.servo_id = ids.get(jl.instance, 0)
         report.joint_loads.append(jl)
     report.power = _power(report, solved)
@@ -879,12 +989,13 @@ def to_markdown(r: Report) -> str:
                   f"- 静态倾覆加速度：{'—' if s.tip_accel_m_s2 is None else f'{s.tip_accel_m_s2:.2f} m/s²'}",
                   ""]
     if r.joint_loads:
-        lines += ["## 关节静载（保守：水平力臂×全部下游质量）", "",
-                  "| 关节 | 舵机 | 下游质量 g | 力臂 mm | 力矩 N·m | 额定 | 比例 |",
-                  "|---|---:|---:|---:|---:|---:|---:|"]
+        lines += ["## 关节静载+动载（保守：3D 力臂×全部下游质量）", "",
+                  "| 关节 | 舵机 | 下游质量 g | 力臂 mm | 重力 N·m | 动态 N·m | 合计 | 额定 | 比例 |",
+                  "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
         for j in r.joint_loads:
             lines.append(f"| {j.name} | {j.servo_id} | {j.mass_g:.0f} | {j.arm_mm:.0f} | "
-                         f"{j.load_nm:.2f} | {j.rated_nm:.2f} | {j.ratio:.2f}× |")
+                         f"{j.gravity_nm:.2f} | {j.dynamic_nm:.2f} | {j.load_nm:.2f} | "
+                         f"{j.rated_nm:.2f} | {j.ratio:.2f}× |")
         lines.append("")
     if r.servo_ids:
         lines += ["## 总线顺序", "", "| ID | 实例 | 关节 |", "|---:|---|---|"]
@@ -895,8 +1006,10 @@ def to_markdown(r: Report) -> str:
     if r.safety:
         lines += ["## 安全配置", "", "位置关节已生成 `safety.json`；先标定，再 `preflight --policy`。", ""]
     lines += ["## 边界", "",
-              "- 这是**接口/质量/功率/静力**检查，不是网格碰撞或动力学仿真。",
-              "- `collision.aabb` 只是包围盒警告；真机装配前仍要回 CAD 做实体干涉。",
+              "- 这是**接口/质量/功率/静力+简化动态**检查，不是整机动力学仿真。",
+              "- 碰撞用每个组件 bbox 的 12 个三角面做三角-三角相交（AABB 仅粗筛）；"
+              "组件不是 STEP 实体网格，`collision.aabb` 仍可能保守。",
+              "- 关节力矩用 3D 力臂 + 设计加速度做最坏姿态估算；不含角加速度/惯量/摩擦。",
               "- 物理闸门仍 0/5；本报告不能替代实物验证。", ""]
     return "\n".join(lines)
 

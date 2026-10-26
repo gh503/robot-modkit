@@ -32,7 +32,7 @@
     projectId: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.21.0";
+  var STUDIO_VERSION = "1.22.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -1230,6 +1230,7 @@
     renderSelected();
     renderStatus();
     renderMetrics();
+    renderTorque();
     renderIssues();
     renderBOM();
     renderPlan();
@@ -1298,6 +1299,33 @@
     });
     $("safety-note").innerHTML = '<b>安全边界</b>：网页只做装配/运动学示意，不是动力学、不是网格碰撞，也不会写舵机。' +
       (r.safety ? ' 导出 JSON 后可运行 <code>modkit assemble plan</code> 生成 <code>safety.json</code>；真机仍需标定。' : '');
+  }
+
+  function renderTorque() {
+    var host = $("torque"), note = $("torque-note");
+    if (!host) return;
+    var loads = (state.report && state.report.jointLoads) || [];
+    if (!loads.length) {
+      host.innerHTML = "";
+      if (note) note.textContent = "当前装配没有位置关节；不评估舵机力矩。";
+      return;
+    }
+    host.innerHTML = '<thead><tr><th>关节</th><th>下游 g</th><th>力臂 mm</th><th>重力 N·m</th>' +
+      '<th>动态 N·m</th><th>合计</th><th>额定</th><th>比例</th></tr></thead><tbody>' +
+      loads.map(function (j) {
+        var cls = j.ratio > 1 ? "bad" : (j.ratio > 0.5 ? "warn" : "");
+        return '<tr class="' + cls + '"><td>' + esc(j.name) + ' <small>#' + j.servo_id + '</small></td>' +
+          '<td>' + Math.round(j.mass) + '</td><td>' + Math.round(j.arm) + '</td>' +
+          '<td>' + j.gravity.toFixed(2) + '</td><td>' + j.dynamic.toFixed(2) + '</td>' +
+          '<td><b>' + j.load.toFixed(2) + '</b></td><td>' + j.rated.toFixed(2) + '</td>' +
+          '<td>' + j.ratio.toFixed(2) + '×</td></tr>';
+      }).join("") + '</tbody>';
+    if (note) {
+      var worst = loads.reduce(function (a, b) { return a.ratio >= b.ratio ? a : b; });
+      note.textContent = "最坏姿态估算：3D 力臂 × 全部下游质量；重力 + 设计加速度 " +
+        (state.report.instances.length && state.assembly.max_accel_m_s2 != null ? state.assembly.max_accel_m_s2 : 0.5) +
+        " m/s²。最大 " + worst.name + " " + worst.ratio.toFixed(2) + "× 额定；不含角加速度/惯量/摩擦。";
+    }
   }
 
   function renderIssues() {

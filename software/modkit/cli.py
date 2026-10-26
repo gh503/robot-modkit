@@ -361,6 +361,7 @@ def cmd_stage(args) -> int:
                     "stage_title": rec.stage_title, "serial": rec.serial,
                     "operator": rec.operator, "passed": rec.pass_count(),
                     "total": len(rec.plan), "simulated": rec.simulated_count(),
+                    "assembly_changed": rec.assembly_changed(),
                     "steps": [{"n": s["n"], "title": s["title"],
                               "status": rec.steps.get(str(s["n"]), sg.Result()).status}
                              for s in rec.plan],

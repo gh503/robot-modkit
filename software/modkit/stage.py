@@ -58,6 +58,8 @@ class Record:
     date: str = field(default_factory=lambda: time.strftime("%Y-%m-%d"))
     steps: dict[str, Result] = field(default_factory=dict)
     notes: str = ""
+    plan_data: list[dict] = field(default_factory=list)
+    assembly_sha256: str = ""
 
     def __post_init__(self) -> None:
         # 允许从 JSON 恢复时 steps 已带内容；只补缺的步骤。
@@ -66,8 +68,17 @@ class Record:
 
     @property
     def plan(self) -> list[dict]:
+        # 记录一旦 init 就冻结步骤；装配后来改了，也不让旧证据错位。
+        if self.plan_data:
+            return self.plan_data
         r = asm.load_and_validate(self.assembly)
         return pack.bringup_steps(r)
+
+    def assembly_changed(self) -> bool:
+        if not self.assembly_sha256:
+            return False
+        p = pathlib.Path(self.assembly)
+        return not p.is_file() or sha256_file(p) != self.assembly_sha256
 
     def record(self, n: int, status: str, evidence: str = "", note: str = "") -> Result:
         if status not in STATUSES or status == "pending":
@@ -105,6 +116,8 @@ class Record:
             errs.append("缺序列号或操作人")
         if self.simulated_count():
             errs.append(f"有 {self.simulated_count()} 步是 simulated，不能当物理证据")
+        if self.assembly_changed():
+            errs.append("装配文件在记录后被修改；旧步骤/证据可能错位，建议重新 init")
         for s in self.plan:
             r = self.steps.get(str(s["n"]), Result())
             if r.status == "pass":
@@ -136,7 +149,9 @@ def init_record(assembly: str | pathlib.Path, serial: str, operator: str) -> Rec
         raise StageError("装配有错误，先修好再记录")
     st = pack.classify(r)
     rec = Record(assembly=str(assembly), stage=st.key, stage_title=st.title,
-                 serial=serial, operator=operator)
+                 serial=serial, operator=operator,
+                 plan_data=pack.bringup_steps(r),
+                 assembly_sha256=sha256_file(assembly))
     return rec
 
 

@@ -69,3 +69,24 @@ def test_cli_init_record_status(tmp_path):
     assert cli.main(["stage", "--action", "status", "--file", str(f), "--json"]) == 0
     d = json.loads(f.read_text(encoding="utf-8"))
     assert d["stage"] == "drive" and d["steps"]["1"]["status"] == "pass"
+
+
+def test_plan_is_frozen_and_assembly_change_is_detected(tmp_path):
+    src = (A / "bench_joint.json").read_text(encoding="utf-8")
+    asm = tmp_path / "bench.json"
+    asm.write_text(src, encoding="utf-8")
+    rec = stage.init_record(asm, "S-001", "tester")
+    n = len(rec.plan)
+    asm.write_text(src.replace("单关节台架", "改过的名字"), encoding="utf-8")
+    assert len(rec.plan) == n
+    assert rec.assembly_changed()
+    assert any("装配文件在记录后被修改" in e for e in rec.validate())
+
+
+def test_record_json_keeps_frozen_plan(tmp_path):
+    rec = stage.init_record(A / "bench_arm.json", "S-002", "tester")
+    f = rec.save(tmp_path / "s.json")
+    d = json.loads(f.read_text(encoding="utf-8"))
+    assert d["stage"] == "arm" and len(d["plan_data"]) == 9
+    again = stage.Record.load(f)
+    assert len(again.plan) == 9 and not again.assembly_changed()

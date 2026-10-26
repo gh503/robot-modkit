@@ -254,6 +254,17 @@ def test_optimizer_mass_only_candidate_is_opt_in():
     assert out["components"] == 18
 
 
+def test_optimizer_constraint_ui_and_pareto():
+    design = (WEB / "design.html").read_text(encoding="utf-8")
+    for bid in ("c-min-joints", "c-min-components", "c-max-mass", "c-max-risk", "pareto-only"):
+        assert f'id="{bid}"' in design
+    js = (WEB / "designer.js").read_text(encoding="utf-8")
+    assert "function optimizerConstraints" in js and "maxNodes: 600" in js
+    core = (WEB / "budget-core.js").read_text(encoding="utf-8")
+    assert "function paretoFlags" in core and "function violations" in core
+    assert "baseViolations" in core and "pareto" in core
+
+
 def test_optimizer_markdown_report():
     out = run_core("""
       const cs = B.suggest(window.MODKIT_ASSEMBLIES.m1);

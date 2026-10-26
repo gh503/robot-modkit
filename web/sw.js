@@ -8,7 +8,7 @@
  * 版本号只用于激活时清理旧壳；更新后第一次在线访问会刷新。
  */
 "use strict";
-var CACHE = "modkit-shell-v1.20.0";
+var CACHE = "modkit-shell-v1.21.0";
 var SHELL = [
   "./", "./index.html", "./design.html", "./design.css", "./designer.js",
   "./assembly-core.js", "./assembly-view.js", "./budget-core.js", "./pwa.js", "./manifest.webmanifest",

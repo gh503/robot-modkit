@@ -120,3 +120,29 @@ def test_mass_only_candidate_is_opt_in():
     name, inst, payload, accel, strict, raw = asm.parse(c["assembly"])
     rep = asm.validate(name, inst, payload, accel, strict, raw)
     assert rep.ok and abs(rep.total_mass_g - 1773.8) < 0.2
+
+
+def test_pareto_and_constrained_plan():
+    data = json.loads(M1.read_text(encoding="utf-8"))
+    cs = opt.suggest(data, include_mass=True)
+    drop = next(c for c in cs if c["id"] == "drop-elbow")
+    assert drop["pareto"] is True and drop["dominated_by"] == []
+    frame = next(c for c in cs if c["id"] == "swap-frame.chassis_240-frame.chassis_160")
+    assert frame["pareto"] is False
+    assert "drop-elbow" in frame["dominated_by"]
+
+    p = opt.plan(data, 1000, constraints={"min_joints": 4})
+    assert p["feasible"] is True and p["reached"] is False
+    assert p["base_violations"] == [] and p["violations"] == []
+    assert all(s["id"] != "drop-elbow" for s in p["steps"])
+    assert abs(p["cost"] - 1123.8) < 0.2
+    assert "约束：" in opt.plan_markdown(p, "m1")
+
+    bad = opt.plan(data, 1000, constraints={"max_mass_g": 1500})
+    assert bad["feasible"] is False
+    assert bad["base_violations"] and "质量" in bad["base_violations"][0]
+    assert "约束未满足" in opt.plan_markdown(bad, "m1")
+
+    assert opt.normalize_constraints({"min_joints": "4", "max_mass_g": "1800",
+                                      "max_risk": "low"}) == {
+        "min_joints": 4, "max_mass_g": 1800.0, "max_risk": "low"}

@@ -32,7 +32,7 @@
     projectId: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.20.0";
+  var STUDIO_VERSION = "1.21.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -1339,12 +1339,23 @@
     var p = state.plan;
     if (!p) { host.innerHTML = ""; return; }
     if (p.error) { host.innerHTML = '<div class="opt-empty">' + esc(p.error) + '</div>'; return; }
-    var cls = p.reached ? "ok" : "bad";
-    var head = p.reached
+    var cls = (p.reached && p.feasible !== false) ? "ok" : "bad";
+    var head = (p.reached && p.feasible !== false)
       ? ("目标 ¥" + Math.round(p.target) + " · " + p.steps.length + " 步可达 ¥" + Math.round(p.cost))
-      : ("目标 ¥" + Math.round(p.target) + " · 最多到 ¥" + Math.round(p.cost) + "，仍差 ¥" + Math.round(p.remaining));
+      : ("目标 ¥" + Math.round(p.target) + " · " + (p.feasible === false ? "约束未满足" : "最多到 ¥" + Math.round(p.cost) + "，仍差 ¥" + Math.round(p.remaining)));
     var html = '<div class="plan-card ' + cls + '"><div class="plan-head"><b>' + head + '</b>' +
       '<span class="plan-base">当前 ¥' + Math.round(p.baseCost) + '</span></div>';
+    if (p.constraints && Object.keys(p.constraints).length) {
+      var bits = [];
+      if (p.constraints.minJoints != null) bits.push("≥" + p.constraints.minJoints + " 关节");
+      if (p.constraints.minComponents != null) bits.push("≥" + p.constraints.minComponents + " 组件");
+      if (p.constraints.maxMass != null) bits.push("≤" + Math.round(p.constraints.maxMass) + "g");
+      if (p.constraints.maxRisk) bits.push("风险 ≤" + p.constraints.maxRisk);
+      html += '<p class="opt-empty">约束：' + esc(bits.join("；")) + '</p>';
+    }
+    if (p.feasible === false) {
+      html += '<p class="opt-empty">约束未满足：' + esc((p.violations || []).join("；")) + '</p>';
+    }
     if (!p.steps.length) {
       html += '<p class="opt-empty">当前装配已经在预算内，不需要规划。</p>';
     } else {
@@ -1370,24 +1381,39 @@
     if (b) b.addEventListener("click", applyPlan);
   }
 
+  function optimizerConstraints() {
+    var c = {};
+    var j = parseInt(($("c-min-joints") || {}).value, 10);
+    var n = parseInt(($("c-min-components") || {}).value, 10);
+    var m = parseFloat(($("c-max-mass") || {}).value);
+    var r = ($("c-max-risk") || {}).value;
+    if (j > 0) c.minJoints = j;
+    if (n > 0) c.minComponents = n;
+    if (m > 0) c.maxMass = m;
+    if (r) c.maxRisk = r;
+    return c;
+  }
+
   function runPlan() {
     if (!state.assembly || !state.report) return;
     if (!window.MODKIT_BUDGET) { toast("预算优化器未加载", "err"); return; }
     var target = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
     try {
-      state.plan = window.MODKIT_BUDGET.plan(state.assembly, target, 4);
+      state.plan = window.MODKIT_BUDGET.plan(state.assembly, target, 6,
+        { maxNodes: 600, constraints: optimizerConstraints() });
     } catch (e) {
       state.plan = { error: "规划失败：" + e.message };
     }
     renderPlan();
     if (state.plan.error) toast(state.plan.error, "err");
+    else if (state.plan.feasible === false) toast("约束未满足：" + (state.plan.violations || []).join("；"), "err");
     else if (state.plan.reached) toast("规划可达：¥" + Math.round(state.plan.cost), "ok");
     else toast("单步候选最多到 ¥" + Math.round(state.plan.cost) + "，仍差 ¥" + Math.round(state.plan.remaining), "err");
   }
 
   function applyPlan() {
     var p = state.plan;
-    if (!p || !p.reached || !p.steps.length) return;
+    if (!p || !p.reached || p.feasible === false || !p.steps.length) return;
     var next = clone(p.assembly);
     next.name = (next.name || "design").replace(/-opt$/, "") + "-opt";
     next.description = "预算规划：" + p.steps.map(function (s) { return s.title; }).join(" → ") + "。" +
@@ -1409,8 +1435,8 @@
     var budget = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
     var over = r.totalCost > budget;
     if (note) note.textContent = over
-      ? "当前超预算 ¥" + Math.round(r.totalCost - budget) + "；优先看高节省候选。"
-      : "当前在预算内；可勾选“同价减重”看成本不升、重量下降的候选。";
+      ? "当前超预算 ¥" + Math.round(r.totalCost - budget) + "；优先看高节省候选；◆ 为 (成本, 重量) Pareto 前沿。"
+      : "当前在预算内；可勾选“同价减重”看成本不升、重量下降的候选；◆ 为 Pareto 前沿。";
     if (!state.optimizer) {
       host.innerHTML = '<div class="opt-empty">点“生成降本候选”，会基于当前装配逐个试算并重新校验。</div>';
       return;
@@ -1419,10 +1445,17 @@
       host.innerHTML = '<div class="opt-empty">没有找到既省钱又能通过校验的单步候选。可先换更小的工具/底盘，或接受当前预算。</div>';
       return;
     }
-    host.innerHTML = state.optimizer.map(function (c) {
+    var onlyPareto = !!($("pareto-only") && $("pareto-only").checked);
+    var list = onlyPareto ? state.optimizer.filter(function (c) { return c.pareto; }) : state.optimizer;
+    if (!list.length) {
+      host.innerHTML = '<div class="opt-empty">没有 Pareto 非支配候选；取消“只看 Pareto”或放宽约束。</div>';
+      return;
+    }
+    host.innerHTML = list.map(function (c) {
       var risk = c.risk || "medium";
       return '<div class="opt-card ' + esc(risk) + '">' +
-        '<div class="opt-top"><b>' + esc(c.title) + '</b><span class="opt-save">' +
+        '<div class="opt-top"><b>' + esc(c.title) + (c.pareto ? '<span class="pareto-badge">◆ Pareto</span>' : '') +
+        '</b><span class="opt-save">' +
         (c.saving > 0.01 ? '省 ¥' + Math.round(c.saving) : '成本不升') +
         (c.massSaving > 0.01 ? ' · 省重 ' + Math.round(c.massSaving) + 'g' : '') + '</span></div>' +
         '<p>' + esc(c.tradeoff) + '</p>' +
@@ -1439,7 +1472,8 @@
     if (!window.MODKIT_BUDGET) { toast("预算优化器未加载", "err"); return; }
     try {
       state.optimizer = window.MODKIT_BUDGET.suggest(state.assembly,
-        { max: 8, includeMass: !!($("mass-mode") && $("mass-mode").checked) });
+        { max: 24, includeMass: !!($("mass-mode") && $("mass-mode").checked),
+          constraints: optimizerConstraints() });
     } catch (e) {
       state.optimizer = [];
       toast("优化计算失败：" + e.message, "err");
@@ -1474,7 +1508,8 @@
       state.selected = next.components.length ? next.components[0].id : null;
     }
     revalidate();
-    state.optimizer = window.MODKIT_BUDGET.suggest(state.assembly, { max: 8 });
+    state.optimizer = window.MODKIT_BUDGET.suggest(state.assembly,
+      { max: 24, constraints: optimizerConstraints() });
     renderAll();
     toast("已应用：" + c.title + "，省 ¥" + Math.round(before - (state.report ? state.report.totalCost : before)), "ok");
   }
@@ -2025,6 +2060,7 @@
     });
     $("optimize").addEventListener("click", runOptimizer);
     $("plan-budget").addEventListener("click", runPlan);
+    $("pareto-only").addEventListener("change", renderOptimizer);
     $("export-optimizer").addEventListener("click", exportOptimizerReport);
     $("export-json").addEventListener("click", exportJSON);
     $("export-csv").addEventListener("click", exportCSV);
@@ -2082,6 +2118,7 @@
     copySelected: copySelected, pasteClipboard: pasteClipboard, duplicateSelected: duplicateSelected,
     renderHighlights: renderHighlights, shareDesign: shareDesign, loadShared: loadShared,
     openViewer: openViewer, viewerURL: viewerURL,
+    optimizerConstraints: optimizerConstraints,
     saveProject: saveProject, newProject: newProject, deleteProject: deleteProject,
     loadProject: loadProject, snapshotVersion: snapshotVersion, restoreVersion: restoreVersion,
     renderProjects: renderProjects, migrateAssembly: migrateAssembly,

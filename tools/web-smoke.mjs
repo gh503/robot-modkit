@@ -232,6 +232,36 @@ async function main() {
     check(Array.isArray(r.oldAt) && r.oldSpin === 0, "schema 迁移组件默认值不对");
   });
 
+  await run("Pareto/约束规划", async () => {
+    const r = await cdp.eval(`(() => {
+      const B = window.MODKIT_BUDGET, m = window.MODKIT_ASSEMBLIES.m1;
+      const cs = B.suggest(m, { includeMass: true });
+      const drop = cs.find(c => c.id === "drop-elbow");
+      const frame = cs.find(c => c.id === "swap-frame.chassis_240-frame.chassis_160");
+      const p = B.plan(m, 1000, 6, { constraints: { minJoints: 4 } });
+      const bad = B.plan(m, 1000, 6, { constraints: { maxMass: 1500 } });
+      document.querySelector("#c-min-joints").value = "4";
+      document.querySelector("#optimize").click();
+      const cards = document.querySelectorAll("#optimizer .opt-card").length;
+      document.querySelector("#plan-budget").click();
+      return {
+        dropPareto: drop.pareto, framePareto: frame.pareto,
+        frameDominated: frame.dominatedBy.includes("drop-elbow"),
+        plan: { feasible: p.feasible, reached: p.reached, cost: p.cost,
+                steps: p.steps.map(x => x.id), violations: p.violations },
+        bad: { feasible: bad.feasible, base: bad.baseViolations },
+        cards, planShown: !!document.querySelector("#plan .plan-card")
+      };
+    })()`);
+    check(r.dropPareto === true && r.framePareto === false, "Pareto 标记不对");
+    check(r.frameDominated, "支配关系缺失");
+    check(r.plan.feasible === true && r.plan.reached === false, "约束规划状态不对");
+    check(!r.plan.steps.includes("drop-elbow"), "minJoints=4 仍去掉了肘关节");
+    check(r.plan.cost > 1100, `约束规划成本不对 ${r.plan.cost}`);
+    check(r.bad.feasible === false && r.bad.base.length > 0, "不可行约束没有报违反");
+    check(r.cards >= 1 && r.planShown, "约束 UI 没有渲染");
+  });
+
   await run("Studio 生成查看器链接", async () => {
     await cdp.eval('MODKIT_STUDIO.loadPreset("m1")');
     await sleep(200);
@@ -324,7 +354,7 @@ async function main() {
     console.error(`\nweb smoke: ${failures} 项失败`);
     process.exit(1);
   }
-  console.log("\nweb smoke: PASS（10 项）");
+  console.log("\nweb smoke: PASS（11 项）");
 }
 
 main().catch((e) => {

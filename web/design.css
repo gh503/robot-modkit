@@ -252,3 +252,10 @@ body.drop-active #drop-hint{display:grid}
 .drop-card{background:var(--surface);border:2px dashed var(--accent);border-radius:14px;padding:26px 34px;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,.2)}
 .drop-card b{display:block;font-size:15px;margin-bottom:5px}
 .drop-card span{font-size:11px;color:var(--muted)}
+
+.opt-constraints { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; margin:6px 0 8px; }
+.opt-constraints label { font-size:10px; color:var(--muted); display:flex; align-items:center; gap:4px; }
+.opt-constraints input[type=number] { width:54px; padding:2px 4px; font-size:10px; }
+.opt-constraints select { padding:2px 4px; font-size:10px; }
+.pareto-badge { display:inline-block; margin-left:5px; padding:0 4px; border-radius:3px;
+  background:#e6f4ea; color:#1e7b3c; font-size:8px; font-weight:700; }

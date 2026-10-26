@@ -238,8 +238,66 @@ def _swap(base: dict[str, Any], base_report: asm.Report, sub: dict[str, str],
                       sub["risk"], changes, include_mass=include_mass)
 
 
+RISK_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def normalize_constraints(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """把 CLI/网页传来的约束归一化；未知键忽略，非法值回退。"""
+    c = raw or {}
+    out: dict[str, Any] = {}
+    for key in ("min_joints", "min_components"):
+        if c.get(key) is not None:
+            try:
+                out[key] = max(0, int(c[key]))
+            except (TypeError, ValueError):
+                pass
+    if c.get("max_mass_g") is not None:
+        try:
+            out["max_mass_g"] = max(0.0, float(c["max_mass_g"]))
+        except (TypeError, ValueError):
+            pass
+    if c.get("max_risk") in RISK_RANK:
+        out["max_risk"] = c["max_risk"]
+    return out
+
+
+def _violations(report: asm.Report, constraints: dict[str, Any],
+                steps: list[dict[str, Any]] | None = None) -> list[str]:
+    out: list[str] = []
+    joints = sum(1 for i in report.instances
+                 if i.component and i.component.joint and i.component.joint.mode == "position")
+    if constraints.get("min_joints") is not None and joints < constraints["min_joints"]:
+        out.append(f"关节 {joints} < {constraints['min_joints']}")
+    if constraints.get("min_components") is not None and len(report.instances) < constraints["min_components"]:
+        out.append(f"组件 {len(report.instances)} < {constraints['min_components']}")
+    if constraints.get("max_mass_g") is not None and report.total_mass_g > constraints["max_mass_g"] + 0.01:
+        out.append(f"质量 {report.total_mass_g:.1f}g > {constraints['max_mass_g']:.1f}g")
+    if constraints.get("max_risk") and steps:
+        top = max((RISK_RANK.get(str(s.get("risk")), 1) for s in steps), default=0)
+        if top > RISK_RANK[constraints["max_risk"]]:
+            out.append(f"步骤风险超过 {constraints['max_risk']}")
+    return out
+
+
+def pareto_flags(cands: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """就地标记 (cost, mass) 非支配候选，并记录支配者 id。"""
+    for c in cands:
+        dominated: list[str] = []
+        for d in cands:
+            if d is c:
+                continue
+            no_worse = d["cost"] <= c["cost"] + 0.01 and d["mass"] <= c["mass"] + 0.01
+            strict = d["cost"] < c["cost"] - 0.01 or d["mass"] < c["mass"] - 0.01
+            if no_worse and strict:
+                dominated.append(str(d["id"]))
+        c["pareto"] = not dominated
+        c["dominated_by"] = dominated
+    return cands
+
+
 def suggest(data: dict[str, Any], max_candidates: int = 8,
-            include_mass: bool = False) -> list[dict[str, Any]]:
+            include_mass: bool = False,
+            constraints: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """返回按 BOM 节省降序的候选；每个 ``assembly`` 都是完整 JSON。
 
     include_mass=True 时额外保留“成本不升、重量下降”的候选（同价减重）。
@@ -263,6 +321,12 @@ def suggest(data: dict[str, Any], max_candidates: int = 8,
             continue
         seen.add(cand["id"])
         uniq.append(cand)
+    if constraints:
+        c = normalize_constraints(constraints)
+        uniq = [x for x in uniq
+                if not _violations(_validate(x["assembly"]), c)
+                and not (c.get("max_risk") and RISK_RANK.get(str(x.get("risk")), 1) > RISK_RANK[c["max_risk"]])]
+    pareto_flags(uniq)
     uniq.sort(key=lambda c: (c["saving"], c.get("mass_saving", 0)), reverse=True)
     return uniq[:max_candidates]
 
@@ -273,42 +337,48 @@ def apply_candidate(data: dict[str, Any], candidate: dict[str, Any]) -> dict[str
 
 
 def plan(data: dict[str, Any], target_budget: float, max_steps: int = 4,
-         max_nodes: int = 200) -> dict[str, Any]:
-    """深度受限的精确规划：在候选树里找“达标且最省”的路径。
+         max_nodes: int = 200,
+         constraints: dict[str, Any] | None = None) -> dict[str, Any]:
+    """深度受限的约束规划：找“满足约束、达标且最省”的路径。
 
+    评分顺序：约束满足 > 违反项少 > 达标 > 步数少 > 成本低。
     候选数量有限，但每个状态可能有多个可替换件；穷举比贪心更可能找到
     两步/三步组合。节点数有上限，超限时返回 truncated=True 和当前最优。
     """
     import copy
 
     target = float(target_budget)
-    max_steps = max(1, min(8, int(max_steps or 4)))
-    max_nodes = max(1, min(2000, int(max_nodes or 200)))
+    max_steps = max(1, min(12, int(max_steps or 4)))
+    max_nodes = max(1, min(5000, int(max_nodes or 200)))
+    cons = normalize_constraints(constraints)
     base = copy.deepcopy(data)
     base_rep = _validate(base)
     if base_rep is None:
         return {"reached": False, "error": "当前装配未通过校验", "target": target,
                 "base_cost": 0.0, "cost": 0.0, "remaining": 0.0, "steps": [],
-                "assembly": base, "mode": "exact", "nodes": 0, "truncated": False}
+                "assembly": base, "mode": "exact", "nodes": 0, "truncated": False,
+                "constraints": cons, "base_violations": [], "violations": [],
+                "feasible": False}
 
+    base_v = _violations(base_rep, cons)
     best = {"reached": base_rep.total_cost_cny <= target + 0.01,
-            "cost": base_rep.total_cost_cny, "steps": [], "assembly": base}
-    if best["reached"]:
-        return {"reached": True, "target": target, "base_cost": base_rep.total_cost_cny,
-                "cost": base_rep.total_cost_cny, "remaining": 0.0, "steps": [],
-                "assembly": base, "mode": "exact", "nodes": 0, "truncated": False}
+            "cost": base_rep.total_cost_cny, "steps": [], "assembly": base,
+            "violations": base_v, "feasible": not base_v}
+
     nodes = 0
     truncated = False
 
     def better(rep: asm.Report, steps: list[dict[str, Any]]) -> bool:
+        v = _violations(rep, cons, steps)
+        if bool(v) != bool(best["violations"]):
+            return not v
+        if len(v) != len(best["violations"]):
+            return len(v) < len(best["violations"])
         reached = rep.total_cost_cny <= target + 0.01
         if reached != best["reached"]:
             return reached
-        if reached:
-            # 达标优先“步骤少”，同样步数再比成本。
-            if len(steps) != len(best["steps"]):
-                return len(steps) < len(best["steps"])
-            return rep.total_cost_cny < best["cost"] - 0.01
+        if reached and len(steps) != len(best["steps"]):
+            return len(steps) < len(best["steps"])
         return rep.total_cost_cny < best["cost"] - 0.01
 
     def search(cur: dict[str, Any], steps: list[dict[str, Any]], depth: int) -> None:
@@ -321,16 +391,20 @@ def plan(data: dict[str, Any], target_budget: float, max_steps: int = 4,
         if rep is None:
             return
         if better(rep, steps):
+            v = _violations(rep, cons, steps)
             best.update({"reached": rep.total_cost_cny <= target + 0.01,
                          "cost": rep.total_cost_cny, "steps": list(steps),
-                         "assembly": copy.deepcopy(cur)})
+                         "assembly": copy.deepcopy(cur), "violations": v,
+                         "feasible": not v})
         if depth >= max_steps:
             return
         try:
-            cands = suggest(cur, max_candidates=8)
+            cands = suggest(cur, max_candidates=16)
         except (asm.AssemblyError, KeyError, ValueError):
             return
         for cand in cands:
+            if cons.get("max_risk") and RISK_RANK.get(str(cand.get("risk")), 1) > RISK_RANK[cons["max_risk"]]:
+                continue
             search(cand["assembly"], steps + [{
                 "id": cand["id"], "title": cand["title"], "saving": cand["saving"],
                 "cost": cand["cost"], "risk": cand["risk"], "tradeoff": cand["tradeoff"],
@@ -344,12 +418,26 @@ def plan(data: dict[str, Any], target_budget: float, max_steps: int = 4,
             "base_cost": base_rep.total_cost_cny, "cost": best["cost"],
             "remaining": max(0.0, best["cost"] - target),
             "steps": best["steps"], "assembly": best["assembly"],
-            "mode": "exact", "nodes": nodes, "truncated": truncated}
+            "mode": "exact", "nodes": nodes, "truncated": truncated,
+            "constraints": cons, "base_violations": base_v,
+            "violations": best["violations"], "feasible": best["feasible"]}
 
 
 def plan_markdown(plan_result: dict[str, Any], title: str = "装配") -> str:
     lines = [f"# 预算规划：{title}", "",
              f"目标：¥{plan_result['target']:.1f}　当前：¥{plan_result['base_cost']:.1f}", ""]
+    cons = plan_result.get("constraints") or {}
+    if cons:
+        bits = []
+        if cons.get("min_joints") is not None: bits.append(f"≥{cons['min_joints']} 关节")
+        if cons.get("min_components") is not None: bits.append(f"≥{cons['min_components']} 组件")
+        if cons.get("max_mass_g") is not None: bits.append(f"≤{cons['max_mass_g']:.0f}g")
+        if cons.get("max_risk"): bits.append(f"风险 ≤{cons['max_risk']}")
+        lines += ["约束：" + "；".join(bits), ""]
+        if plan_result.get("base_violations"):
+            lines += ["当前违反：" + "；".join(plan_result["base_violations"]), ""]
+        if not plan_result.get("feasible", True):
+            lines += ["**约束未满足**：" + "；".join(plan_result.get("violations") or []), ""]
     if plan_result.get("error"):
         lines += [plan_result["error"], ""]
     elif not plan_result["steps"]:
@@ -384,11 +472,12 @@ def to_markdown(candidates: list[dict[str, Any]], base_cost: float, title: str =
     lines += ["| # | 候选 | 省 ¥ | 省重 g | 应用后 ¥ | 组件/关节 | 代价 |",
               "|---:|---|---:|---:|---:|---|---|"]
     for n, c in enumerate(candidates, 1):
+        mark = "◆ " if c.get("pareto") else ""
         lines.append(
-            f"| {n} | {c['title']} | {c['saving']:.1f} | {c.get('mass_saving', 0):.1f} | "
+            f"| {n} | {mark}{c['title']} | {c['saving']:.1f} | {c.get('mass_saving', 0):.1f} | "
             f"{c['cost']:.1f} | {c['components']}/{c['joints']} | {c['tradeoff']} |"
         )
         if c.get("changes"):
             lines.append(f"| | {'<br>'.join(c['changes'])} | | | | | |")
-    lines += ["", "> 单步候选，不是全局最优；候选都重新通过装配校验。", ""]
+    lines += ["", "> ◆ = (成本, 重量) Pareto 非支配；单步候选，不是全局最优；候选都重新通过装配校验。", ""]
     return "\n".join(lines)

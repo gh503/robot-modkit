@@ -166,6 +166,13 @@
           <label class="opt-check"><input id="mass-mode" type="checkbox"> 同价减重</label>
           <span class="note" id="optimizer-note">候选会逐个重新校验；不会自动应用。</span>
         </div>
+        <div class="opt-constraints">
+          <label>最少关节 <input id="c-min-joints" type="number" min="0" step="1" placeholder="0"></label>
+          <label>最少组件 <input id="c-min-components" type="number" min="0" step="1" placeholder="0"></label>
+          <label>最大质量 g <input id="c-max-mass" type="number" min="0" step="10" placeholder="不限"></label>
+          <label>最高风险 <select id="c-max-risk"><option value="">不限</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
+          <label class="opt-check"><input id="pareto-only" type="checkbox"> 只看 Pareto</label>
+        </div>
         <div id="plan"></div>
         <div id="optimizer"></div>
       </div>

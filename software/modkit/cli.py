@@ -349,11 +349,19 @@ def cmd_assemble(args) -> int:
         data["payload_g"] = payload
         data["max_accel_m_s2"] = accel
         data["strict"] = strict
+        cons = {
+            "min_joints": args.min_joints,
+            "min_components": args.min_components,
+            "max_mass_g": args.max_mass_g,
+            "max_risk": args.max_risk,
+        }
+        cons = {k: v for k, v in cons.items() if v is not None}
         if args.goal is not None:
-            p = opt.plan(data, args.goal, max_steps=args.max_candidates)
+            p = opt.plan(data, args.goal, max_steps=args.max_candidates,
+                         max_nodes=args.max_nodes, constraints=cons)
             if args.apply_plan:
-                if not p.get("reached") or not p.get("steps"):
-                    print(f"规划未达标，不能写出：最多 ¥{p.get('cost', 0):.1f}，"
+                if not p.get("reached") or p.get("feasible") is False or not p.get("steps"):
+                    print(f"规划未达标/约束未满足，不能写出：最多 ¥{p.get('cost', 0):.1f}，"
                           f"仍差 ¥{p.get('remaining', 0):.1f}")
                     return 2
                 out = pathlib.Path(args.out or (pathlib.Path(args.file).stem + "-plan.json"))
@@ -385,9 +393,14 @@ def cmd_assemble(args) -> int:
                 print(f"  未达标：最多 ¥{p['cost']:.1f}，仍差 ¥{p['remaining']:.1f}；需要更大幅度改动")
             if p.get("truncated"):
                 print(f"  ! 搜索达到 {p.get('nodes', 0)} 节点上限，结果可能不是全局最优")
+            if p.get("constraints"):
+                print("  约束：" + "；".join(f"{k}={v}" for k, v in p["constraints"].items()))
+            if p.get("base_violations"):
+                print("  当前违反：" + "；".join(p["base_violations"]))
             return 0
 
-        cands = opt.suggest(data, max_candidates=args.max_candidates, include_mass=args.mass)
+        cands = opt.suggest(data, max_candidates=args.max_candidates,
+                            include_mass=args.mass, constraints=cons)
         if args.apply:
             chosen = next((c for c in cands if c["id"] == args.apply), None)
             if chosen is None:
@@ -414,6 +427,8 @@ def cmd_assemble(args) -> int:
                              ensure_ascii=False, indent=2))
             return 0
         print(f"预算优化：{name}  当前 ¥{rep.total_cost_cny:.1f}")
+        if cons:
+            print("  约束：" + "；".join(f"{k}={v}" for k, v in cons.items()))
         if not cands:
             print("  没有找到既省钱又能通过校验的单步候选。")
             return 0
@@ -1154,6 +1169,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="suggest --goal：规划达标后写出最终 JSON（<file>-plan.json）")
     ab.add_argument("--max", dest="max_candidates", type=int, default=8,
                     help="suggest：候选数/规划步数上限（默认 8，规划最多 8 步）")
+    ab.add_argument("--max-nodes", dest="max_nodes", type=int, default=600,
+                    help="suggest --goal：规划搜索节点上限（默认 600，最多 5000）")
+    ab.add_argument("--min-joints", type=int, help="约束：至少保留几个位置关节")
+    ab.add_argument("--min-components", type=int, help="约束：至少保留几个组件")
+    ab.add_argument("--max-mass", dest="max_mass_g", type=float, help="约束：最大质量 g")
+    ab.add_argument("--max-risk", choices=("low", "medium", "high"),
+                    help="约束：规划步骤的最高风险")
     ab.add_argument("--json", action="store_true")
     ab.set_defaults(func=cmd_assemble)
 

@@ -172,6 +172,48 @@
       return candidate(base, baseReport, asm, id, sub.title, sub.tradeoff, sub.risk, changes, includeMass);
     }
 
+    var RISK_RANK = { low: 0, medium: 1, high: 2 };
+
+    function normalizeConstraints(raw) {
+      raw = raw || {};
+      var out = {};
+      ["minJoints", "minComponents"].forEach(function (k) {
+        if (raw[k] != null && isFinite(Number(raw[k]))) out[k] = Math.max(0, Math.floor(Number(raw[k])));
+      });
+      if (raw.maxMass != null && isFinite(Number(raw.maxMass))) out.maxMass = Math.max(0, Number(raw.maxMass));
+      if (RISK_RANK[raw.maxRisk] != null) out.maxRisk = raw.maxRisk;
+      return out;
+    }
+
+    function violations(r, cons, steps) {
+      var out = [];
+      if (!r) return ["装配无效"];
+      var joints = r.instances.filter(function (i) { return i.joint && i.joint.mode === "position"; }).length;
+      if (cons.minJoints != null && joints < cons.minJoints) out.push("关节 " + joints + " < " + cons.minJoints);
+      if (cons.minComponents != null && r.instances.length < cons.minComponents) out.push("组件 " + r.instances.length + " < " + cons.minComponents);
+      if (cons.maxMass != null && r.totalMass > cons.maxMass + 0.01) out.push("质量 " + r.totalMass.toFixed(1) + "g > " + cons.maxMass.toFixed(1) + "g");
+      if (cons.maxRisk && steps && steps.length) {
+        var top = Math.max.apply(null, steps.map(function (s) { return RISK_RANK[s.risk] == null ? 1 : RISK_RANK[s.risk]; }));
+        if (top > RISK_RANK[cons.maxRisk]) out.push("步骤风险超过 " + cons.maxRisk);
+      }
+      return out;
+    }
+
+    function paretoFlags(cands) {
+      cands.forEach(function (c) {
+        var dominated = [];
+        cands.forEach(function (d) {
+          if (d === c) return;
+          var noWorse = d.cost <= c.cost + 0.01 && d.mass <= c.mass + 0.01;
+          var strict = d.cost < c.cost - 0.01 || d.mass < c.mass - 0.01;
+          if (noWorse && strict) dominated.push(d.id);
+        });
+        c.pareto = dominated.length === 0;
+        c.dominatedBy = dominated;
+      });
+      return cands;
+    }
+
     function suggest(assembly, opts) {
       opts = opts || {};
       var base = clone(assembly);
@@ -189,6 +231,14 @@
         seen[c.id] = true;
         return true;
       });
+      if (opts.constraints) {
+        var cons = normalizeConstraints(opts.constraints);
+        out = out.filter(function (c) {
+          return violations(report(c.assembly), cons).length === 0 &&
+            !(cons.maxRisk && RISK_RANK[c.risk] > RISK_RANK[cons.maxRisk]);
+        });
+      }
+      paretoFlags(out);
       out.sort(function (a, b) { return (b.saving - a.saving) || (b.massSaving - a.massSaving); });
       return out.slice(0, opts.max || 8);
     }
@@ -201,38 +251,44 @@
     function plan(assembly, targetBudget, maxSteps, opts) {
       opts = opts || {};
       var target = Number(targetBudget);
-      maxSteps = Math.max(1, Math.min(8, Number(maxSteps) || 4));
-      var maxNodes = Math.max(1, Math.min(2000, Number(opts.maxNodes) || 200));
+      maxSteps = Math.max(1, Math.min(12, Number(maxSteps) || 4));
+      var maxNodes = Math.max(1, Math.min(5000, Number(opts.maxNodes) || 200));
+      var cons = normalizeConstraints(opts.constraints);
       var current = clone(assembly);
       var baseReport = report(current);
       if (!isFinite(target)) {
         return { reached: false, error: "目标预算无效", target: target,
                  baseCost: baseReport ? baseReport.totalCost : 0,
                  cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0,
-                 mode: "exact", nodes: 0, truncated: false };
+                 mode: "exact", nodes: 0, truncated: false, constraints: cons,
+                 baseViolations: [], violations: [], feasible: false };
       }
       if (!baseReport || !baseReport.ok) {
         return { reached: false, error: "当前装配未通过校验", target: target,
                  baseCost: baseReport ? baseReport.totalCost : 0,
                  cost: baseReport ? baseReport.totalCost : 0, steps: [], remaining: 0,
-                 mode: "exact", nodes: 0, truncated: false };
+                 mode: "exact", nodes: 0, truncated: false, constraints: cons,
+                 baseViolations: [], violations: [], feasible: false };
       }
       var baseCost = baseReport.totalCost;
-      var best = { reached: baseCost <= target, cost: baseCost, steps: [], assembly: current };
-      if (best.reached) {
+      var baseV = violations(baseReport, cons);
+      var best = { reached: baseCost <= target, cost: baseCost, steps: [], assembly: current,
+                   violations: baseV, feasible: baseV.length === 0 };
+      if (best.reached && best.feasible) {
         return { reached: true, target: target, baseCost: baseCost,
                  cost: baseCost, remaining: 0, steps: [], assembly: current,
-                 mode: "exact", nodes: 0, truncated: false };
+                 mode: "exact", nodes: 0, truncated: false, constraints: cons,
+                 baseViolations: baseV, violations: [], feasible: true };
       }
       var nodes = 0, truncated = false;
 
       function better(r, steps) {
+        var v = violations(r, cons, steps);
+        if ((v.length === 0) !== (best.violations.length === 0)) return v.length === 0;
+        if (v.length !== best.violations.length) return v.length < best.violations.length;
         var reached = r.totalCost <= target;
         if (reached !== best.reached) return reached;
-        if (reached) {
-          if (steps.length !== best.steps.length) return steps.length < best.steps.length;
-          return r.totalCost < best.cost - 0.01;
-        }
+        if (reached && steps.length !== best.steps.length) return steps.length < best.steps.length;
         return r.totalCost < best.cost - 0.01;
       }
 
@@ -242,15 +298,18 @@
         var r = report(cur);
         if (!r) return;
         if (better(r, steps)) {
+          var v = violations(r, cons, steps);
           best = { reached: r.totalCost <= target, cost: r.totalCost,
-                   steps: steps.slice(), assembly: clone(cur) };
+                   steps: steps.slice(), assembly: clone(cur), violations: v,
+                   feasible: v.length === 0 };
         }
         if (depth >= maxSteps) return;
         var cands;
-        try { cands = suggest(cur, { max: 8 }); }
+        try { cands = suggest(cur, { max: 16 }); }
         catch (e) { return; }
         for (var i = 0; i < cands.length; i++) {
           var c = cands[i];
+          if (cons.maxRisk && RISK_RANK[c.risk] > RISK_RANK[cons.maxRisk]) continue;
           search(c.assembly, steps.concat([{
             id: c.id, title: c.title, saving: c.saving, cost: c.cost,
             risk: c.risk, tradeoff: c.tradeoff
@@ -263,13 +322,29 @@
       return { reached: best.reached, target: target, baseCost: baseCost,
                cost: best.cost, remaining: Math.max(0, best.cost - target),
                steps: best.steps, assembly: best.assembly,
-               mode: "exact", nodes: nodes, truncated: truncated };
+               mode: "exact", nodes: nodes, truncated: truncated,
+               constraints: cons, baseViolations: baseV,
+               violations: best.violations, feasible: best.feasible };
     }
 
     function reportMarkdown(cands, baseCost, title, planResult) {
       function md(v) { return String(v == null ? "" : v).replace(/\|/g, "\\|").replace(/\n/g, " "); }
       var lines = ["# 预算优化：" + md(title || "装配"), "",
                    "当前 BOM：¥" + Number(baseCost).toFixed(1), ""];
+      if (planResult && planResult.constraints) {
+        var cons = planResult.constraints, bits = [];
+        if (cons.minJoints != null) bits.push("≥" + cons.minJoints + " 关节");
+        if (cons.minComponents != null) bits.push("≥" + cons.minComponents + " 组件");
+        if (cons.maxMass != null) bits.push("≤" + Number(cons.maxMass).toFixed(0) + "g");
+        if (cons.maxRisk) bits.push("风险 ≤" + cons.maxRisk);
+        if (bits.length) lines.push("约束：" + bits.join("；"), "");
+        if (planResult.baseViolations && planResult.baseViolations.length) {
+          lines.push("当前违反：" + planResult.baseViolations.join("；"), "");
+        }
+        if (planResult.feasible === false) {
+          lines.push("**约束未满足**：" + (planResult.violations || []).join("；"), "");
+        }
+      }
       if (planResult && planResult.steps && planResult.steps.length) {
         lines.push("## 目标规划", "",
           "目标 ¥" + Number(planResult.target).toFixed(1) + "　" +
@@ -289,14 +364,14 @@
       lines.push("| # | 候选 | 省 ¥ | 省重 g | 应用后 ¥ | 组件/关节 | 风险 | 代价 |");
       lines.push("|---:|---|---:|---:|---:|---|---|---|");
       cands.forEach(function (c, i) {
-        lines.push("| " + (i + 1) + " | " + md(c.title) + " | " + Number(c.saving).toFixed(1) +
+        lines.push("| " + (i + 1) + " | " + (c.pareto ? "◆ " : "") + md(c.title) + " | " + Number(c.saving).toFixed(1) +
           " | " + Number(c.massSaving || 0).toFixed(1) + " | " + Number(c.cost).toFixed(1) +
           " | " + c.components + "/" + c.joints + " | " + md(c.risk) + " | " + md(c.tradeoff) + " |");
         if (c.changes && c.changes.length) {
           lines.push("| | " + c.changes.map(md).join("<br>") + " | | | | | | |");
         }
       });
-      lines.push("", "> 单步候选，不是全局最优；候选都重新通过装配校验。", "");
+      lines.push("", "> ◆ = (成本, 重量) Pareto 非支配；单步候选，不是全局最优；候选都重新通过装配校验。", "");
       return lines.join("\n") + "\n";
     }
 

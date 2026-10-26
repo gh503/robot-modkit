@@ -1,5 +1,16 @@
 # 更新日志
 
+## v1.33.0 — 2026-10-26
+
+### 独立应用 AquaTwin
+
+- 新增 `ventures/aquatwin`：泳池清洗机器人数字孪生商业 MVP（独立 pyproject/CLI/测试）；
+- 覆盖路径、时间、能耗、过滤、成本、回收期；输出 `report.md`/`dashboard.html`/
+  `coverage.svg`/`metrics.json`/`study.json`；
+- 3 个场景（住宅/商业/小型）；9 项独立测试；CI 独立 job；`make aquatwin-check`；
+- 商业/研究/定价/路线图文档；明确“示例假设、无现场数据”；
+- modkit 测试仍 **333**；smoke 16 组；物理闸门仍 **0/5**。
+
 ## v1.32.0 — 2026-10-26
 
 ### 流体材料与三维世界

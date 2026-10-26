@@ -8,7 +8,7 @@
  * 版本号只用于激活时清理旧壳；更新后第一次在线访问会刷新。
  */
 "use strict";
-var CACHE = "modkit-shell-v1.32.0";
+var CACHE = "modkit-shell-v1.33.0";
 var SHELL = [
   "./", "./index.html", "./design.html", "./design.css", "./designer.js",
   "./assembly-core.js", "./assembly-view.js", "./budget-core.js", "./i18n.js", "./pwa.js", "./manifest.webmanifest",
@@ -19,6 +19,7 @@ var SHELL = [
   "./data/world-pool.json", "./data/world-lab.json", "./data/world-kitchen.json",
   "./data/world-greenhouse.json", "./data/world-pipeline.json", "./data/world-factory.json",
   "./data/world-outdoor.json", "./data/world-aquarium.json",
+  "./data/world-room.json", "./data/room-demo.obj",
   "./vendor/three.min.js", "./vendor/OrbitControls.js"
 ];
 // 36 个单件 STEP 共约 2.7MB：预缓存后离线也能导出全部零件。

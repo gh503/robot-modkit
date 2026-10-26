@@ -34,6 +34,19 @@ jobs:
       - name: 无头浏览器冒烟
         run: bash tools/web-smoke.sh
 
+  aquatwin:
+    name: AquaTwin (独立应用)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 测试
+        run: |
+          python -m pip install --upgrade pip pytest
+          PYTHONPATH=ventures/aquatwin python -m pytest ventures/aquatwin/tests -q
+
   firmware:
     name: 固件 (g++ 主机测试)
     runs-on: ubuntu-22.04

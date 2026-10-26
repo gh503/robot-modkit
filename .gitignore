@@ -21,3 +21,6 @@ tools/ac.tar.gz
 dist/
 records/
 sim/out/
+
+# 独立应用生成输出
+ventures/aquatwin/out/

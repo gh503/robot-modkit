@@ -1,0 +1,57 @@
+{
+  "schema": "aquatwin.study/1",
+  "name": "商业泳池 25×10m",
+  "description": "酒店/社区商业池；更宽、更脏、服务价更高。",
+  "pool": {
+    "length_m": 25,
+    "width_m": 10,
+    "depth_m": 2.0,
+    "water_temp_c": 27,
+    "salinity_ppt": 3,
+    "debris_g_m3": 8,
+    "shape": "rect",
+    "volume_m3": null,
+    "notes": ""
+  },
+  "robot": {
+    "swath_m": 0.6,
+    "overlap": 0.12,
+    "speed_m_s": 0.3,
+    "turn_time_s": 6,
+    "battery_wh": 180,
+    "charge_time_h": 2.0,
+    "drive_efficiency": 0.6,
+    "pump_flow_m3_s": 0.0015,
+    "pump_head_m": 5,
+    "pump_efficiency": 0.4,
+    "brush_power_w": 45,
+    "electronics_power_w": 10.0,
+    "body_area_m2": 0.2,
+    "drag_cd": 1.0,
+    "mass_kg": 14,
+    "volume_m3": 0.012,
+    "notes": ""
+  },
+  "filter": {
+    "capture_efficiency": 0.9,
+    "capacity_g": 900,
+    "backwash_cost_cny": 50,
+    "pressure_rise_kpa_per_100g": 2.0,
+    "max_pressure_kpa": 40.0,
+    "notes": ""
+  },
+  "economics": {
+    "electricity_cny_kwh": 0.8,
+    "labor_cny_h": 60.0,
+    "service_price_cny": 1200,
+    "robot_capex_cny": 18000,
+    "maintenance_cny_year": 1500,
+    "robot_life_years": 3.0,
+    "supervision_h_per_cleaning": 0.25,
+    "cleanings_per_week": 10,
+    "manual_hours_per_cleaning": 2.5,
+    "chemical_cny_per_cleaning": 45,
+    "notes": "价格/工资为示例假设，不是市场报价"
+  },
+  "metadata": {}
+}

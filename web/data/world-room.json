@@ -1,0 +1,130 @@
+{
+  "schema": "modkit.world/1",
+  "name": "真实房间 OBJ 示例",
+  "description": "6×4×3m 开放房间；演示 OBJ 导入，不是扫描重建。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "room",
+  "objects": [
+    {
+      "id": "room",
+      "type": "mesh",
+      "name": "导入房间",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        6,
+        4,
+        3
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#7c8ea3",
+      "opacity": 0.55,
+      "collider": "mesh",
+      "semantic": "floor",
+      "source": "./room-demo.obj",
+      "metadata": {}
+    },
+    {
+      "id": "table",
+      "type": "box",
+      "name": "工作台",
+      "position": [
+        3.2,
+        2.0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        1.2,
+        0.8,
+        0.75
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#8a6f4d",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "table",
+      "source": "",
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "spill",
+      "type": "puddle",
+      "fluid": "water",
+      "name": "地面水渍",
+      "position": [
+        3.2,
+        2.0,
+        0.02
+      ],
+      "size": [
+        1.0,
+        0.7,
+        0.02
+      ],
+      "level": 1.0,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 22,
+      "salinity_ppt": 0.0,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/bench_joint.json",
+    "position": [
+      1.0,
+      1.0,
+      0.0
+    ],
+    "yaw_deg": 90,
+    "task": "room_inspect"
+  },
+  "sensors": [
+    {
+      "id": "level",
+      "type": "level",
+      "position": [
+        3.2,
+        2.0,
+        0.1
+      ],
+      "target": "spill",
+      "unit": "m",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135.0,
+    "sun_elevation_deg": 45.0,
+    "intensity": 1.0,
+    "ambient": 0.35,
+    "sky": "#0b1017"
+  },
+  "georeference": null,
+  "metadata": {}
+}

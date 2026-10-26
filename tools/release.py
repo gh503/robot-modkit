@@ -45,6 +45,8 @@ def collect() -> dict[str, list[pathlib.Path]]:
     prod += sorted((ROOT / "hardware").glob("*.json"))
     prod += sorted((ROOT / "assemblies").glob("*.json"))
     prod += sorted((ROOT / "tools").glob("*.py"))
+    prod += sorted((ROOT / "ventures").rglob("*")) if (ROOT / "ventures").exists() else []
+    prod = [p for p in prod if p.is_file()]
 
     cad_dir = ROOT / "cad" / "out"
     cad = [p for p in sorted(cad_dir.glob("*"))

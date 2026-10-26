@@ -78,9 +78,10 @@ def test_cli_world_list_init_validate_summary(tmp_path, capsys):
 
 def test_web_world_data_is_valid():
     files = sorted((ROOT / "web" / "data").glob("world-*.json"))
-    assert len(files) == 8
+    presets = [p for p in files if p.name != "world-room.json"]
+    assert len(presets) == 8
     for p in files:
         w = wd.World.load(p)
         v = w.validate()
         assert v["ok"], (p.name, v["errors"])
-        assert w.environment in wd.presets()
+        assert w.environment in wd.presets() or w.environment == "room"

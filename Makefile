@@ -1,15 +1,19 @@
 # robot-modkit：一条命令跑完所有"不依赖实物"的验证
 PY ?= .venv/bin/python
 
-.PHONY: check check-fast doctor cad firmware firmware-target software sim docs components components-cad web-design web-smoke workbench demo preflight clean-out
+.PHONY: check check-fast doctor cad firmware firmware-target software sim docs components components-cad web-design web-smoke aquatwin-check workbench demo preflight clean-out
 
 check: cad firmware software sim docs components
 
-check-fast: software sim docs components
+check-fast: software sim docs components aquatwin-check
 
 # 需要本机 Chrome/Chromium；不在 check/check-fast 里，避免把浏览器变成硬依赖。
 web-smoke:
 	bash tools/web-smoke.sh
+
+# 独立应用 AquaTwin：不依赖 modkit 运行时；CI 也会跑。
+aquatwin-check:
+	cd ventures/aquatwin && PYTHONPATH=. ../../$(PY) -m pytest -q tests
 
 doctor:
 	$(PY) tools/doctor.py

@@ -38,7 +38,7 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor
-make check-fast          # 当前 333 项测试 + 16 场景 + 11 装配示例
+make check-fast          # 333 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 9 项
 make web-smoke           # 需本机 Chrome
 ```
 
@@ -57,6 +57,22 @@ cd software
 ../.venv/bin/python -m modkit.cli assemble pack ../assemblies/bench_joint.json \
   --out ../out/pack-bench-joint
 ```
+
+## 独立应用：AquaTwin
+
+从本项目孵化、但**独立运行**的商业 MVP：[`ventures/aquatwin`](ventures/aquatwin/README.md)
+把泳池清洗的“覆盖/工时/能耗/过滤/成本/回收期”算成一份可解释报告，
+面向泳池服务商、机器人 OEM、商业/酒店泳池。
+
+```bash
+cd ventures/aquatwin && python3 -m venv .venv && . .venv/bin/activate
+pip install -e .
+aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
+# report.md / dashboard.html / coverage.svg / metrics.json
+```
+
+它不是 modkit 的包依赖；商业场景/定价/研究/验证见
+[docs/84](docs/84-应用孵化AquaTwin.md)。没有现场数据，报告只作方案比较。
 
 ## 边界（先看这一段）
 

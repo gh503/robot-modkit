@@ -362,6 +362,11 @@ async function main() {
     await cdp.eval('document.querySelector("#level").value = 42; document.querySelector("#apply").click()');
     await sleep(200);
     check(await cdp.eval('Math.abs(MODKIT_WORLD.state.world.fluids[0].level - 0.42) < 1e-9'), "液位没有应用");
+    await cdp.navigate(`${BASE}/world.html?world=./data/world-room.json`);
+    await waitFor(() => cdp.eval('!!MODKIT_WORLD.state.world && MODKIT_WORLD.state.world.environment === "room"'), 8000, "OBJ 房间");
+    await sleep(700);
+    const room = await cdp.eval('(() => ({ objects: MODKIT_WORLD.state.world.objects.length, tris: MODKIT_WORLD.state.renderer.info.render.triangles, children: MODKIT_WORLD.state.root.children.length }))()');
+    check(room.objects === 2 && room.tris > 100, "OBJ 房间没有渲染");
   });
 
   await run("查看器渲染 + 关节/爆炸", async () => {

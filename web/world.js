@@ -82,7 +82,8 @@
     mesh.rotation.y = -deg(o.rotation && o.rotation[2]);
     mesh.userData.worldObject = o.id;
     state.root.add(mesh);
-    if (o.opacity === undefined || o.opacity > 0.2) addEdges(mesh, o.semantic === "floor" ? 0x546a80 : 0x9fb3c8);
+    var objLoading = o.type === "mesh" && o.source && /\.obj(\?|$)/i.test(o.source);
+    if (!objLoading && (o.opacity === undefined || o.opacity > 0.2)) addEdges(mesh, o.semantic === "floor" ? 0x546a80 : 0x9fb3c8);
     return mesh;
   }
 

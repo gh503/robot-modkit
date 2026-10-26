@@ -1,0 +1,57 @@
+{
+  "schema": "aquatwin.study/1",
+  "name": "小型泳池 6×3m",
+  "description": "紧凑住宅池；低预算机器人；每周 3 次。",
+  "pool": {
+    "length_m": 6,
+    "width_m": 3,
+    "depth_m": 1.2,
+    "water_temp_c": 24,
+    "salinity_ppt": 1,
+    "debris_g_m3": 4,
+    "shape": "rect",
+    "volume_m3": null,
+    "notes": ""
+  },
+  "robot": {
+    "swath_m": 0.35,
+    "overlap": 0.1,
+    "speed_m_s": 0.22,
+    "turn_time_s": 4.0,
+    "battery_wh": 60,
+    "charge_time_h": 2.0,
+    "drive_efficiency": 0.6,
+    "pump_flow_m3_s": 0.0006,
+    "pump_head_m": 2.5,
+    "pump_efficiency": 0.35,
+    "brush_power_w": 18,
+    "electronics_power_w": 10.0,
+    "body_area_m2": 0.12,
+    "drag_cd": 1.0,
+    "mass_kg": 8.0,
+    "volume_m3": 0.006,
+    "notes": ""
+  },
+  "filter": {
+    "capture_efficiency": 0.9,
+    "capacity_g": 350,
+    "backwash_cost_cny": 20,
+    "pressure_rise_kpa_per_100g": 2.0,
+    "max_pressure_kpa": 40.0,
+    "notes": ""
+  },
+  "economics": {
+    "electricity_cny_kwh": 0.8,
+    "labor_cny_h": 60.0,
+    "service_price_cny": 220,
+    "robot_capex_cny": 4200,
+    "maintenance_cny_year": 400,
+    "robot_life_years": 3.0,
+    "supervision_h_per_cleaning": 0.15,
+    "cleanings_per_week": 3,
+    "manual_hours_per_cleaning": 1.2,
+    "chemical_cny_per_cleaning": 20.0,
+    "notes": "价格/工资为示例假设，不是市场报价"
+  },
+  "metadata": {}
+}

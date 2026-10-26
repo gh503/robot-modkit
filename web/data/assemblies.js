@@ -500,7 +500,7 @@ window.MODKIT_ASSEMBLIES = {
  },
  "m1_pen": {
   "name": "modkit-m1-pen",
-  "description": "预算绘图车：240 底盘 + 偏航/肩 + 固定上臂 + 笔夹；两关节平面绘图，落地 ≤¥1000。",
+  "description": "预算绘图车：240 底盘 + 偏航/肩 + 固定上臂 + 笔夹；两关节圆弧绘图（yaw+shoulder），落地 ≤¥1000。",
   "budget_cny": 1000,
   "payload_g": 0,
   "max_accel_m_s2": 0.5,

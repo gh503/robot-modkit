@@ -36,7 +36,7 @@ def test_bringup_wiring_and_acceptance_are_actionable():
     steps = pack.bringup_steps(r)
     text = " ".join(x["title"] + x["command"] for x in steps)
     assert "标定 yaw" in text and "直线 1m" in text and "原地转 90°" in text
-    assert "画方框" in text
+    assert "画 240° 圆弧" in text and "--mode polar" in text
     assert all("stop" in x and x["stop"] for x in steps)
 
     nets = {x["net"]: x for x in pack.wiring_rows(r)}

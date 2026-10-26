@@ -40,7 +40,7 @@ STAGES: dict[str, Stage] = {
     "joint": Stage("joint", "单关节台架", "验证总线 ID、方向、限位、急停和电源"),
     "arm": Stage("arm", "桌面机械臂", "验证多关节逆解、工作空间和末端工具"),
     "drive": Stage("drive", "差速底盘", "验证轮速闭环、里程计和差速转向"),
-    "mobile-draw": Stage("mobile-draw", "移动绘图车", "验证底盘移动 + 两轴笔尖画图"),
+    "mobile-draw": Stage("mobile-draw", "移动圆弧绘图车", "验证底盘移动 + 两轴圆弧绘图（yaw+shoulder，固定上臂）"),
     "mobile-pick": Stage("mobile-pick", "移动抓取车", "验证底盘移动 + 机械臂抓放"),
     "assembly": Stage("assembly", "通用装配", "验证接口、上电和单轴动作"),
 }
@@ -271,10 +271,11 @@ def acceptance_rows(r: asm.Report) -> list[dict]:
              "evidence": "bench.csv", "status": "pending"},
         ]
     if st.key == "mobile-draw":
-        rows.append({"id": "A10", "phase": "任务", "test": "画 100mm 方框",
-                     "command": "modkit --port ... pose 逐点 / 绘图脚本",
-                     "pass": "四边闭合；笔迹连续；起终点偏差 ≤3mm",
-                     "evidence": "纸张照片 + 坐标", "status": "pending"})
+        rows.append({"id": "A10", "phase": "任务", "test": "画 240° 圆弧",
+                     "command": "modkit draw --shape arc --mode polar --radius 150 --sweep 240 --l1 175 "
+                                "--out draw.csv --play --port /dev/ttyUSB0 --yes",
+                     "pass": "弧线连续；半径误差 ≤3mm；起终点回差 ≤3mm",
+                     "evidence": "draw.csv + 纸张照片", "status": "pending"})
     elif st.key == "mobile-pick":
         rows.append({"id": "A10", "phase": "任务", "test": "100g 方块抓放",
                      "command": "modkit --port ... bench --action repeat --n 10",
@@ -351,11 +352,13 @@ def bringup_steps(r: asm.Report) -> list[dict]:
              "stop": "碰撞 → 缩小限位/改姿态，不要靠电流硬顶"},
         ]
     if st.key == "mobile-draw":
-        steps.append({"n": len(steps) + 1, "title": "画方框",
-                      "action": "笔尖对纸；低速画 100mm 方框；抬笔/落笔高度确认",
-                      "command": "modkit --port ... pose 逐点（或绘图脚本）",
-                      "pass": "四边闭合；起终点 ≤3mm", "evidence": "纸张照片",
-                      "stop": "笔尖刮纸/断线 → 调 Z 高度/速度"})
+        steps.append({"n": len(steps) + 1, "title": "画 240° 圆弧",
+                      "action": "笔尖对纸；低速画 240° 圆弧；确认半径/起终点回差",
+                      "command": f"modkit draw --shape arc --mode polar --radius 150 --sweep 240 "
+                                 f"--l1 175 --out draw.csv --play --port {PORT} --yes",
+                      "pass": "弧线连续；半径误差 ≤3mm；起终点回差 ≤3mm",
+                      "evidence": "draw.csv + 纸张照片",
+                      "stop": "笔尖刮纸/断线 → 调 Z 高度/速度；先 --sim 空跑"})
     elif st.key == "mobile-pick":
         steps.append({"n": len(steps) + 1, "title": "抓放",
                       "action": "100g 方块 10 次；记录失败模式",

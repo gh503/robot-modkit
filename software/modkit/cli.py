@@ -30,6 +30,7 @@ from . import assembly as asm
 from . import optimizer as opt
 from . import procure as proc
 from . import pack as hp
+from . import draw as dr
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -328,6 +329,54 @@ def cmd_components(args) -> int:
     for c in rows:
         print(f"{c.id:<28} {c.category:<12} {c.status:<9} {c.mass_g:7.0f} {c.cost_cny:5.0f}  {c.name}")
     print(f"\n共 {len(rows)} / {len(comps.COMPONENTS)} 个组件")
+    return 0
+
+
+def cmd_draw(args) -> int:
+    """离线路径 → CSV/SVG；可选仿真/真机回放。"""
+    try:
+        pts = dr.build_path(
+            args.shape, mode=args.mode, size=args.size, z=args.z,
+            cx=args.cx, cy=args.cy, radius=args.radius, sweep=args.sweep,
+            step=args.step, l1=args.l1, l2=args.l2, base_h=args.base_h)
+        st = dr.stats(pts)
+    except (dr.DrawError, ValueError) as e:
+        print(f"路径不可用：{e}")
+        return 2
+    out = pathlib.Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(dr.to_csv(pts), encoding="utf-8")
+    svg_path = None
+    if args.svg:
+        svg_path = pathlib.Path(args.svg)
+        svg_path.parent.mkdir(parents=True, exist_ok=True)
+        svg_path.write_text(dr.to_svg(pts), encoding="utf-8")
+    played = None
+    if args.play:
+        sim = bool(args.sim or not args.port)
+        if not sim and not args.yes:
+            print("真机回放必须显式 --yes；先用 --sim 空跑。")
+            return 2
+        try:
+            played = dr.play(pts, port=args.port, sim=sim, speed=args.speed,
+                             settle=args.settle, yes=args.yes,
+                             calibration=args.calibration)
+        except Exception as e:
+            print(f"回放失败：{type(e).__name__}: {e}")
+            return 2
+    data = {"stats": st, "csv": str(out), "svg": str(svg_path) if svg_path else None,
+            "play": played}
+    if args.json:
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+    print(f"路径：{args.shape}/{args.mode}  {st['points']} 点  "
+          f"x{st['x']} y{st['y']} z{st['z']}  {st['path_mm']:.0f}mm")
+    print(f"  CSV：{out}" + (f"  SVG：{svg_path}" if svg_path else ""))
+    print(f"  最大单步：{st['max_delta_deg']}；{'OK' if st['max_step_ok'] else '超过 8°，降低速度/加密点'}")
+    if played:
+        print(f"  回放：{'SIM' if played['sim'] else played['port']}  {played['played']} 点  "
+              f"ID {played['ids']}  speed {played['speed']}")
+    print("  边界：不控制抬笔/落笔，不补偿笔尖偏置；真机先空载、手放急停。")
     return 0
 
 
@@ -1208,6 +1257,32 @@ def main(argv: list[str] | None = None) -> int:
     co.add_argument("--category", choices=comps.CATEGORIES)
     co.add_argument("--json", action="store_true")
     co.set_defaults(func=cmd_components)
+
+    dw = sub.add_parser("draw", help="离线绘图路径 → CSV/SVG（可选回放）")
+    dw.add_argument("--shape", choices=["square", "circle", "triangle", "line", "arc"],
+                    default="square")
+    dw.add_argument("--mode", choices=["arm", "polar"], default="arm",
+                    help="arm=3DOF 逆解；polar=2DOF 固定半径圆弧")
+    dw.add_argument("--size", type=float, default=100.0)
+    dw.add_argument("--z", type=float, default=150.0)
+    dw.add_argument("--cx", type=float, default=150.0)
+    dw.add_argument("--cy", type=float, default=0.0)
+    dw.add_argument("--radius", type=float, default=50.0)
+    dw.add_argument("--sweep", type=float, default=240.0)
+    dw.add_argument("--step", type=float, default=5.0, help="路径采样间距 mm")
+    dw.add_argument("--l1", type=float, default=120.0)
+    dw.add_argument("--l2", type=float, default=110.0)
+    dw.add_argument("--base-h", dest="base_h", type=float, default=90.0)
+    dw.add_argument("--out", default="draw.csv")
+    dw.add_argument("--svg", default="")
+    dw.add_argument("--play", action="store_true", help="回放；默认仿真")
+    dw.add_argument("--sim", action="store_true", help="强制仿真回放")
+    dw.add_argument("--speed", type=int, default=150)
+    dw.add_argument("--settle", type=float, default=0.25)
+    dw.add_argument("--calibration", help="标定 JSON；真机建议给")
+    dw.add_argument("--yes", action="store_true", help="确认真机回放")
+    dw.add_argument("--json", action="store_true")
+    dw.set_defaults(func=cmd_draw)
 
     ab = sub.add_parser("assemble", help="装配图：校验/BOM/安全配置/预览")
     ab.add_argument("action", choices=("validate", "plan", "preview", "suggest", "procure", "pack"),

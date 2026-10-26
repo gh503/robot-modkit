@@ -72,7 +72,8 @@ def test_write_pack_files_and_cli(tmp_path):
     r = asm.load_and_validate(A / "bench_joint.json")
     paths = pack.write_pack(r, tmp_path)
     for key in ("readme", "bringup", "wiring", "assembly", "print",
-                "acceptance", "acceptance_csv", "firmware", "firmware_h", "pack"):
+                "acceptance", "acceptance_csv", "firmware", "firmware_h",
+                "procure", "procure_csv", "pack"):
         assert pathlib.Path(paths[key]).is_file(), key
     h = pathlib.Path(paths["firmware_h"]).read_text(encoding="utf-8")
     assert "MODKIT_PIN_TX 17" in h and "MODKIT_PIN_RX 16" in h
@@ -98,3 +99,17 @@ def test_firmware_header_macros_are_unique():
     assert len(names) == len(set(names)) == 5
     assert "MODKIT_ID_DRIVE_L 4" in h and "MODKIT_ID_DRIVE_R 5" in h
     assert "MODKIT_SERVO_COUNT 5u" in h
+
+
+def test_all_presets_generate_complete_pack(tmp_path):
+    for f in sorted(A.glob("*.json")):
+        r = asm.load_and_validate(f)
+        st = pack.summary(r)["stage"]
+        assert st in pack.STAGES, f.name
+        paths = pack.write_pack(r, tmp_path / f.stem)
+        assert pathlib.Path(paths["firmware"]).is_file()
+        assert pathlib.Path(paths["firmware_h"]).is_file()
+        assert pathlib.Path(paths["procure_csv"]).is_file()
+        rows = list(csv.reader(pathlib.Path(paths["acceptance_csv"])
+                               .read_text(encoding="utf-8-sig").splitlines()))
+        assert all(x[-1] == "pending" for x in rows[1:])

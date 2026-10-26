@@ -605,7 +605,8 @@ def readme_markdown(r: asm.Report) -> str:
            "| `print.md` | 打印件数量/克重 |",
            "| `acceptance.md` / `.csv` | 验收矩阵（初始 pending） |",
            "| `firmware.json` / `firmware.h` | 舵机 ID/引脚/配置引用；头文件需人工复核后使用 |",
-           "| `bom.csv` / `safety.json` / `calibration.template.json` | 由 `assemble plan` 生成 |",
+           "| `bom.csv` / `procure.md` / `procure.csv` | BOM + 落地成本/采购清单 |",
+           "| `safety.json` / `calibration.template.json` | 由 `assemble plan` 生成 |",
            "| `pack.json` | 机器可读汇总 |", "",
            "## 3. 建议顺序", "",
            "1. 采购/打印（见 `docs/76-分阶段构建与落地成本.md`）；",
@@ -625,6 +626,8 @@ def write_pack(r: asm.Report, outdir: str | pathlib.Path) -> dict[str, str]:
     out = pathlib.Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     paths = asm.write_plan(r, out)  # plan/bom/assembly/safety/calibration
+    pp = procure.write_outputs(r, str(out))  # procure.md / procure.csv
+    paths.update({"procure": pp["markdown"], "procure_csv": pp["csv"]})
     files = {
         "readme": ("README.md", readme_markdown(r)),
         "bringup": ("bringup.md", bringup_markdown(r)),

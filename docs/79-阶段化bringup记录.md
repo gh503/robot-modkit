@@ -87,7 +87,7 @@ cd software
   - 证据被改触发 sha256；
   - init 后计划冻结；装配改动被检测；
   - CLI init/record/status。
-- 总计 **310 项** pytest；Web smoke 14 组。
+- 总计 **311 项** pytest；Web smoke 14 组。
 
 ## 79.9 版本
 

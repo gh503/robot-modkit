@@ -161,16 +161,19 @@
           <button class="btn" id="export-json">装配 JSON</button>
           <button class="btn" id="export-csv">BOM CSV</button>
           <button class="btn" id="export-stl">装配 STL</button>
+          <button class="btn" id="export-glb">装配 GLB</button>
+          <button class="btn" id="export-3mf">装配 3MF</button>
           <button class="btn" id="export-svg">2D 预览 SVG</button>
           <button class="btn wide" id="export-step">下载选中零件 STEP</button>
           <button class="btn wide" id="export-step-zip">导出全部零件 STEP（ZIP）</button>
+          <button class="btn wide" id="export-print">打印 BOM / 存 PDF</button>
           <button class="btn wide" id="copy-command">复制 CLI 复现命令</button>
         </div>
         <div class="note" id="export-note"></div>
       </div>
       <div class="sect">
         <h2>CAD 说明</h2>
-        <p style="font-size:10.5px;color:var(--muted);margin:0">浏览器导出的是<b>装配网格 STL</b>（可进 CAD 做参考/干涉检查）和<b>单件 STEP</b>（36 个参数化零件已预生成）。若要在 CAD 里改参数并重建，导出 JSON 后运行 <code>modkit assemble plan</code>，再跑 <code>make components-cad</code>。</p>
+        <p style="font-size:10.5px;color:var(--muted);margin:0">浏览器导出<b>装配网格</b>：STL（毫米，Z-up）、3MF（毫米，Z-up，可直接进切片器）、GLB（米，Y-up，给 Blender/Three/AR）。<b>单件 STEP</b> 仍是 36 个参数化零件预生成。若要在 CAD 里改参数并重建，导出 JSON 后运行 <code>modkit assemble plan</code>，再跑 <code>make components-cad</code>。BOM/装配图用“打印 BOM / 存 PDF”。</p>
       </div>
     </section>
   </aside>

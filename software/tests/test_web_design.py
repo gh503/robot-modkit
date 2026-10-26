@@ -142,6 +142,18 @@ def test_free_design_viewer_assets_and_hooks():
     assert "view.html" in sw and "assembly-view.js" in sw
 
 
+def test_export_formats_and_offline_step_models():
+    design = (WEB / "design.html").read_text(encoding="utf-8")
+    for bid in ("export-glb", "export-3mf", "export-print"):
+        assert f'id="{bid}"' in design
+    js = (WEB / "designer.js").read_text(encoding="utf-8")
+    assert "function buildGLB" in js and "function build3MF" in js
+    assert "function buildPrintHTML" in js and "function zipStoreText" in js
+    sw = (WEB / "sw.js").read_text(encoding="utf-8")
+    assert sw.count('"./models/') == 36
+    assert "SHELL.concat(MODELS)" in sw
+
+
 def test_browser_smoke_harness_is_wired_into_ci():
     smoke = (ROOT / "tools" / "web-smoke.mjs").read_text(encoding="utf-8")
     assert "MODKIT_STUDIO.select" in smoke and "view-joints" in smoke

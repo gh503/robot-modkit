@@ -1,5 +1,22 @@
 # 更新日志
 
+## v1.19.0 — 2026-10-26
+
+### 导出
+
+- 新增 **GLB**：按材质分 primitive，Z-up mm → Y-up m；手写 glTF 2.0，无第三方依赖。
+- 新增 **3MF**：毫米/Z-up 单对象，手写最小 ZIP store + CRC32；切片器可直接打开。
+- 新增 **打印 BOM / 存 PDF**：内联 CSS 的 BOM/汇总/校验问题页，用浏览器打印成 PDF。
+- 36 个单件 STEP 加入 Service Worker 预缓存（约 2.7MB）；断网也能导出全部零件 ZIP。
+- `make web-smoke` 增至 9 组，覆盖 GLB 头、3MF 头、打印页与 STEP 预缓存。
+- 测试 282 → **283**。
+
+### 边界
+
+- GLB/3MF 是视觉网格，不是 B-Rep；改参数仍需 JSON → CLI → CAD 重建。
+- STL/3MF 保持 Z-up 毫米；GLB 是 Y-up 米。
+- 物理闸门仍 **0/5**。
+
 ## v1.18.1 — 2026-10-26
 
 - 修复 `tools/web-smoke.sh` 清理阶段：先 `wait` Chrome/服务器退出，再删临时 profile；

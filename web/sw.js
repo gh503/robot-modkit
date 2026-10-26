@@ -8,7 +8,7 @@
  * 版本号只用于激活时清理旧壳；更新后第一次在线访问会刷新。
  */
 "use strict";
-var CACHE = "modkit-shell-v1.18.1";
+var CACHE = "modkit-shell-v1.19.0";
 var SHELL = [
   "./", "./index.html", "./design.html", "./design.css", "./designer.js",
   "./assembly-core.js", "./assembly-view.js", "./budget-core.js", "./pwa.js", "./manifest.webmanifest",
@@ -17,11 +17,50 @@ var SHELL = [
   "./data/components.js", "./data/assemblies.js",
   "./vendor/three.min.js", "./vendor/OrbitControls.js"
 ];
+// 36 个单件 STEP 共约 2.7MB：预缓存后离线也能导出全部零件。
+var MODELS = [
+  "./models/adapter_disc_grid.step",
+  "./models/adapter_grid_disc.step",
+  "./models/compute_pi4.step",
+  "./models/drive_caster.step",
+  "./models/drive_wheel_65.step",
+  "./models/drive_wheel_80.step",
+  "./models/electronics_buck_5v.step",
+  "./models/electronics_esp32.step",
+  "./models/electronics_power_dist.step",
+  "./models/frame_chassis_160.step",
+  "./models/frame_chassis_240.step",
+  "./models/frame_deck_120x80.step",
+  "./models/frame_deck_160x100.step",
+  "./models/frame_mast_100.step",
+  "./models/frame_mast_200.step",
+  "./models/frame_power_bay.step",
+  "./models/joint_continuous.step",
+  "./models/joint_elbow.step",
+  "./models/joint_generic.step",
+  "./models/joint_pitch.step",
+  "./models/joint_yaw.step",
+  "./models/link_beam_100.step",
+  "./models/link_beam_140.step",
+  "./models/link_beam_200.step",
+  "./models/link_beam_60.step",
+  "./models/power_adapter_12v5a.step",
+  "./models/power_battery_3s.step",
+  "./models/power_estop.step",
+  "./models/sensor_camera_usb.step",
+  "./models/sensor_imu.step",
+  "./models/sensor_line_array.step",
+  "./models/sensor_tof.step",
+  "./models/tool_gripper_40.step",
+  "./models/tool_gripper_70.step",
+  "./models/tool_pen.step",
+  "./models/tool_vacuum_20.step"
+];
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(CACHE).then(function (cache) {
-      return cache.addAll(SHELL);
+      return cache.addAll(SHELL.concat(MODELS));
     }).then(function () { return self.skipWaiting(); })
   );
 });

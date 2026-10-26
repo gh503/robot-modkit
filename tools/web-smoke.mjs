@@ -182,6 +182,26 @@ async function main() {
     check((await cdp.eval("MODKIT_STUDIO.state.report.instances.length")) === 18, "拖拽导入后不是 18 个实例");
   });
 
+  await run("导出 GLB/3MF/打印页", async () => {
+    const r = await cdp.eval(`(() => {
+      const glb = MODKIT_STUDIO.buildGLB();
+      const gu = new Uint8Array(glb);
+      const mf = MODKIT_STUDIO.build3MF();
+      const html = MODKIT_STUDIO.buildPrintHTML();
+      return {
+        glbLen: glb.byteLength, glbMagic: String.fromCharCode(...gu.slice(0, 4)),
+        glbVer: new DataView(glb).getUint32(4, true),
+        mfLen: mf.length, mfMagic: Array.from(mf.slice(0, 4)),
+        htmlLen: html.length, hasBom: html.includes("BOM"), hasTotal: html.includes("TOTAL")
+      };
+    })()`);
+    check(r.glbMagic === "glTF" && r.glbVer === 2, "GLB 头不对");
+    check(r.glbLen > 50000, `GLB 太小 ${r.glbLen}`);
+    check(r.mfMagic.join(",") === "80,75,3,4", "3MF 不是 ZIP");
+    check(r.mfLen > 50000, `3MF 太小 ${r.mfLen}`);
+    check(r.htmlLen > 1000 && r.hasBom && r.hasTotal, "打印页缺 BOM/TOTAL");
+  });
+
   await run("Studio 生成查看器链接", async () => {
     await cdp.eval('MODKIT_STUDIO.loadPreset("m1")');
     await sleep(200);
@@ -243,10 +263,22 @@ async function main() {
     await cdp.navigate(`${BASE}/design.html?smoke=pwa`);
     const info = await cdp.eval(`(async () => {
       const r = await navigator.serviceWorker.ready;
-      return { state: r.active && r.active.state, keys: await caches.keys() };
+      await r.update();
+      let hit = null;
+      for (let i = 0; i < 50; i++) {
+        hit = await caches.match("models/frame_chassis_160.step");
+        if (hit) break;
+        await new Promise((x) => setTimeout(x, 200));
+      }
+      for (let i = 0; i < 50; i++) {
+        if (r.active && r.active.state === "activated") break;
+        await new Promise((x) => setTimeout(x, 200));
+      }
+      return { state: r.active && r.active.state, keys: await caches.keys(), step: !!hit };
     })()`);
     check(info.state === "activated", `SW 状态 ${info.state}`);
     check(info.keys.some((k) => k.startsWith("modkit-shell-")), "没有 modkit-shell 缓存");
+    check(info.step, "STEP 未预缓存，离线导出会失败");
   });
 
   await run("全页面无脚本异常", async () => {
@@ -262,7 +294,7 @@ async function main() {
     console.error(`\nweb smoke: ${failures} 项失败`);
     process.exit(1);
   }
-  console.log("\nweb smoke: PASS（8 项）");
+  console.log("\nweb smoke: PASS（9 项）");
 }
 
 main().catch((e) => {

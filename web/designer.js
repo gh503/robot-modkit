@@ -31,7 +31,7 @@
     materials: {}, fitPending: true, ready: false, clipboard: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.18.1";
+  var STUDIO_VERSION = "1.19.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -1349,6 +1349,250 @@
     download(designFileName("svg"), new Blob([A.svgReport(state.report)], { type: "image/svg+xml" }));
     toast("已导出 2D 装配预览 SVG", "ok");
   }
+  function forEachTriangle(fn) {
+    if (!view.ready || !state.report) return 0;
+    view.root.updateMatrixWorld(true);
+    var count = 0;
+    var v0 = new THREE.Vector3(), v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
+    var n0 = new THREE.Vector3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3();
+    var fnorm = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+    view.root.traverse(function (o) {
+      if (!o.isMesh || !o.geometry) return;
+      var pos = o.geometry.attributes.position;
+      if (!pos) return;
+      var nor = o.geometry.attributes.normal;
+      var idx = o.geometry.index;
+      var nm = new THREE.Matrix3().getNormalMatrix(o.matrixWorld);
+      var hex = o.material && o.material.color ? "#" + o.material.color.getHexString() : "#9aa4b2";
+      var n = idx ? idx.count : pos.count;
+      for (var i = 0; i + 2 < n; i += 3) {
+        var i0 = idx ? idx.getX(i) : i, i1 = idx ? idx.getX(i + 1) : i + 1, i2 = idx ? idx.getX(i + 2) : i + 2;
+        v0.fromBufferAttribute(pos, i0).applyMatrix4(o.matrixWorld);
+        v1.fromBufferAttribute(pos, i1).applyMatrix4(o.matrixWorld);
+        v2.fromBufferAttribute(pos, i2).applyMatrix4(o.matrixWorld);
+        if (nor) {
+          n0.fromBufferAttribute(nor, i0).applyMatrix3(nm).normalize();
+          n1.fromBufferAttribute(nor, i1).applyMatrix3(nm).normalize();
+          n2.fromBufferAttribute(nor, i2).applyMatrix3(nm).normalize();
+        } else {
+          e1.subVectors(v1, v0); e2.subVectors(v2, v0);
+          fnorm.crossVectors(e1, e2).normalize();
+          n0.copy(fnorm); n1.copy(fnorm); n2.copy(fnorm);
+        }
+        fn(v0, v1, v2, n0, n1, n2, hex);
+        count++;
+      }
+    });
+    return count;
+  }
+
+  // GLB：Z-up mm -> Y-up m；按材质颜色分 primitive。
+  function buildGLB() {
+    var groups = {}, triCount = 0;
+    forEachTriangle(function (a, b, c, na, nb, nc, hex) {
+      var g = groups[hex];
+      if (!g) g = groups[hex] = { pos: [], nor: [], idx: [], color: hex };
+      var base = g.pos.length / 3;
+      [a, b, c].forEach(function (v) { g.pos.push(v.x * 0.001, v.z * 0.001, -v.y * 0.001); });
+      [na, nb, nc].forEach(function (n) { g.nor.push(n.x, n.z, -n.y); });
+      g.idx.push(base, base + 1, base + 2);
+      triCount++;
+    });
+    if (!triCount) throw new Error("没有可导出的网格");
+    var json = {
+      asset: { version: "2.0", generator: "modkit Studio " + STUDIO_VERSION },
+      scene: 0, scenes: [{ nodes: [0] }],
+      nodes: [{ mesh: 0, name: state.assembly.name || "modkit assembly" }],
+      meshes: [{ primitives: [] }], materials: [], accessors: [], bufferViews: [], buffers: []
+    };
+    var binParts = [], binLen = 0;
+    function align4() {
+      var pad = (4 - (binLen % 4)) % 4;
+      if (pad) { binParts.push(new Uint8Array(pad)); binLen += pad; }
+    }
+    function addView(typed, target) {
+      align4();
+      var bytes = new Uint8Array(typed.buffer, typed.byteOffset, typed.byteLength);
+      var view = { buffer: 0, byteOffset: binLen, byteLength: bytes.byteLength };
+      if (target) view.target = target;
+      json.bufferViews.push(view);
+      binParts.push(bytes);
+      binLen += bytes.byteLength;
+      return json.bufferViews.length - 1;
+    }
+    function addAccessor(view, componentType, type, count, min, max) {
+      var a = { bufferView: view, componentType: componentType, count: count, type: type };
+      if (min) a.min = min;
+      if (max) a.max = max;
+      json.accessors.push(a);
+      return json.accessors.length - 1;
+    }
+    var mi = 0;
+    Object.keys(groups).forEach(function (hex) {
+      var g = groups[hex];
+      var p = new Float32Array(g.pos), n = new Float32Array(g.nor), ix = new Uint32Array(g.idx);
+      var min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+      for (var i = 0; i < p.length; i += 3) {
+        min[0] = Math.min(min[0], p[i]); max[0] = Math.max(max[0], p[i]);
+        min[1] = Math.min(min[1], p[i + 1]); max[1] = Math.max(max[1], p[i + 1]);
+        min[2] = Math.min(min[2], p[i + 2]); max[2] = Math.max(max[2], p[i + 2]);
+      }
+      var pv = addView(p, 34962), nv = addView(n, 34962), iv = addView(ix, 34963);
+      var pa = addAccessor(pv, 5126, "VEC3", p.length / 3, min, max);
+      var na = addAccessor(nv, 5126, "VEC3", n.length / 3);
+      var ia = addAccessor(iv, 5125, "SCALAR", ix.length);
+      var col = new THREE.Color(hex);
+      json.materials.push({ name: "mat_" + hex.replace("#", ""), doubleSided: true,
+        pbrMetallicRoughness: { baseColorFactor: [col.r, col.g, col.b, 1], metallicFactor: 0.08, roughnessFactor: 0.7 } });
+      json.meshes[0].primitives.push({ attributes: { POSITION: pa, NORMAL: na }, indices: ia, material: mi++ });
+    });
+    align4();
+    json.buffers.push({ byteLength: binLen });
+    var jsonBytes = new TextEncoder().encode(JSON.stringify(json));
+    var jsonPad = (4 - (jsonBytes.length % 4)) % 4;
+    var jsonTotal = jsonBytes.length + jsonPad;
+    var binPad = (4 - (binLen % 4)) % 4;
+    var binTotal = binLen + binPad;
+    var total = 12 + 8 + jsonTotal + 8 + binTotal;
+    var out = new Uint8Array(total), dv = new DataView(out.buffer);
+    dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true);
+    dv.setUint32(12, jsonTotal, true); dv.setUint32(16, 0x4E4F534A, true);
+    out.set(jsonBytes, 20);
+    for (var j = 0; j < jsonPad; j++) out[20 + jsonBytes.length + j] = 0x20;
+    var o = 20 + jsonTotal;
+    dv.setUint32(o, binTotal, true); dv.setUint32(o + 4, 0x004E4942, true);
+    var off = o + 8;
+    binParts.forEach(function (part) { out.set(part, off); off += part.byteLength; });
+    return out.buffer;
+  }
+  function exportGLB() {
+    try {
+      var buf = buildGLB();
+      download(designFileName("glb"), new Blob([buf], { type: "model/gltf-binary" }));
+      toast("已导出 GLB（Y-up，米制）；可进 Blender/Three/AR", "ok");
+    } catch (e) { toast("GLB 导出失败：" + e.message, "err"); }
+  }
+
+  // 3MF：Z-up mm；最小 ZIP store 容器。
+  var CRC_TABLE = null;
+  function crc32TextZip(bytes) {
+    if (!CRC_TABLE) {
+      CRC_TABLE = new Uint32Array(256);
+      for (var n = 0; n < 256; n++) {
+        var c = n;
+        for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        CRC_TABLE[n] = c >>> 0;
+      }
+    }
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+  function zipStoreText(files) {
+    var enc = new TextEncoder(), locals = [], centrals = [], offset = 0;
+    var DOS_DATE = 0x5C21, DOS_TIME = 0; // 2026-01-01
+    files.forEach(function (f) {
+      var name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+      var lh = new Uint8Array(30 + name.length), dv = new DataView(lh.buffer);
+      dv.setUint32(0, 0x04034B50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0, true);
+      dv.setUint16(8, 0, true); dv.setUint16(10, DOS_TIME, true); dv.setUint16(12, DOS_DATE, true);
+      dv.setUint32(14, crc, true); dv.setUint32(18, data.length, true); dv.setUint32(22, data.length, true);
+      dv.setUint16(26, name.length, true); dv.setUint16(28, 0, true);
+      lh.set(name, 30);
+      locals.push(lh, data);
+      var ch = new Uint8Array(46 + name.length), cv = new DataView(ch.buffer);
+      cv.setUint32(0, 0x02014B50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0, true); cv.setUint16(10, 0, true); cv.setUint16(12, DOS_TIME, true); cv.setUint16(14, DOS_DATE, true);
+      cv.setUint32(16, crc, true); cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true);
+      cv.setUint16(28, name.length, true); cv.setUint16(30, 0, true); cv.setUint16(32, 0, true);
+      cv.setUint16(34, 0, true); cv.setUint16(36, 0, true); cv.setUint32(38, 0, true); cv.setUint32(42, offset, true);
+      ch.set(name, 46);
+      centrals.push(ch);
+      offset += lh.length + data.length;
+    });
+    var cdSize = centrals.reduce(function (n, x) { return n + x.length; }, 0);
+    var eocd = new Uint8Array(22), ev = new DataView(eocd.buffer);
+    ev.setUint32(0, 0x06054B50, true); ev.setUint16(4, 0, true); ev.setUint16(6, 0, true);
+    ev.setUint16(8, files.length, true); ev.setUint16(10, files.length, true);
+    ev.setUint32(12, cdSize, true); ev.setUint32(16, offset, true); ev.setUint16(20, 0, true);
+    var total = offset + cdSize + eocd.length, out = new Uint8Array(total), p = 0;
+    locals.concat(centrals, [eocd]).forEach(function (x) { out.set(x, p); p += x.length; });
+    return out;
+  }
+  function build3MF() {
+    var verts = [], tris = [];
+    var n = forEachTriangle(function (a, b, c) {
+      var base = verts.length / 3;
+      [a, b, c].forEach(function (v) { verts.push(v.x.toFixed(3), v.y.toFixed(3), v.z.toFixed(3)); });
+      tris.push(base, base + 1, base + 2);
+    });
+    if (!n) throw new Error("没有可导出的网格");
+    var vx = [], tx = [];
+    for (var i = 0; i < verts.length; i += 3) vx.push('<vertex x="' + verts[i] + '" y="' + verts[i + 1] + '" z="' + verts[i + 2] + '"/>');
+    for (var j = 0; j < tris.length; j += 3) tx.push('<triangle v1="' + tris[j] + '" v2="' + tris[j + 1] + '" v3="' + tris[j + 2] + '"/>');
+    var title = esc(state.assembly.name || "modkit assembly");
+    var model = '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<model unit="millimeter" xml:lang="zh-CN" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">' +
+      '<metadata name="Title">' + title + '</metadata>' +
+      '<metadata name="Application">modkit Studio ' + STUDIO_VERSION + '</metadata>' +
+      '<resources><object id="1" type="model" name="' + title + '"><mesh><vertices>' + vx.join("") +
+      '</vertices><triangles>' + tx.join("") + '</triangles></mesh></object></resources><build><item objectid="1"/></build></model>';
+    return zipStoreText([
+      { name: "[Content_Types].xml", text: '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>' },
+      { name: "_rels/.rels", text: '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>' },
+      { name: "3D/3dmodel.model", text: model }
+    ]);
+  }
+  function export3MF() {
+    try {
+      var bytes = build3MF();
+      download(designFileName("3mf"), new Blob([bytes], { type: "model/3mf" }));
+      toast("已导出 3MF（Z-up，毫米）；可直接进切片器", "ok");
+    } catch (e) { toast("3MF 导出失败：" + e.message, "err"); }
+  }
+
+  function buildPrintHTML() {
+    var r = state.report;
+    if (!r) throw new Error("尚未校验");
+    var budget = state.assembly.budget_cny != null ? state.assembly.budget_cny : 1000;
+    var rows = r.bom.map(function (b) {
+      return '<tr><td>' + esc(b.name) + '</td><td>' + esc(b.spec) + '</td><td class="n">' + b.qty +
+        '</td><td class="n">¥' + b.unit_cost + '</td><td class="n">¥' + Math.round(b.cost) + '</td></tr>';
+    }).join("");
+    var issues = r.issues.length ? r.issues.map(function (x) {
+      return '<li class="' + esc(x.level) + '">[' + esc(x.level) + '] ' + esc(x.code) + ' · ' + esc(x.message) + '</li>';
+    }).join("") : '<li>没有发现问题。</li>';
+    return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>' + esc(state.assembly.name || "modkit") +
+      ' · BOM</title><style>body{font:12px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1b2430;margin:24px;}' +
+      'h1{font-size:20px;margin:0 0 2px}h2{font-size:13px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;}' +
+      'th,td{border-bottom:1px solid #dbe3ed;padding:4px 5px;text-align:left;font-size:10.5px}th{background:#f4f7fb}.n{text-align:right;font-family:monospace}' +
+      '.meta{color:#607086;font-size:11px}.total{font-weight:700}li{margin:2px 0;font-size:10px}.error{color:#c0392b}.warn{color:#a66b00}' +
+      '@media print{body{margin:10mm}button{display:none}}</style></head><body>' +
+      '<h1>' + esc(state.assembly.name || "未命名装配") + '</h1><div class="meta">modkit Studio ' + STUDIO_VERSION +
+      ' · 导出于 ' + new Date().toLocaleString("zh-CN") + '</div>' +
+      '<h2>汇总</h2><div class="meta">组件 ' + r.instances.length + ' · 质量 ' + Math.round(r.totalMass) +
+      'g · BOM ¥' + Math.round(r.totalCost) + ' · 预算 ¥' + Math.round(budget) +
+      ' · 预算差 ¥' + Math.round(budget - r.totalCost) + '</div>' +
+      '<h2>BOM</h2><table><thead><tr><th>物料</th><th>规格</th><th class="n">数量</th><th class="n">单价</th><th class="n">小计</th></tr></thead><tbody>' +
+      rows + '</tbody><tfoot><tr class="total"><td>TOTAL</td><td></td><td></td><td></td><td class="n">¥' + Math.round(r.totalCost) + '</td></tr></tfoot></table>' +
+      '<h2>校验问题</h2><ul>' + issues + '</ul>' +
+      '<p class="meta">AABB/静载是保守估算；这不是实物验证。打印本页可存为 PDF。</p>' +
+      '</body></html>';
+  }
+  function printSheet() {
+    var html;
+    try { html = buildPrintHTML(); } catch (e) { toast(e.message, "err"); return; }
+    var w = window.open("", "_blank");
+    if (!w) {
+      download(designFileName("bom.html"), new Blob([html], { type: "text/html;charset=utf-8" }));
+      toast("弹窗被拦截，已下载可打印 HTML", "");
+      return;
+    }
+    w.document.open(); w.document.write(html); w.document.close();
+    w.focus();
+    setTimeout(function () { try { w.print(); } catch (e) { /* 用户可手动打印 */ } }, 350);
+  }
+
   function exportSTL() {
     if (!view.ready || !state.report) { toast("3D 未就绪", "err"); return; }
     var tris = [];
@@ -1573,6 +1817,9 @@
     $("export-json").addEventListener("click", exportJSON);
     $("export-csv").addEventListener("click", exportCSV);
     $("export-stl").addEventListener("click", exportSTL);
+    $("export-glb").addEventListener("click", exportGLB);
+    $("export-3mf").addEventListener("click", export3MF);
+    $("export-print").addEventListener("click", printSheet);
     $("export-svg").addEventListener("click", exportSVG);
     $("export-step").addEventListener("click", exportSTEP);
     $("export-step-zip").addEventListener("click", exportStepZip);
@@ -1608,6 +1855,7 @@
     deleteSelected: deleteSelected, revalidate: revalidate, loadPreset: loadPreset,
     applyMotion: applyMotion, exportSTL: exportSTL, exportJSON: exportJSON,
     exportStepZip: exportStepZip, fitCamera: fitCamera,
+    buildGLB: buildGLB, build3MF: build3MF, buildPrintHTML: buildPrintHTML,
     optimize: runOptimizer, applyOptimization: applyOptimizer,
     planBudget: runPlan, applyPlan: applyPlan,
     exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo,

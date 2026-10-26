@@ -72,8 +72,12 @@ def test_write_pack_files_and_cli(tmp_path):
     r = asm.load_and_validate(A / "bench_joint.json")
     paths = pack.write_pack(r, tmp_path)
     for key in ("readme", "bringup", "wiring", "assembly", "print",
-                "acceptance", "acceptance_csv", "firmware", "pack"):
+                "acceptance", "acceptance_csv", "firmware", "firmware_h", "pack"):
         assert pathlib.Path(paths[key]).is_file(), key
+    h = pathlib.Path(paths["firmware_h"]).read_text(encoding="utf-8")
+    assert "MODKIT_PIN_TX 17" in h and "MODKIT_PIN_RX 16" in h
+    assert "MODKIT_SERVO_IDS[MODKIT_SERVO_COUNT] = {1}" in h
+    assert "MODKIT_ID_JOINT 1" in h
     assert "计划，不是实测" in pathlib.Path(paths["readme"]).read_text(encoding="utf-8")
     packj = json.loads(pathlib.Path(paths["pack"]).read_text(encoding="utf-8"))
     assert packj["summary"]["stage"] == "joint"
@@ -85,3 +89,12 @@ def test_write_pack_files_and_cli(tmp_path):
     out = tmp_path / "cli-pack"
     assert cli.main(["assemble", "pack", str(A / "bench_joint.json"), "--out", str(out)]) == 0
     assert (out / "README.md").is_file() and (out / "firmware.json").is_file()
+
+
+def test_firmware_header_macros_are_unique():
+    r = asm.load_and_validate(A / "m1_budget.json")
+    h = pack.firmware_header(r)
+    names = [line.split()[1] for line in h.splitlines() if line.startswith("#define MODKIT_ID_")]
+    assert len(names) == len(set(names)) == 5
+    assert "MODKIT_ID_DRIVE_L 4" in h and "MODKIT_ID_DRIVE_R 5" in h
+    assert "MODKIT_SERVO_COUNT 5u" in h

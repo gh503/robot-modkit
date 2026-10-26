@@ -391,6 +391,47 @@ def firmware_config(r: asm.Report) -> dict:
     }
 
 
+def firmware_header(r: asm.Report) -> str:
+    """给固件用的 C 头；只含配置，不含业务逻辑。"""
+    ids = [x["id"] for x in servo_rows(r)]
+    lines = [
+        "/* 由 modkit assemble pack 生成；烧录前人工复核。 */",
+        "#pragma once",
+        "#include <stdint.h>",
+        "",
+        f"#define MODKIT_BOARD \"{BOARD}\"",
+        f"#define MODKIT_BAUDRATE {BAUD}u",
+        f"#define MODKIT_PIN_TX {PINS['tx']}",
+        f"#define MODKIT_PIN_RX {PINS['rx']}",
+        f"#define MODKIT_PIN_DIR {PINS['dir']}",
+        f"#define MODKIT_PIN_VBAT {PINS['vbat']}",
+        f"#define MODKIT_SERVO_COUNT {len(ids)}u",
+        f"#define MODKIT_PORT \"{PORT}\"",
+        "",
+        f"static const uint8_t MODKIT_SERVO_IDS[MODKIT_SERVO_COUNT] = "
+        "{" + ", ".join(str(x) for x in ids) + "};",
+        "",
+        "/* 实例 → ID；仅供调试打印/映射，不要据此跳过扫描。 */",
+    ]
+    seen: dict[str, int] = {}
+    for x in servo_rows(r):
+        base = "".join(ch if ch.isalnum() else "_" for ch in x["instance"]).upper()
+        n = seen.get(base, 0) + 1
+        seen[base] = n
+        name = base if n == 1 else f"{base}_{n}"
+        lines.append(f"#define MODKIT_ID_{name} {x['id']}")
+    lines += [
+        "",
+        "/* 注意：",
+        " *  - 引脚按当前 firmware/esp32/README.md；换板必须查原理图；",
+        " *  - ID 是装配设计值，第一次上电逐个确认；",
+        " *  - 先 12V 后主控/USB；共地；TX/RX 交叉；",
+        " */",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def summary(r: asm.Report) -> dict:
     st = classify(r)
     e = procure.estimate(r)
@@ -563,7 +604,7 @@ def readme_markdown(r: asm.Report) -> str:
            "| `assembly-steps.md` | 按装配树的装配顺序 |",
            "| `print.md` | 打印件数量/克重 |",
            "| `acceptance.md` / `.csv` | 验收矩阵（初始 pending） |",
-           "| `firmware.json` | 舵机 ID/引脚/配置引用 |",
+           "| `firmware.json` / `firmware.h` | 舵机 ID/引脚/配置引用；头文件需人工复核后使用 |",
            "| `bom.csv` / `safety.json` / `calibration.template.json` | 由 `assemble plan` 生成 |",
            "| `pack.json` | 机器可读汇总 |", "",
            "## 3. 建议顺序", "",
@@ -601,6 +642,9 @@ def write_pack(r: asm.Report, outdir: str | pathlib.Path) -> dict[str, str]:
     fw.write_text(json.dumps(firmware_config(r), ensure_ascii=False, indent=2) + "\n",
                   encoding="utf-8")
     paths["firmware"] = str(fw)
+    fh = out / "firmware.h"
+    fh.write_text(firmware_header(r), encoding="utf-8")
+    paths["firmware_h"] = str(fh)
     pack = {"summary": summary(r), "files": paths,
             "assumptions": ["价格/运费为估算，不是供应商报价",
                             "引脚按当前 ESP32 固件", "限位/零位为设计值",

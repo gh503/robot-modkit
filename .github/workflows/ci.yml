@@ -22,6 +22,18 @@ jobs:
       - name: 测试
         run: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest software/tests -q
 
+
+  web-smoke:
+    name: 网页冒烟 (Chrome + CDP)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: 无头浏览器冒烟
+        run: bash tools/web-smoke.sh
+
   firmware:
     name: 固件 (g++ 主机测试)
     runs-on: ubuntu-22.04

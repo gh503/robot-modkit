@@ -106,6 +106,11 @@
       </div>
       <div class="sect">
         <h2>装配树</h2>
+        <div class="tree-tools">
+          <button class="btn" id="copy-part" title="复制选中子树 (Ctrl+C)">复制</button>
+          <button class="btn" id="paste-part" title="粘贴到选中父件 (Ctrl+V)">粘贴</button>
+          <button class="btn" id="dup-part" title="原地复制一份 (Ctrl+D)">复制一份</button>
+        </div>
         <div id="tree"></div>
       </div>
       <div class="sect">
@@ -171,6 +176,7 @@
   </aside>
 </main>
 
+<div id="drop-hint" aria-hidden="true"><div class="drop-card"><b>松开以导入装配 JSON</b><span>会替换当前设计；可先导出备份</span></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="vendor/three.min.js"></script>

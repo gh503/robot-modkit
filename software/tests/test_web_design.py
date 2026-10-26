@@ -123,17 +123,34 @@ def test_free_design_viewer_assets_and_hooks():
     assert 'src="assembly-view.js"' in view
     assert 'src="assembly-core.js"' in view and 'src="data/components.js"' in view
     assert 'id="view-edit"' in view and 'href="design.html"' in view
+    assert 'id="view-joints"' in view and 'id="view-play"' in view
+    assert 'id="view-explode"' in view and 'id="view-reset"' in view
     js = (WEB / "assembly-view.js").read_text(encoding="utf-8")
     assert "A.check" in js and "A.validate" in js
     assert "MODKIT_VIEW" in js and "hashchange" in js
+    assert "function renderJoints" in js and "function toggleExplode" in js
+    assert "function startPlay" in js and "function toggleExplode" in js
     design = (WEB / "design.html").read_text(encoding="utf-8")
     assert 'id="viewer-design"' in design
+    assert 'id="copy-part"' in design and 'id="paste-part"' in design and 'id="dup-part"' in design
+    assert 'id="drop-hint"' in design
     designer = (WEB / "designer.js").read_text(encoding="utf-8")
     assert "function openViewer" in designer and "function viewerURL" in designer
     index = (WEB / "index.html").read_text(encoding="utf-8")
     assert 'href="view.html"' in index and "location.replace" in index
     sw = (WEB / "sw.js").read_text(encoding="utf-8")
     assert "view.html" in sw and "assembly-view.js" in sw
+
+
+def test_browser_smoke_harness_is_wired_into_ci():
+    smoke = (ROOT / "tools" / "web-smoke.mjs").read_text(encoding="utf-8")
+    assert "MODKIT_STUDIO.select" in smoke and "view-joints" in smoke
+    assert "Network.setCacheDisabled" in smoke
+    assert "web smoke: PASS" in smoke
+    runner = (ROOT / "tools" / "web-smoke.sh").read_text(encoding="utf-8")
+    assert "remote-debugging-port" in runner and "http.server" in runner
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "web-smoke" in ci and "tools/web-smoke.sh" in ci
 
 
 def test_pwa_shell_is_complete_and_versioned():

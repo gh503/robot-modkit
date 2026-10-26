@@ -51,6 +51,12 @@ aside h1{font-size:18px;margin:0 0 4px;line-height:1.25}
 .sect{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
 .sect h2{font-size:11px;color:var(--muted);margin:0 0 6px;font-weight:600}
 #view-issues{font-size:10.5px;color:var(--muted)}
+#view-joints{display:grid;gap:5px}
+.jrow{display:grid;grid-template-columns:74px minmax(0,1fr) 46px;align-items:center;gap:5px}
+.jrow label{font-size:9.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jrow input[type=range]{width:100%;height:3px;accent-color:var(--accent)}
+.jrow output{font:9.5px var(--mono);color:var(--faint);text-align:right}
+.muted{color:var(--faint);font-size:10.5px;margin:0}
 #view-issues p{margin:0 0 6px}
 #view-issues p.ok{color:var(--ok)}
 .summary{font:10px var(--mono);color:var(--faint)}
@@ -92,6 +98,16 @@ aside h1{font-size:18px;margin:0 0 4px;line-height:1.25}
     <h1 id="view-title">未命名装配</h1>
     <p id="view-sub">自由设计的只读结构预览。</p>
     <div id="view-meta"></div>
+    <div class="sect">
+      <h2>关节 / 运动</h2>
+      <div id="view-joints"></div>
+      <div class="actions">
+        <button class="btn" id="view-play" aria-pressed="false">▶ 播放</button>
+        <button class="btn" id="view-reset">复位</button>
+        <button class="btn" id="view-explode" aria-pressed="false">爆炸视图</button>
+      </div>
+      <p class="note" style="margin:6px 0 0">运动学示意：滑杆/播放只改关节角，不计算动力学、负载或碰撞。</p>
+    </div>
     <div class="sect">
       <h2>校验摘要</h2>
       <div id="view-issues"></div>

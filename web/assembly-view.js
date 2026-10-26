@@ -16,7 +16,9 @@
     assembly: null, report: null, source: "", root: null, groups: {},
     scene: null, camera: null, renderer: null, controls: null,
     raycaster: null, pointer: null, helper: null, ground: null, grid: null,
-    materials: {}, ready: false, started: false
+    materials: {}, ready: false, started: false,
+    jointVisuals: [], gripperVisuals: [], wheelVisuals: [], angles: {},
+    playing: false, playStart: 0, speed: 1, exploded: false, fitPending: true
   };
 
   function $(id) { return document.getElementById(id); }
@@ -218,7 +220,9 @@
     } else if (cat === "drive" && cad === "wheel") {
       var r = Math.max(10, b[3]);
       var tire = cylPart(g, r, Math.max(12, D), darker("#33383f"), 0, 0, cz, "y");
-      cylPart(g, r * 0.34, Math.max(14, D + 3), mat("electronics"), 0, 0, cz, "y");
+      var hub = cylPart(g, r * 0.34, Math.max(14, D + 3), mat("electronics"), 0, 0, cz, "y");
+      g.userData.wheel = tire;
+      g.userData.hub = hub;
       edges(tire, 0x111111);
     } else if (cat === "drive" && cad === "caster") {
       boxPart(g, Math.min(40, W), Math.min(36, D), 8, m, 0, 0, -1);
@@ -279,6 +283,9 @@
     });
     state.root = null;
     state.groups = {};
+    state.jointVisuals = [];
+    state.gripperVisuals = [];
+    state.wheelVisuals = [];
   }
 
   function buildVisual() {
@@ -306,11 +313,15 @@
       }
       node.add(geo);
       state.groups[inst.id] = node;
+      geo.userData.basePos = geo.position.clone();
+      if (geo.userData.toolKind === "gripper") state.gripperVisuals.push({ inst: inst, geo: geo });
+      if (geo.userData.wheel) state.wheelVisuals.push({ inst: inst, wheel: geo.userData.wheel, hub: geo.userData.hub });
       if (inst.joint && inst.joint.mode === "position") {
         var center = inst.joint.center || [0, 0, 30];
         var pivot = new THREE.Group();
         pivot.position.set(center[0], center[1], center[2]);
         node.add(pivot);
+        state.jointVisuals.push({ inst: inst, pivot: pivot });
         var pivotWorld = A.multiply(inst.world, A.translation(center[0], center[1], center[2]));
         (children[inst.id] || []).forEach(function (ch) { pivot.add(build(ch, pivotWorld)); });
       } else {
@@ -324,6 +335,122 @@
     });
     state.scene.add(state.root);
     state.root.updateMatrixWorld(true);
+    state.angles = {};
+    applyMotion();
+    renderJoints();
+    fit();
+  }
+
+  function fmtVal(v, j) {
+    if (j.unit === "ratio") return (v * 100).toFixed(0) + "%";
+    return Number(v).toFixed(j.unit === "deg" ? 1 : 0);
+  }
+  function applyMotion() {
+    var t = state.playing ? ((performance.now() - state.playStart) / 1000) * state.speed : 0;
+    state.jointVisuals.forEach(function (j) {
+      var ang = state.angles[j.inst.id];
+      if (ang == null) {
+        ang = j.inst.joint.unit === "ratio" ? 1 : 0;
+        state.angles[j.inst.id] = ang;
+      }
+      if (j.inst.joint.unit === "deg") j.pivot.rotation.z = ang * Math.PI / 180;
+    });
+    state.gripperVisuals.forEach(function (g) {
+      var v = state.angles[g.inst.id];
+      if (v == null) v = 1;
+      var jaw = g.geo.userData.jaws;
+      if (!jaw) return;
+      var gap = jaw.closed + (jaw.open - jaw.closed) * Math.max(0, Math.min(1, v));
+      jaw.a.position.y = gap / 2 + 3;
+      jaw.b.position.y = -(gap / 2 + 3);
+    });
+    state.wheelVisuals.forEach(function (w) {
+      if (!state.playing) return;
+      var spin = t * 8;
+      w.wheel.rotation.y = spin;
+      if (w.hub) w.hub.rotation.y = spin;
+    });
+  }
+  function renderJoints() {
+    var host = $("view-joints");
+    if (!host) return;
+    var joints = state.report.instances.filter(function (i) { return i.joint && i.joint.mode === "position"; });
+    if (!joints.length) {
+      host.innerHTML = '<p class="muted">当前装配没有可动位置关节。</p>';
+      return;
+    }
+    host.innerHTML = joints.map(function (i) {
+      var j = i.joint, val = state.angles[i.id];
+      if (val == null) val = j.unit === "ratio" ? 1 : 0;
+      var unit = j.unit === "ratio" ? "" : (j.unit === "deg" ? "°" : j.unit);
+      return '<div class="jrow"><label for="vj-' + esc(i.id) + '" title="' + esc(i.id) + '">' + esc(j.name) + '</label>' +
+        '<input id="vj-' + esc(i.id) + '" data-inst="' + esc(i.id) + '" type="range" min="' + j.min + '" max="' + j.max +
+        '" step="' + (j.unit === "ratio" ? 0.01 : 1) + '" value="' + val + '">' +
+        '<output for="vj-' + esc(i.id) + '" data-out="' + esc(i.id) + '">' + fmtVal(val, j) + unit + '</output></div>';
+    }).join("");
+    Array.prototype.forEach.call(host.querySelectorAll("input[type=range]"), function (el) {
+      el.addEventListener("input", function () {
+        state.angles[el.getAttribute("data-inst")] = parseFloat(el.value);
+        if (state.playing) stopPlay();
+        applyMotion();
+        var inst = null;
+        state.jointVisuals.forEach(function (j) { if (j.inst.id === el.getAttribute("data-inst")) inst = j.inst; });
+        var out = host.querySelector('[data-out="' + el.getAttribute("data-inst") + '"]');
+        if (out && inst) out.textContent = fmtVal(parseFloat(el.value), inst.joint) + (inst.joint.unit === "deg" ? "°" : "");
+      });
+    });
+  }
+  function startPlay() {
+    if (!state.report || !state.report.ok) { status("先修正校验错误再播放", "err"); return; }
+    if (!state.jointVisuals.length && !state.wheelVisuals.length) { status("没有可动关节或驱动轮", "err"); return; }
+    state.playing = true;
+    state.playStart = performance.now();
+    var b = $("view-play");
+    if (b) { b.textContent = "■ 停止"; b.setAttribute("aria-pressed", "true"); }
+    status("运动演示中 · 仅运动学示意", "ok");
+  }
+  function stopPlay() {
+    state.playing = false;
+    var b = $("view-play");
+    if (b) { b.textContent = "▶ 播放"; b.setAttribute("aria-pressed", "false"); }
+    if (state.report) status("结构就绪 · 可旋转/点选", "ok");
+  }
+  function resetMotion() {
+    stopPlay();
+    state.angles = {};
+    state.wheelVisuals.forEach(function (w) { w.wheel.rotation.y = 0; if (w.hub) w.hub.rotation.y = 0; });
+    renderJoints();
+    applyMotion();
+    status("关节已复位", "ok");
+  }
+  function toggleExplode() {
+    state.exploded = !state.exploded;
+    var center = new THREE.Vector3();
+    if (state.root) {
+      var box = new THREE.Box3().setFromObject(state.root);
+      if (!box.isEmpty()) box.getCenter(center);
+    }
+    state.root.updateMatrixWorld(true);
+    Object.keys(state.groups).forEach(function (id) {
+      var node = state.groups[id];
+      var geo = node && node.children[0];
+      if (!geo) return;
+      var base = geo.userData.basePos || new THREE.Vector3();
+      if (!state.exploded) { geo.position.copy(base); return; }
+      var inst = null;
+      state.report.instances.forEach(function (i) { if (i.id === id) inst = i; });
+      if (!inst || !inst.parent) return; // 根件留在原位
+      var origin = new THREE.Vector3().setFromMatrixPosition(node.matrixWorld);
+      var dir = origin.clone().sub(center);
+      if (dir.lengthSq() < 1) dir.set(0, 0, 1);
+      dir.z += 0.35;
+      dir.normalize().multiplyScalar(20);
+      var localOrigin = node.worldToLocal(origin.clone());
+      var localTarget = node.worldToLocal(origin.clone().add(dir));
+      geo.position.copy(base).add(localTarget.sub(localOrigin));
+    });
+    var b = $("view-explode");
+    if (b) { b.textContent = state.exploded ? "收起爆炸" : "爆炸视图"; b.setAttribute("aria-pressed", state.exploded ? "true" : "false"); }
     fit();
   }
 
@@ -449,6 +576,20 @@
   function loop() {
     if (!state.ready) return;
     requestAnimationFrame(loop);
+    if (state.playing && state.report && state.report.ok) {
+      var t = (performance.now() - state.playStart) / 1000 * state.speed;
+      state.jointVisuals.forEach(function (j, k) {
+        var jj = j.inst.joint;
+        var u = 0.5 + 0.5 * Math.sin(t * 1.1 + k * 1.15);
+        var v = jj.unit === "ratio" ? u : jj.min + (jj.max - jj.min) * u;
+        state.angles[j.inst.id] = v;
+        var slider = document.getElementById("vj-" + j.inst.id);
+        if (slider) slider.value = v;
+        var out = document.querySelector('#view-joints [data-out="' + j.inst.id + '"]');
+        if (out) out.textContent = fmtVal(v, jj) + (jj.unit === "deg" ? "°" : "");
+      });
+      applyMotion();
+    }
     state.controls.update();
     state.renderer.render(state.scene, state.camera);
     if (state.helper) state.helper.update();
@@ -464,6 +605,9 @@
     $("view").addEventListener("click", onClick);
     $("view-fit").addEventListener("click", function () { fit(); status("视角已适配", "ok"); });
     $("view-copy").addEventListener("click", copyLink);
+    if ($("view-play")) $("view-play").addEventListener("click", function () { state.playing ? stopPlay() : startPlay(); });
+    if ($("view-reset")) $("view-reset").addEventListener("click", resetMotion);
+    if ($("view-explode")) $("view-explode").addEventListener("click", toggleExplode);
     if ($("view-reload")) {
       $("view-reload").addEventListener("click", function () { location.href = "view.html" + location.hash; });
     }

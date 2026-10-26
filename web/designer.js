@@ -27,10 +27,11 @@
   var view = {
     scene: null, camera: null, renderer: null, controls: null, root: null,
     raycaster: null, pointer: null, jointVisuals: [], gripperVisuals: [], wheelVisuals: [],
-    materials: {}, fitPending: true, ready: false
+    instanceGroups: {}, selectedHelper: null, issueHelpers: [],
+    materials: {}, fitPending: true, ready: false, clipboard: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.17.0";
+  var STUDIO_VERSION = "1.18.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -287,8 +288,47 @@
       });
     });
     view.jointVisuals = []; view.gripperVisuals = []; view.wheelVisuals = [];
+    view.instanceGroups = {};
+    clearHighlights();
   }
 
+  function clearHighlights() {
+    if (view.selectedHelper) {
+      view.scene.remove(view.selectedHelper);
+      view.selectedHelper.geometry.dispose();
+      view.selectedHelper.material.dispose();
+      view.selectedHelper = null;
+    }
+    view.issueHelpers.forEach(function (h) {
+      view.scene.remove(h);
+      h.geometry.dispose();
+      h.material.dispose();
+    });
+    view.issueHelpers = [];
+  }
+  function renderHighlights() {
+    if (!view.ready) return;
+    clearHighlights();
+    if (!state.report) return;
+    var order = { error: 0, warn: 1 };
+    state.report.issues.forEach(function (x) {
+      if (!x.instance || order[x.level] == null) return;
+      var g = view.instanceGroups[x.instance];
+      if (!g) return;
+      var color = x.level === "error" ? 0xd93025 : 0xf29900;
+      var h = new THREE.BoxHelper(g, color);
+      h.material.transparent = true;
+      h.material.opacity = 0.9;
+      view.scene.add(h);
+      view.issueHelpers.push(h);
+    });
+    if (state.selected && view.instanceGroups[state.selected]) {
+      view.selectedHelper = new THREE.BoxHelper(view.instanceGroups[state.selected], 0x2f80ed);
+      view.selectedHelper.material.depthTest = false;
+      view.selectedHelper.renderOrder = 10;
+      view.scene.add(view.selectedHelper);
+    }
+  }
   function buildVisual() {
     if (!view.ready) return;
     clearRoot();
@@ -307,6 +347,7 @@
       node.matrix.fromArray(local);
       var geo = geometryFor(inst);
       node.add(geo);
+      view.instanceGroups[inst.id] = node;
       if (inst.joint && inst.joint.mode === "position") {
         var center = inst.joint.center || [0, 0, 30];
         var pivot = new THREE.Group();
@@ -493,6 +534,34 @@
       return false;
     }
   }
+  function initDragDrop() {
+    var depth = 0;
+    function hasFiles(e) {
+      return !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0);
+    }
+    function reset() { depth = 0; document.body.classList.remove("drop-active"); }
+    window.addEventListener("dragenter", function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); depth++; document.body.classList.add("drop-active");
+    });
+    window.addEventListener("dragover", function (e) { if (hasFiles(e)) e.preventDefault(); });
+    window.addEventListener("dragleave", function (e) {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (!depth) reset();
+    });
+    window.addEventListener("dragend", reset);
+    window.addEventListener("blur", reset);
+    window.addEventListener("drop", function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); reset();
+      var files = e.dataTransfer.files;
+      if (!files || !files.length) return;
+      var f = files[0];
+      if (!/\.json$/i.test(f.name)) { toast("只支持导入 .json 装配文件", "err"); return; }
+      importDesign(f);
+    });
+  }
   function importDesign(file) {
     if (!file) return;
     var rd = new FileReader();
@@ -562,6 +631,87 @@
     }
     return [0, 0];
   }
+  function copySelected() {
+    var raw = rawById(state.selected);
+    if (!raw) { toast("先选中要复制的组件", "err"); return; }
+    var ids = subtreeIds(raw.id);
+    var comps = state.assembly.components.filter(function (c) { return ids.indexOf(c.id) >= 0; }).map(clone);
+    state.clipboard = { name: state.assembly.name || "未命名", rootId: raw.id, components: comps };
+    var payload = JSON.stringify({ name: "modkit-clipboard", components: comps, root: raw.id });
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(payload).catch(function () {});
+    toast("已复制 " + ids.length + " 个组件；选中父件后可粘贴", "ok");
+  }
+  function cloneFromClipboard(parentRaw, pair, at) {
+    var cb = state.clipboard;
+    var map = {};
+    cb.components.forEach(function (c) { map[c.id] = uniqueId(c.type); });
+    return cb.components.map(function (c) {
+      var n = clone(c);
+      n.id = map[c.id];
+      if (c.id === cb.rootId) {
+        n.parent = parentRaw.id;
+        n.port = pair.pp.name;
+        n.child_port = pair.cp.name;
+        n.at = at.slice();
+        n.spin = 0;
+      } else if (c.parent && map[c.parent]) {
+        n.parent = map[c.parent];
+      }
+      return n;
+    });
+  }
+  function pasteClipboard() {
+    var cb = state.clipboard;
+    if (!cb || !cb.components || !cb.components.length) { toast("剪贴板为空：先选中组件按 Ctrl+C", "err"); return; }
+    var parentRaw = rawById(state.selected);
+    if (!parentRaw) { toast("先选中要挂接的父件", "err"); return; }
+    var rootRaw = null, rootComp = null;
+    cb.components.forEach(function (c) { if (c.id === cb.rootId) { rootRaw = c; rootComp = comp(c.type); } });
+    if (!rootRaw || !rootComp) { toast("剪贴板数据损坏", "err"); return; }
+    var parentSolved = solvedById(parentRaw.id);
+    if (!parentSolved) { toast("父件尚未求解，先修正上游错误", "err"); return; }
+    var pairs = portCandidates(parentSolved, rootComp);
+    if (!pairs.length) { toast("与 " + parentRaw.id + " 没有可用机械端口", "err"); return; }
+    var pair = null;
+    for (var i = 0; i < pairs.length; i++) if (pairs[i].cp.name === rootRaw.child_port) { pair = pairs[i]; break; }
+    if (!pair) pair = pairs[0];
+    var at = pair.pp.kind === "mech.grid" ? freeGrid(pair.pp) : [0, 0];
+    var added = cloneFromClipboard(parentRaw, pair, at);
+    state.assembly.components = state.assembly.components.concat(added);
+    var newRoot = added.filter(function (c) { return c.parent === parentRaw.id && c.port === pair.pp.name && c.type === rootRaw.type; })[0];
+    state.selected = newRoot ? newRoot.id : added[0].id;
+    state.fitPending = true;
+    pushHistory("粘贴组件");
+    revalidate();
+    toast("已粘贴 " + added.length + " 个组件到 " + parentRaw.id, "ok");
+  }
+  function duplicateSelected() {
+    var raw = rawById(state.selected);
+    if (!raw) { toast("先选中要复制的组件", "err"); return; }
+    if (!raw.parent) { toast("根组件不能原地复制；请选中子件或先复制再粘贴", "err"); return; }
+    var parentRaw = rawById(raw.parent);
+    var parentSolved = parentRaw ? solvedById(parentRaw.id) : null;
+    if (!parentSolved) { toast("父件尚未求解", "err"); return; }
+    var c = comp(raw.type);
+    var pairs = portCandidates(parentSolved, c);
+    if (!pairs.length) { toast("父件没有多余机械端口可挂复制件", "err"); return; }
+    var pair = pairs[0];
+    var at = pair.pp.kind === "mech.grid" ? freeGrid(pair.pp) : [0, 0];
+    var ids = subtreeIds(raw.id);
+    var saved = state.clipboard;
+    state.clipboard = { name: state.assembly.name || "未命名", rootId: raw.id,
+      components: state.assembly.components.filter(function (x) { return ids.indexOf(x.id) >= 0; }).map(clone) };
+    var added = cloneFromClipboard(parentRaw, pair, at);
+    state.clipboard = saved;
+    state.assembly.components = state.assembly.components.concat(added);
+    var dupRoot = added.filter(function (c) { return c.parent === parentRaw.id && c.port === pair.pp.name && c.type === raw.type; })[0];
+    state.selected = dupRoot ? dupRoot.id : added[0].id;
+    state.fitPending = true;
+    pushHistory("复制一份");
+    revalidate();
+    toast("已复制一份到 " + parentRaw.id + "." + pair.pp.name, "ok");
+  }
+
   function addComponent(type) {
     var c = comp(type);
     if (!c) { toast("未知组件 " + type, "err"); return; }
@@ -865,6 +1015,7 @@
     if (!rawById(id)) return;
     state.selected = id;
     renderTree(); renderSelected();
+    renderHighlights();
     updateHud();
   }
 
@@ -884,6 +1035,7 @@
     renderJoints();
     renderExportState();
     renderHistory();
+    renderHighlights();
     updateHud();
   }
 
@@ -953,8 +1105,14 @@
     var order = { error: 0, warn: 1, info: 2 };
     var list = r.issues.slice().sort(function (a, b) { return order[a.level] - order[b.level]; });
     $("issues").innerHTML = list.map(function (x) {
-      return '<li class="' + esc(x.level) + '"><span class="code">' + esc(x.code) + (x.instance ? " · " + esc(x.instance) : "") + '</span><span class="msg">' + esc(x.message) + '</span></li>';
+      return '<li class="' + esc(x.level) + '"' + (x.instance ? ' data-inst="' + esc(x.instance) + '" tabindex="0" role="button" title="选中 ' + esc(x.instance) + '"' : "") +
+        '><span class="code">' + esc(x.code) + (x.instance ? " · " + esc(x.instance) : "") + '</span><span class="msg">' + esc(x.message) + '</span></li>';
     }).join("");
+    Array.prototype.forEach.call($("issues").querySelectorAll("[data-inst]"), function (el) {
+      function go() { select(el.getAttribute("data-inst")); }
+      el.addEventListener("click", go);
+      el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    });
   }
 
   function renderBOM() {
@@ -1337,6 +1495,8 @@
       });
       applyMotion();
     }
+    if (view.selectedHelper) view.selectedHelper.update();
+    view.issueHelpers.forEach(function (h) { h.update(); });
     if (view.controls) view.controls.update();
     if (view.renderer) view.renderer.render(view.scene, view.camera);
   }
@@ -1361,6 +1521,10 @@
     $("undo").addEventListener("click", undo);
     $("redo").addEventListener("click", redo);
     $("import-design").addEventListener("click", function () { $("import-file").click(); });
+    initDragDrop();
+    $("copy-part").addEventListener("click", copySelected);
+    $("paste-part").addEventListener("click", pasteClipboard);
+    $("dup-part").addEventListener("click", duplicateSelected);
     $("share-design").addEventListener("click", shareDesign);
     $("viewer-design").addEventListener("click", openViewer);
     window.addEventListener("hashchange", function () {
@@ -1420,6 +1584,9 @@
       var k = String(e.key || "").toLowerCase();
       if (k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if (k === "y") { e.preventDefault(); redo(); }
+      else if (k === "c") { e.preventDefault(); copySelected(); }
+      else if (k === "v") { e.preventDefault(); pasteClipboard(); }
+      else if (k === "d") { e.preventDefault(); duplicateSelected(); }
     });
     $("loading").style.display = "none";
     var q = new URLSearchParams(location.search);
@@ -1437,13 +1604,15 @@
 
   // 轻量调试/自动化入口：不改变正常 UI，但让浏览器 QA 能检查求解和场景。
   window.MODKIT_STUDIO = {
-    state: state, view: view, addComponent: addComponent, replaceSelected: replaceSelected,
+    state: state, view: view, select: select, renderAll: renderAll, addComponent: addComponent, replaceSelected: replaceSelected,
     deleteSelected: deleteSelected, revalidate: revalidate, loadPreset: loadPreset,
     applyMotion: applyMotion, exportSTL: exportSTL, exportJSON: exportJSON,
     exportStepZip: exportStepZip, fitCamera: fitCamera,
     optimize: runOptimizer, applyOptimization: applyOptimizer,
     planBudget: runPlan, applyPlan: applyPlan,
     exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo,
-    shareDesign: shareDesign, loadShared: loadShared, openViewer: openViewer, viewerURL: viewerURL
+    copySelected: copySelected, pasteClipboard: pasteClipboard, duplicateSelected: duplicateSelected,
+    renderHighlights: renderHighlights, shareDesign: shareDesign, loadShared: loadShared,
+    openViewer: openViewer, viewerURL: viewerURL
   };
 })();

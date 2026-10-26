@@ -1,0 +1,272 @@
+#!/usr/bin/env node
+/* 浏览器冒烟：通过 Chrome DevTools Protocol 跑真实 Web 页面。
+ *
+ * 前置：本地静态服务器 + 带 --remote-debugging-port 的 Chrome。
+ * CI 由 .github/workflows/ci.yml 的 web-smoke job 启动；本地：
+ *   python3 -m http.server 8777 --directory web &
+ *   google-chrome --headless=new --no-sandbox --remote-debugging-port=9222 \
+ *     --use-angle=swiftshader --enable-unsafe-swiftshader about:blank &
+ *   node tools/web-smoke.mjs
+ */
+import fs from "node:fs";
+
+const PORT = process.env.MODKIT_CDP_PORT || "9222";
+const BASE = (process.env.MODKIT_WEB_BASE || "http://127.0.0.1:8777").replace(/\/$/, "");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+class CDP {
+  constructor(url) {
+    this.url = url;
+    this.id = 0;
+    this.pending = new Map();
+    this.errors = [];
+    this.ws = null;
+  }
+  async open() {
+    this.ws = new WebSocket(this.url);
+    await new Promise((resolve, reject) => {
+      this.ws.addEventListener("open", resolve, { once: true });
+      this.ws.addEventListener("error", () => reject(new Error("CDP WebSocket 连接失败")), { once: true });
+    });
+    this.ws.addEventListener("message", (ev) => {
+      let msg;
+      try { msg = JSON.parse(String(ev.data)); } catch { return; }
+      if (msg.id && this.pending.has(msg.id)) {
+        const { resolve, reject } = this.pending.get(msg.id);
+        this.pending.delete(msg.id);
+        msg.error ? reject(new Error(msg.error.message || JSON.stringify(msg.error))) : resolve(msg.result);
+      } else if (msg.method === "Runtime.exceptionThrown") {
+        const d = msg.params.exceptionDetails || {};
+        this.errors.push((d.exception && d.exception.description) || d.text || "unknown page exception");
+      } else if (msg.method === "Runtime.consoleAPICalled" && msg.params.type === "error") {
+        this.errors.push(msg.params.args.map((a) => a.value || a.description || "").join(" "));
+      }
+    });
+  }
+  send(method, params = {}) {
+    if (!this.ws || this.ws.readyState !== 1) throw new Error("CDP 未连接");
+    const id = ++this.id;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      this.ws.send(JSON.stringify({ id, method, params }));
+      setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.pending.delete(id);
+          reject(new Error("CDP 超时：" + method));
+        }
+      }, 15000);
+    });
+  }
+  async eval(expression) {
+    const r = await this.send("Runtime.evaluate", {
+      expression, returnByValue: true, awaitPromise: true, userGesture: true
+    });
+    if (r.exceptionDetails) {
+      const d = r.exceptionDetails;
+      throw new Error("页面脚本异常：" + ((d.exception && d.exception.description) || d.text));
+    }
+    return r.result.value;
+  }
+  async navigate(url) {
+    await this.send("Page.navigate", { url });
+    await waitFor(async () => (await this.eval("document.readyState")) === "complete", 12000, "页面加载 " + url);
+    await sleep(450);
+  }
+  close() { try { this.ws.close(); } catch { /* ignore */ } }
+}
+
+async function target() {
+  for (let i = 0; i < 40; i++) {
+    try {
+      const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
+      const page = list.find((t) => t.type === "page");
+      if (page && page.webSocketDebuggerUrl) return page;
+    } catch { /* Chrome 还没起来 */ }
+    await sleep(250);
+  }
+  throw new Error(`连不上 Chrome CDP 127.0.0.1:${PORT}`);
+}
+
+async function waitFor(fn, timeout, label) {
+  const start = Date.now();
+  let last;
+  while (Date.now() - start < timeout) {
+    try {
+      const v = await fn();
+      if (v) return v;
+      last = v;
+    } catch (e) { last = e.message; }
+    await sleep(100);
+  }
+  throw new Error(`等待超时：${label}（最后值 ${JSON.stringify(last)}）`);
+}
+function check(cond, msg) { if (!cond) throw new Error(msg); }
+
+let cdp;
+let failures = 0;
+async function run(name, fn) {
+  process.stdout.write(`- ${name} ... `);
+  try {
+    await fn();
+    process.stdout.write("ok\n");
+  } catch (e) {
+    failures++;
+    process.stdout.write("FAIL\n  " + (e.stack || e.message) + "\n");
+  }
+}
+
+async function main() {
+  const t = await target();
+  cdp = new CDP(t.webSocketDebuggerUrl);
+  await cdp.open();
+  await cdp.send("Page.enable");
+  await cdp.send("Runtime.enable");
+  await cdp.send("Network.enable");
+  await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
+
+  await run("Studio 打开且 7 个预设", async () => {
+    await cdp.navigate(`${BASE}/design.html?smoke=1`);
+    await waitFor(() => cdp.eval("!!window.MODKIT_STUDIO && !!window.MODKIT_ASSEMBLIES"), 8000, "Studio 初始化");
+    const presets = await cdp.eval("Object.keys(window.MODKIT_ASSEMBLIES).sort()");
+    check(presets.length === 7, `预设数 ${presets.length} != 7`);
+    const options = await cdp.eval('document.querySelectorAll("#preset option").length');
+    check(options >= 7, `预设下拉只有 ${options} 项`);
+  });
+
+  await run("逐个预设求解", async () => {
+    const presets = await cdp.eval("Object.keys(window.MODKIT_ASSEMBLIES)");
+    for (const name of presets) {
+      await cdp.eval(`MODKIT_STUDIO.loadPreset(${JSON.stringify(name)})`);
+      await sleep(140);
+      const r = await cdp.eval(`(() => {
+        const s = MODKIT_STUDIO.state.report;
+        return { name: MODKIT_STUDIO.state.assembly.name, n: s.instances.length, cost: s.totalCost,
+                 mass: s.totalMass, off: s.instances.filter(i => i.offboard).length,
+                 errors: s.issues.filter(i => i.level === "error").length };
+      })()`);
+      check(r.n > 0, `${name}: 0 个实例`);
+      check(r.cost > 0, `${name}: BOM 成本为 0`);
+      check(r.errors === 0, `${name}: ${r.errors} 个错误`);
+      if (name === "sensor_tower") check(r.off > 0, "sensor_tower 应有 offboard 电源");
+    }
+  });
+
+  await run("3D 选中/复制粘贴/拖拽导入", async () => {
+    await cdp.eval('MODKIT_STUDIO.loadPreset("m1")');
+    await sleep(200);
+    await cdp.eval('MODKIT_STUDIO.select("buck");');
+    await sleep(120);
+    const hi = await cdp.eval('({ sel: !!MODKIT_STUDIO.view.selectedHelper, groups: Object.keys(MODKIT_STUDIO.view.instanceGroups).length })');
+    check(hi.sel, "选中后没有 3D 包围盒");
+    check(hi.groups === 18, `3D 组 ${hi.groups} != 18`);
+    await cdp.eval('MODKIT_STUDIO.state.assembly.payload_g = 1000; MODKIT_STUDIO.revalidate();');
+    await waitFor(async () => (await cdp.eval("MODKIT_STUDIO.view.issueHelpers.length")) > 0, 3000, "问题实例高亮");
+    check(await cdp.eval("MODKIT_STUDIO.state.report.issues.some(i => i.level === 'error' && i.instance === 'gripper')"), "没有 gripper 载荷错误");
+    await cdp.eval('MODKIT_STUDIO.state.assembly.payload_g = 0; MODKIT_STUDIO.revalidate();');
+    await cdp.eval('MODKIT_STUDIO.copySelected()');
+    check(await cdp.eval('MODKIT_STUDIO.state.clipboard.rootId') === "buck", "复制根不是 buck");
+    await cdp.eval('MODKIT_STUDIO.select("chassis"); MODKIT_STUDIO.pasteClipboard();');
+    await waitFor(async () => (await cdp.eval("MODKIT_STUDIO.state.report.instances.length")) === 19, 3000, "粘贴后 19 个实例");
+    check((await cdp.eval("MODKIT_STUDIO.state.report.issues.filter(i => i.level === 'error').length")) === 0, "粘贴后出现错误");
+    await cdp.eval("MODKIT_STUDIO.undo()");
+    await waitFor(async () => (await cdp.eval("MODKIT_STUDIO.state.report.instances.length")) === 18, 3000, "撤销回 18 个实例");
+
+    const raw = await cdp.eval("JSON.stringify(MODKIT_ASSEMBLIES.m1)");
+    const lit = JSON.stringify(raw);
+    await cdp.eval(`(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([${lit}], "m1.json", { type: "application/json" }));
+      window.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    })()`);
+    await waitFor(async () => (await cdp.eval('document.querySelector("#toast").textContent')).includes("已导入装配"), 3000, "拖拽导入提示");
+    check((await cdp.eval("MODKIT_STUDIO.state.report.instances.length")) === 18, "拖拽导入后不是 18 个实例");
+  });
+
+  await run("Studio 生成查看器链接", async () => {
+    await cdp.eval('MODKIT_STUDIO.loadPreset("m1")');
+    await sleep(200);
+    const info = await cdp.eval(`(() => {
+      const u = MODKIT_STUDIO.viewerURL();
+      return { len: u.length, hash: u.includes("#d="), http: u.startsWith("http") };
+    })()`);
+    check(info.http && info.hash, "viewerURL 不是 http#d=");
+    check(info.len < 60000, "viewerURL 超过 60000 字符");
+  });
+
+  const viewerUrl = await cdp.eval("MODKIT_STUDIO.viewerURL()");
+  await run("查看器渲染 + 关节/爆炸", async () => {
+    await cdp.navigate(viewerUrl);
+    await waitFor(() => cdp.eval("!!window.MODKIT_VIEW && !!MODKIT_VIEW.state.renderer"), 8000, "查看器初始化");
+    const r = await cdp.eval(`(() => ({
+      title: document.querySelector("#view-title").textContent,
+      status: document.querySelector("#view-status").textContent,
+      groups: Object.keys(MODKIT_VIEW.state.groups).length,
+      tris: MODKIT_VIEW.state.renderer.info.render.triangles,
+      sliders: document.querySelectorAll("#view-joints input").length,
+      wheels: MODKIT_VIEW.state.wheelVisuals.length,
+      grip: MODKIT_VIEW.state.gripperVisuals.length
+    }))()`);
+    check(r.groups === 18, `查看器 ${r.groups} 个组 != 18`);
+    check(r.tris > 500, `三角形 ${r.tris} 太少`);
+    check(r.sliders === 4, `关节滑杆 ${r.sliders} != 4`);
+    check(r.wheels === 2, `驱动轮 ${r.wheels} != 2`);
+    check(r.grip === 1, "夹爪几何缺失");
+    await cdp.eval('document.querySelector("#view-explode").click()');
+    await sleep(180);
+    check(await cdp.eval("MODKIT_VIEW.state.exploded"), "爆炸视图未开启");
+    await cdp.eval('document.querySelector("#view-explode").click()');
+    await cdp.eval('document.querySelector("#view-play").click()');
+    await sleep(500);
+    check(await cdp.eval("MODKIT_VIEW.state.playing"), "播放未启动");
+    const spun = await cdp.eval("MODKIT_VIEW.state.wheelVisuals.some(w => Math.abs(w.wheel.rotation.y) > 0.05)");
+    check(spun, "驱动轮没有转");
+    await cdp.eval('document.querySelector("#view-play").click()');
+    await cdp.eval('document.querySelector("#view-reset").click()');
+    check(!(await cdp.eval("MODKIT_VIEW.state.playing")), "复位后仍在播放");
+  });
+
+  await run("index.html#d= 重定向", async () => {
+    const old = viewerUrl.replace("/view.html", "/index.html");
+    await cdp.navigate(old);
+    await sleep(600);
+    check((await cdp.eval("location.pathname")).endsWith("/view.html"), "没有跳到 view.html");
+    check((await cdp.eval("!!window.MODKIT_VIEW")), "重定向后查看器未初始化");
+  });
+
+  await run("无效分享链接有明确错误", async () => {
+    await cdp.navigate(`${BASE}/view.html?smoke=bad#d=bad`);
+    const s = await cdp.eval('document.querySelector("#view-status").textContent');
+    check(s.includes("无法显示"), `状态是 ${s}`);
+  });
+
+  await run("PWA 壳已注册", async () => {
+    await cdp.navigate(`${BASE}/design.html?smoke=pwa`);
+    const info = await cdp.eval(`(async () => {
+      const r = await navigator.serviceWorker.ready;
+      return { state: r.active && r.active.state, keys: await caches.keys() };
+    })()`);
+    check(info.state === "activated", `SW 状态 ${info.state}`);
+    check(info.keys.some((k) => k.startsWith("modkit-shell-")), "没有 modkit-shell 缓存");
+  });
+
+  await run("全页面无脚本异常", async () => {
+    check(cdp.errors.length === 0, "页面异常：\n" + cdp.errors.join("\n"));
+  });
+
+  try {
+    await cdp.send("Page.captureScreenshot", { format: "png" });
+  } catch { /* ignore */ }
+
+  cdp.close();
+  if (failures) {
+    console.error(`\nweb smoke: ${failures} 项失败`);
+    process.exit(1);
+  }
+  console.log("\nweb smoke: PASS（8 项）");
+}
+
+main().catch((e) => {
+  console.error("web smoke 崩溃：", e.stack || e.message);
+  if (cdp) cdp.close();
+  process.exit(1);
+});

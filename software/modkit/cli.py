@@ -31,6 +31,7 @@ from . import optimizer as opt
 from . import procure as proc
 from . import pack as hp
 from . import draw as dr
+from . import stage as sg
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -330,6 +331,53 @@ def cmd_components(args) -> int:
         print(f"{c.id:<28} {c.category:<12} {c.status:<9} {c.mass_g:7.0f} {c.cost_cny:5.0f}  {c.name}")
     print(f"\n共 {len(rows)} / {len(comps.COMPONENTS)} 个组件")
     return 0
+
+
+def cmd_stage(args) -> int:
+    """阶段化 bring-up：init/list/record/status。"""
+    try:
+        if args.action == "init":
+            rec = sg.init_record(args.assembly, args.serial, args.operator)
+            path = rec.save(args.file, overwrite=args.force)
+            print(f"阶段记录：{path}")
+            print(sg.format_plan(rec))
+            print("证据规则：pass 必须有真实文件；simulated 不计入物理。")
+            return 0
+        if args.action == "list":
+            rec = sg.init_record(args.assembly, "-", "-")
+            print(sg.format_plan(rec))
+            return 0
+        if args.action == "record":
+            rec = sg.Record.load(args.file)
+            r = rec.record(args.step, args.result, args.evidence or "", args.note or "")
+            rec.save(args.file)
+            print(f"第 {args.step} 步 → {r.status}；阶段 {rec.pass_count()}/{len(rec.plan)}")
+            return 0
+        if args.action == "status":
+            rec = sg.Record.load(args.file)
+            if args.json:
+                print(json.dumps({
+                    "assembly": rec.assembly, "stage": rec.stage,
+                    "stage_title": rec.stage_title, "serial": rec.serial,
+                    "operator": rec.operator, "passed": rec.pass_count(),
+                    "total": len(rec.plan), "simulated": rec.simulated_count(),
+                    "steps": [{"n": s["n"], "title": s["title"],
+                              "status": rec.steps.get(str(s["n"]), sg.Result()).status}
+                             for s in rec.plan],
+                    "physical_gates": "0/5",
+                }, ensure_ascii=False, indent=2))
+            else:
+                print(sg.format_status(rec))
+                errs = rec.validate()
+                if errs:
+                    print("校验：")
+                    for e in errs:
+                        print(f"  - {e}")
+            return 0
+    except (sg.StageError, ValueError, OSError) as e:
+        print(f"阶段记录失败：{e}")
+        return 2
+    return 2
 
 
 def cmd_draw(args) -> int:
@@ -1257,6 +1305,21 @@ def main(argv: list[str] | None = None) -> int:
     co.add_argument("--category", choices=comps.CATEGORIES)
     co.add_argument("--json", action="store_true")
     co.set_defaults(func=cmd_components)
+
+    st = sub.add_parser("stage", help="阶段化 bring-up 记录（证据 + sha256）")
+    st.add_argument("--action", choices=["init", "list", "record", "status"],
+                    default="list")
+    st.add_argument("--assembly", help="装配 JSON（init/list 需要）")
+    st.add_argument("--file", default=sg.DEFAULT_FILE)
+    st.add_argument("--serial", default="")
+    st.add_argument("--operator", default="")
+    st.add_argument("--step", type=int, default=0)
+    st.add_argument("--result", choices=["pass", "fail", "simulated"], default="pass")
+    st.add_argument("--evidence", default="")
+    st.add_argument("--note", default="")
+    st.add_argument("--force", action="store_true")
+    st.add_argument("--json", action="store_true")
+    st.set_defaults(func=cmd_stage)
 
     dw = sub.add_parser("draw", help="离线绘图路径 → CSV/SVG（可选回放）")
     dw.add_argument("--shape", choices=["square", "circle", "triangle", "line", "arc"],

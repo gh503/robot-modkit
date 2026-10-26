@@ -33,7 +33,7 @@
     projectId: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.26.0";
+  var STUDIO_VERSION = "1.27.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -2000,6 +2000,13 @@
     download(designFileName("step.zip"), zipStore(entries));
     toast("已导出 " + entries.length + " 个零件 STEP（ZIP）", "ok");
   }
+  function copyPackCommand() {
+    var name = String(state.assembly.name || "design").replace(/[^\w\u4e00-\u9fa5-]+/g, "_");
+    var cmd = "cd robot-modkit/software && ../.venv/bin/python -m modkit.cli assemble pack ../" + name + ".json --out ../out/pack-" + name;
+    function done() { toast("硬件包命令已复制；先导出 JSON 到 assemblies/", "ok"); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(cmd).then(done, function () { window.prompt("复制命令", cmd); });
+    else window.prompt("复制命令", cmd);
+  }
   function copyCommand() {
     var name = String(state.assembly.name || "design").replace(/[^\w\u4e00-\u9fa5-]+/g, "_");
     var cmd = "cd robot-modkit/software && ../.venv/bin/python -m modkit.cli assemble plan ../" + name + ".json --out ../cad/out/assemblies/" + name;
@@ -2150,6 +2157,7 @@
     $("export-step").addEventListener("click", exportSTEP);
     $("export-step-zip").addEventListener("click", exportStepZip);
     $("copy-command").addEventListener("click", copyCommand);
+    $("copy-pack").addEventListener("click", copyPackCommand);
     document.addEventListener("keydown", function (e) {
       if (!(e.ctrlKey || e.metaKey)) return;
       var tag = (e.target && e.target.tagName || "").toLowerCase();

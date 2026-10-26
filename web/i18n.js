@@ -20,6 +20,7 @@
     "btn.view3d": "3D view",
     "btn.validate": "Validate",
     "btn.procure": "Download purchase CSV",
+    "btn.pack": "Copy hardware pack command",
     "motion.play": "▶ Play motion",
     "motion.reset": "Reset joints",
     "motion.speed": "Speed",

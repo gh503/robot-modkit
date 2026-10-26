@@ -14,7 +14,7 @@ A = ROOT / "assemblies"
 
 
 def test_plan_follows_assembly_capability():
-    cases = {"bench_joint": ("joint", 6), "bench_arm": ("arm", 9),
+    cases = {"bench_joint": ("joint", 6), "bench_arm": ("arm", 10),
              "rover_base": ("drive", 8), "m1_pen": ("mobile-draw", 12)}
     for name, (key, n) in cases.items():
         rec = stage.init_record(A / f"{name}.json", "S-001", "tester")
@@ -87,6 +87,6 @@ def test_record_json_keeps_frozen_plan(tmp_path):
     rec = stage.init_record(A / "bench_arm.json", "S-002", "tester")
     f = rec.save(tmp_path / "s.json")
     d = json.loads(f.read_text(encoding="utf-8"))
-    assert d["stage"] == "arm" and len(d["plan_data"]) == 9
+    assert d["stage"] == "arm" and len(d["plan_data"]) == 10
     again = stage.Record.load(f)
-    assert len(again.plan) == 9 and not again.assembly_changed()
+    assert len(again.plan) == 10 and not again.assembly_changed()

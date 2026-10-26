@@ -270,7 +270,13 @@ def acceptance_rows(r: asm.Report) -> list[dict]:
              "pass": "末端重复 ≤2mm；无丢步",
              "evidence": "bench.csv", "status": "pending"},
         ]
-    if st.key == "mobile-draw":
+    if st.key == "arm":
+        rows.append({"id": "A10", "phase": "任务", "test": "画 100mm 方框",
+                     "command": "modkit draw --shape square --size 100 --z 150 --out draw.csv "
+                                "--play --port /dev/ttyUSB0 --yes",
+                     "pass": "四边闭合；边长 100±3mm；起终点回差 ≤3mm",
+                     "evidence": "draw.csv + 纸张照片", "status": "pending"})
+    elif st.key == "mobile-draw":
         rows.append({"id": "A10", "phase": "任务", "test": "画 240° 圆弧",
                      "command": "modkit draw --shape arc --mode polar --radius 150 --sweep 240 --l1 175 "
                                 "--out draw.csv --play --port /dev/ttyUSB0 --yes",
@@ -351,6 +357,14 @@ def bringup_steps(r: asm.Report) -> list[dict]:
              "pass": "全程无碰撞/拉扯；末端到位", "evidence": "视频 + 坐标",
              "stop": "碰撞 → 缩小限位/改姿态，不要靠电流硬顶"},
         ]
+    if st.key == "arm":
+        steps.append({"n": len(steps) + 1, "title": "画 100mm 方框",
+                      "action": "笔尖对纸；低速画 100mm 方框；确认四边闭合/起终点回差",
+                      "command": f"modkit draw --shape square --size 100 --z 150 --out draw.csv "
+                                 f"--play --port {PORT} --yes",
+                      "pass": "四边闭合；边长 100±3mm；起终点回差 ≤3mm",
+                      "evidence": "draw.csv + 纸张照片",
+                      "stop": "笔尖刮纸/断线 → 调 Z 高度/速度；先 --sim 空跑"})
     if st.key == "mobile-draw":
         steps.append({"n": len(steps) + 1, "title": "画 240° 圆弧",
                       "action": "笔尖对纸；低速画 240° 圆弧；确认半径/起终点回差",

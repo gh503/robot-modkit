@@ -29,6 +29,7 @@ from . import components as comps
 from . import assembly as asm
 from . import optimizer as opt
 from . import procure as proc
+from . import pack as hp
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -344,6 +345,26 @@ def cmd_assemble(args) -> int:
     if args.strict:
         strict = True
     rep = asm.validate(name, inst, payload, accel, strict, raw)
+
+    if args.action == "pack":
+        if not rep.ok:
+            print("装配有错误，先修好再生成硬件包：")
+            for i in rep.errors:
+                print(f"  [{i.code}] {i.message}")
+            return 2
+        out = pathlib.Path(args.out or f"{name}-pack")
+        paths = hp.write_pack(rep, out)
+        if args.json:
+            print(json.dumps({"summary": hp.summary(rep), "files": paths},
+                             ensure_ascii=False, indent=2))
+            return 0
+        s = hp.summary(rep)
+        print(f"硬件准备包：{s['preset']}（{s['stage_title']}）→ {out}")
+        print(f"  {s['components']} 组件 / {s['servos']} 舵机 / {s['position_joints']} 位置关节 / "
+              f"{s['drives']} 驱动；{s['mass_g']:.0f}g；BOM ¥{s['bom_cny']:.1f} / 落地 ¥{s['landed_cny']:.1f}")
+        print(f"  {paths['readme']}")
+        print("  步骤/接线/装配/打印/验收/固件配置均已生成；初始状态是 planned，不是实测。")
+        return 0
 
     if args.action == "procure":
         e = proc.estimate(rep, shipping=args.shipping, spares=args.spares,
@@ -1189,7 +1210,7 @@ def main(argv: list[str] | None = None) -> int:
     co.set_defaults(func=cmd_components)
 
     ab = sub.add_parser("assemble", help="装配图：校验/BOM/安全配置/预览")
-    ab.add_argument("action", choices=("validate", "plan", "preview", "suggest", "procure"),
+    ab.add_argument("action", choices=("validate", "plan", "preview", "suggest", "procure", "pack"),
                     default="validate", nargs="?")
     ab.add_argument("file")
     ab.add_argument("--out", help="plan/procure 输出目录，或 preview 的 .svg 路径")

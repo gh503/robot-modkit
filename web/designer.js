@@ -31,7 +31,7 @@
     materials: {}, fitPending: true, ready: false, clipboard: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.18.0";
+  var STUDIO_VERSION = "1.18.1";
 
   function toast(msg, kind) {
     var el = $("toast");

@@ -18,7 +18,11 @@ CHROME_PID=""
 cleanup() {
   [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null || true
   [ -n "$CHROME_PID" ] && kill "$CHROME_PID" 2>/dev/null || true
-  rm -rf "$TMP"
+  [ -n "$CHROME_PID" ] && wait "$CHROME_PID" 2>/dev/null || true
+  [ -n "$SRV_PID" ] && wait "$SRV_PID" 2>/dev/null || true
+  # Chrome 退出时可能还在写 profile；清理失败不能改变测试结果。
+  rm -rf "$TMP" 2>/dev/null || true
+  return 0
 }
 trap cleanup EXIT
 

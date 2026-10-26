@@ -178,6 +178,28 @@ def test_mesh_collision_and_torque_ui():
         assert token in core
 
 
+def test_mobile_a11y_i18n_and_pwa_install():
+    design = (WEB / "design.html").read_text(encoding="utf-8")
+    view = (WEB / "view.html").read_text(encoding="utf-8")
+    for html in (design, view):
+        assert 'id="lang-toggle"' in html and 'id="pwa-install"' in html
+        assert 'src="i18n.js"' in html and 'data-i18n-doc=' in html
+        assert 'data-i18n="nav.viewer"' in html or 'data-i18n="viewer.title"' in html
+    assert 'class="skip"' in view and 'id="view-main"' in view
+    assert 'data-i18n-ph="palette.search"' in design
+    css = (WEB / "design.css").read_text(encoding="utf-8")
+    assert "prefers-reduced-motion" in css and "pointer:coarse" in css
+    i18n = (WEB / "i18n.js").read_text(encoding="utf-8")
+    assert 'data-i18n' in i18n and '"viewer.joints"' in i18n and "modkit:lang" in i18n
+    pwa = (WEB / "pwa.js").read_text(encoding="utf-8")
+    assert "beforeinstallprompt" in pwa and "appinstalled" in pwa and "net-status" in pwa
+    manifest = json.loads((WEB / "manifest.webmanifest").read_text(encoding="utf-8"))
+    sizes = {i.get("sizes") for i in manifest["icons"]}
+    assert {"192x192", "512x512"} <= sizes
+    for icon in manifest["icons"]:
+        assert (WEB / icon["src"]).is_file(), icon["src"]
+
+
 def test_browser_smoke_harness_is_wired_into_ci():
     smoke = (ROOT / "tools" / "web-smoke.mjs").read_text(encoding="utf-8")
     assert "MODKIT_STUDIO.select" in smoke and "view-joints" in smoke

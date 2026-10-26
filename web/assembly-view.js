@@ -18,7 +18,8 @@
     raycaster: null, pointer: null, helper: null, ground: null, grid: null,
     materials: {}, ready: false, started: false,
     jointVisuals: [], gripperVisuals: [], wheelVisuals: [], angles: {},
-    playing: false, playStart: 0, speed: 1, exploded: false, fitPending: true
+    playing: false, playStart: 0, speed: 1, exploded: false, fitPending: true,
+    reduceMotion: !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
   };
 
   function $(id) { return document.getElementById(id); }
@@ -400,19 +401,27 @@
       });
     });
   }
+  function playText(running) {
+    var en = window.MODKIT_I18N && window.MODKIT_I18N.lang === "en";
+    if (running) return en ? "■ Stop" : "■ 停止";
+    return en ? "▶ Play" : "▶ 播放";
+  }
   function startPlay() {
     if (!state.report || !state.report.ok) { status("先修正校验错误再播放", "err"); return; }
+    if (state.reduceMotion) {
+      status("系统已开启“减少动态”；请用滑杆逐帧查看", "err"); return;
+    }
     if (!state.jointVisuals.length && !state.wheelVisuals.length) { status("没有可动关节或驱动轮", "err"); return; }
     state.playing = true;
     state.playStart = performance.now();
     var b = $("view-play");
-    if (b) { b.textContent = "■ 停止"; b.setAttribute("aria-pressed", "true"); }
+    if (b) { b.textContent = playText(true); b.setAttribute("aria-pressed", "true"); }
     status("运动演示中 · 仅运动学示意", "ok");
   }
   function stopPlay() {
     state.playing = false;
     var b = $("view-play");
-    if (b) { b.textContent = "▶ 播放"; b.setAttribute("aria-pressed", "false"); }
+    if (b) { b.textContent = playText(false); b.setAttribute("aria-pressed", "false"); }
     if (state.report) status("结构就绪 · 可旋转/点选", "ok");
   }
   function resetMotion() {
@@ -606,6 +615,9 @@
     $("view-fit").addEventListener("click", function () { fit(); status("视角已适配", "ok"); });
     $("view-copy").addEventListener("click", copyLink);
     if ($("view-play")) $("view-play").addEventListener("click", function () { state.playing ? stopPlay() : startPlay(); });
+    window.addEventListener("modkit:lang", function () {
+      if ($("view-play") && !state.playing) $("view-play").textContent = playText(false);
+    });
     if ($("view-reset")) $("view-reset").addEventListener("click", resetMotion);
     if ($("view-explode")) $("view-explode").addEventListener("click", toggleExplode);
     if ($("view-reload")) {

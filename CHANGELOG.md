@@ -1,5 +1,32 @@
 # 更新日志
 
+## v1.23.0 — 2026-10-26
+
+### 移动 / 无障碍
+
+- `≤980/≤560px` 断点：纵向布局、工具栏换行、触控目标 ≥36px；查看器单列。
+- 查看器补 skip link + `main` id；全局 focus-visible、tab 键盘导航沿用。
+- `prefers-reduced-motion`：CSS 动画近乎关闭；播放按钮主动拒绝并提示用滑杆。
+- 390×844 实测无横向溢出。
+
+### i18n
+
+- 新增 `web/i18n.js`：`data-i18n` / `data-i18n-ph` / `data-i18n-doc`，
+  `?lang=en` 或右上角 `EN/中` 切换，localStorage 持久化。
+- 核心控件英文化；动态消息仍中文，明确是部分 i18n。
+
+### PWA
+
+- `pwa.js` 捕获 `beforeinstallprompt`/`appinstalled`，提供安装按钮；
+  iOS 显示“添加到主屏”；standalone 隐藏；在线/离线胶囊。
+- manifest 增加 192/512/maskable PNG 图标；Service Worker 预缓存 i18n/图标。
+- `make web-smoke` 增至 13 组；测试 288 → **289**。
+
+### 边界
+
+- 未做完整英文翻译、RTL、真实手机/读屏人工走查；headless 不弹安装提示。
+- 物理闸门仍 **0/5**。
+
 ## v1.22.0 — 2026-10-26
 
 ### 碰撞

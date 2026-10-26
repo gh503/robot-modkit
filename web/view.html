@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-i18n-doc="doc.viewer">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -68,25 +68,44 @@ aside h1{font-size:18px;margin:0 0 4px;line-height:1.25}
 #view-source{font:10px var(--mono);color:var(--faint)}
 .note{font-size:10.5px;color:var(--muted);line-height:1.5}
 .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+[hidden]{display:none!important}
+.skip{position:fixed;left:12px;top:-60px;z-index:200;background:#1d5f96;color:#fff;
+  padding:10px 14px;border-radius:9px;font-weight:700;text-decoration:none}
+.skip:focus{top:12px}
+.net-pill{font:10px ui-monospace,Menlo,monospace;color:#7a4b00;background:#fff4d6;
+  border:1px solid #f0d69a;border-radius:999px;padding:3px 8px;white-space:nowrap}
+.lang-btn{font-weight:700;min-width:34px}
+.topbar{flex-wrap:wrap}
+@media(pointer:coarse){.btn{min-height:36px}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
 @media(max-width:860px){
   main{grid-template-columns:1fr;grid-template-rows:minmax(55vh,1fr) auto;height:auto;min-height:calc(100vh - 48px)}
   aside{border-left:0;border-top:1px solid var(--line)}
   #viewport{min-height:55vh}
   .brand span{display:none}
+  .topbar{gap:6px;padding:7px 9px}
+  #pwa-install{max-width:92px;overflow:hidden;text-overflow:ellipsis}
 }
 </style>
 </head>
 <body>
+<a class="skip" href="#view-main" data-i18n="viewer.skip">跳到查看器</a>
 <noscript><p style="padding:12px;background:#fff3cd;color:#664d03;margin:0">结构查看器需要 JavaScript 才能建立 3D；请启用后刷新。</p></noscript>
 <header class="topbar">
-  <a class="brand" href="index.html" aria-label="modkit M1 3D 查看器">modkit <span>结构查看器</span></a>
+  <a class="brand" href="index.html" aria-label="modkit M1 3D 查看器">modkit <span data-i18n="viewer.title">结构查看器</span></a>
   <span class="view-status" id="view-status" role="status" aria-live="polite">载入中…</span>
   <span class="spacer"></span>
-  <button class="btn" id="view-fit">适配视角</button>
-  <button class="btn" id="view-copy">复制链接</button>
-  <a class="btn primary" id="view-edit" href="design.html" hidden>在 Studio 编辑</a>
+  <span class="net-pill" id="net-status" role="status" aria-live="polite" hidden data-i18n="net.offline">离线</span>
+  <button class="btn" id="pwa-install" hidden data-i18n="install">安装应用</button>
+  <button class="btn lang-btn" id="lang-toggle" aria-label="切换英文" title="切换英文">EN</button>
+  <button class="btn" id="view-fit" data-i18n="viewer.fit">适配视角</button>
+  <button class="btn" id="view-copy" data-i18n="viewer.copy">复制链接</button>
+  <a class="btn primary" id="view-edit" href="design.html" hidden data-i18n="viewer.edit">在 Studio 编辑</a>
 </header>
-<main>
+<main id="view-main" tabindex="-1">
   <section id="viewport" aria-label="自由设计三维结构">
     <canvas id="view" aria-label="自由设计的三维结构" role="img"></canvas>
     <div class="hint">左键旋转 · 右键平移 · 滚轮缩放 · 点击选择</div>
@@ -99,26 +118,26 @@ aside h1{font-size:18px;margin:0 0 4px;line-height:1.25}
     <p id="view-sub">自由设计的只读结构预览。</p>
     <div id="view-meta"></div>
     <div class="sect">
-      <h2>关节 / 运动</h2>
+      <h2 data-i18n="viewer.joints">关节 / 运动</h2>
       <div id="view-joints"></div>
       <div class="actions">
-        <button class="btn" id="view-play" aria-pressed="false">▶ 播放</button>
-        <button class="btn" id="view-reset">复位</button>
-        <button class="btn" id="view-explode" aria-pressed="false">爆炸视图</button>
+        <button class="btn" id="view-play" aria-pressed="false" data-i18n="viewer.play">▶ 播放</button>
+        <button class="btn" id="view-reset" data-i18n="viewer.reset">复位</button>
+        <button class="btn" id="view-explode" aria-pressed="false" data-i18n="viewer.explode">爆炸视图</button>
       </div>
       <p class="note" style="margin:6px 0 0">运动学示意：滑杆/播放只改关节角，不计算动力学、负载或碰撞。</p>
     </div>
     <div class="sect">
-      <h2>校验摘要</h2>
+      <h2 data-i18n="viewer.summary">校验摘要</h2>
       <div id="view-issues"></div>
     </div>
     <div class="sect">
-      <h2>来源</h2>
+      <h2 data-i18n="viewer.source">来源</h2>
       <div id="view-source">—</div>
       <p class="note">这是只读查看：关节运动、换件、预算优化和导出请回到 Studio。查看器不会修改设计。</p>
       <div class="actions">
-        <a class="btn" href="design.html">打开 Studio</a>
-        <a class="btn" href="index.html">M1 3D 演示</a>
+        <a class="btn" href="design.html" data-i18n="viewer.studio">打开 Studio</a>
+        <a class="btn" href="index.html" data-i18n="viewer.demo">M1 3D 演示</a>
       </div>
     </div>
   </aside>
@@ -129,6 +148,7 @@ aside h1{font-size:18px;margin:0 0 4px;line-height:1.25}
 <script src="data/assemblies.js"></script>
 <script src="assembly-core.js"></script>
 <script src="assembly-view.js"></script>
+<script src="i18n.js"></script>
 <script src="pwa.js"></script>
 </body>
 </html>

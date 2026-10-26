@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-i18n-doc="doc.title">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,25 +20,28 @@
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none"><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5v-7Z" stroke="#cfeaff" stroke-width="1.4"/><path d="M8 10.5 12 8l4 2.5v3L12 16l-4-2.5v-3Z" fill="#7cc4ff"/></svg>
       </span>
-      <span><span class="brand-name">modkit Studio</span><span class="brand-sub">自由装配 · 仿真 · 导出</span></span>
+      <span><span class="brand-name">modkit Studio</span><span class="brand-sub" data-i18n="brand.sub">自由装配 · 仿真 · 导出</span></span>
     </a>
     <nav class="topnav" aria-label="项目链接">
-      <a href="index.html">3D 查看器</a>
-      <a href="design.html" class="on" aria-current="page">自由设计</a>
-      <a href="https://github.com/gh503/robot-modkit/blob/main/docs/65-组件库与自由组装.md">组件文档</a>
-      <a href="https://github.com/gh503/robot-modkit">GitHub</a>
+      <a href="index.html" data-i18n="nav.viewer">3D 查看器</a>
+      <a href="design.html" class="on" aria-current="page" data-i18n="nav.design">自由设计</a>
+      <a href="https://github.com/gh503/robot-modkit/blob/main/docs/65-组件库与自由组装.md" data-i18n="nav.docs">组件文档</a>
+      <a href="https://github.com/gh503/robot-modkit" data-i18n="nav.github">GitHub</a>
     </nav>
     <span class="spacer"></span>
+    <span class="net-pill" id="net-status" role="status" aria-live="polite" hidden data-i18n="net.offline">离线</span>
+    <button class="btn" id="pwa-install" hidden data-i18n="install">安装应用</button>
+    <button class="btn lang-btn" id="lang-toggle" aria-label="切换英文" title="切换英文">EN</button>
     <span class="status-pill" id="top-state"><span class="dot" aria-hidden="true"></span><span id="top-state-text">装配初始化中</span></span>
   </div>
 </header>
 
-<main class="studio" id="studio">
+<main class="studio" id="studio" tabindex="-1">
   <aside class="palette panel" aria-label="组件库">
     <div class="palette-head">
-      <h1>组件库</h1>
-      <p>36 个端口化组件 · 点选添加到当前父件</p>
-      <input class="search" id="search" type="search" placeholder="搜 ID / 名称 / 类别" aria-label="搜索组件">
+      <h1 data-i18n="palette.title">组件库</h1>
+      <p data-i18n="palette.desc">36 个端口化组件 · 点选添加到当前父件</p>
+      <input class="search" id="search" type="search" placeholder="搜 ID / 名称 / 类别" data-i18n-ph="palette.search" aria-label="搜索组件">
     </div>
     <div class="palette-body" id="palette-list"></div>
     <div class="palette-foot">选中父件后点击组件。<b>替换</b>模式见右侧装配面板。</div>
@@ -46,7 +49,7 @@
 
   <section class="stagewrap" aria-label="三维设计与仿真">
     <div class="stagebar">
-      <label for="preset">预设</label>
+      <label for="preset" data-i18n="preset">预设</label>
       <select id="preset" aria-label="加载预设装配">
         <option value="m1_budget">M1 预算版 · ¥968</option>
         <option value="m1">M1 塔式</option>
@@ -56,15 +59,15 @@
         <option value="wide_gripper">宽夹爪</option>
         <option value="sensor_tower">传感器塔</option>
       </select>
-      <button class="btn" id="new-design">新建</button>
+      <button class="btn" id="new-design" data-i18n="btn.new">新建</button>
       <button class="btn" id="undo" disabled aria-label="撤销" title="撤销 (Ctrl+Z)">↶</button>
       <button class="btn" id="redo" disabled aria-label="重做" title="重做 (Ctrl+Shift+Z)">↷</button>
-      <button class="btn" id="import-design">导入</button>
-      <button class="btn" id="restore-design">恢复</button>
-      <button class="btn" id="share-design">分享</button>
-      <button class="btn" id="viewer-design" title="在新标签页用只读结构查看器打开">3D 查看</button>
+      <button class="btn" id="import-design" data-i18n="btn.import">导入</button>
+      <button class="btn" id="restore-design" data-i18n="btn.restore">恢复</button>
+      <button class="btn" id="share-design" data-i18n="btn.share">分享</button>
+      <button class="btn" id="viewer-design" title="在新标签页用只读结构查看器打开" data-i18n="btn.view3d">3D 查看</button>
       <input id="import-file" type="file" accept=".json,application/json" hidden>
-      <button class="btn" id="validate">校验</button>
+      <button class="btn" id="validate" data-i18n="btn.validate">校验</button>
       <span class="grow"></span>
       <span class="validate-pill" id="validate-pill">未校验</span>
     </div>
@@ -80,22 +83,22 @@
     </div>
 
     <div class="motionbar" role="group" aria-label="运动仿真">
-      <button class="btn primary" id="play" aria-pressed="false">▶ 播放运动</button>
-      <button class="btn" id="reset-motion">复位关节</button>
-      <label for="speed" style="color:var(--faint);font-size:10.5px">速度</label>
+      <button class="btn primary" id="play" aria-pressed="false" data-i18n="motion.play">▶ 播放运动</button>
+      <button class="btn" id="reset-motion" data-i18n="motion.reset">复位关节</button>
+      <label for="speed" style="color:var(--faint);font-size:10.5px" data-i18n="motion.speed">速度</label>
       <input id="speed" type="range" min="0.2" max="2" step="0.1" value="1" aria-label="仿真速度">
       <span class="sim-state" id="sim-state">待机 · 只做运动学示意</span>
-      <button class="btn" id="fit-view" style="margin-left:auto">适配视角</button>
+      <button class="btn" id="fit-view" style="margin-left:auto" data-i18n="motion.fit">适配视角</button>
     </div>
     <div class="joints" id="joints" aria-label="关节滑杆"></div>
   </section>
 
   <aside class="inspector panel" aria-label="装配参数与导出">
     <div class="tabs" role="tablist" aria-label="面板">
-      <button id="tab-btn-build" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-build">装配</button>
-      <button id="tab-btn-check" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-check">校验</button>
-      <button id="tab-btn-bom" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-bom">BOM</button>
-      <button id="tab-btn-export" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-export">导出</button>
+      <button id="tab-btn-build" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-build" data-i18n="tab.build">装配</button>
+      <button id="tab-btn-check" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-check" data-i18n="tab.check">校验</button>
+      <button id="tab-btn-bom" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-bom" data-i18n="tab.bom">BOM</button>
+      <button id="tab-btn-export" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-export" data-i18n="tab.export">导出</button>
     </div>
 
     <section class="tabpanel" id="tab-build" role="tabpanel" aria-labelledby="tab-btn-build">
@@ -216,6 +219,7 @@
 <script src="data/components.js"></script>
 <script src="data/assemblies.js"></script>
 <script src="assembly-core.js"></script>
+<script src="i18n.js"></script>
 <script src="budget-core.js"></script>
 <script src="designer.js"></script>
 <script src="pwa.js"></script>

@@ -22,7 +22,8 @@
   var state = {
     assembly: null, report: null, selected: null, replaceMode: false,
     angles: {}, playing: false, playStart: 0, speed: 1, dirty: false, optimizer: null,
-    plan: null, history: [], historyIndex: -1, historyLimit: 40
+    plan: null, history: [], historyIndex: -1, historyLimit: 40,
+    reduceMotion: !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
   };
   var view = {
     scene: null, camera: null, renderer: null, controls: null, root: null,
@@ -32,7 +33,7 @@
     projectId: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.22.0";
+  var STUDIO_VERSION = "1.23.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -1972,20 +1973,32 @@
   }
 
   // ---------------------------------------------------------------- 播放
+  function playText(running) {
+    var en = window.MODKIT_I18N && window.MODKIT_I18N.lang === "en";
+    if (running) return en ? "■ Stop" : "■ 停止";
+    return en ? "▶ Play motion" : "▶ 播放运动";
+  }
   function startPlay() {
     if (!state.report) return;
     if (!state.report.ok) { toast("先修正校验错误再播放", "err"); return; }
+    if (state.reduceMotion) {
+      toast("系统已开启“减少动态”，播放已停用；请用关节滑杆逐帧查看", "err");
+      return;
+    }
     var js = state.report.instances.filter(function (i) { return i.joint && i.joint.mode === "position"; });
     if (!js.length && !view.wheelVisuals.length) { toast("没有可动的关节或驱动轮", "err"); return; }
     state.playing = true; state.playStart = performance.now();
-    $("play").textContent = "■ 停止"; $("play").setAttribute("aria-pressed", "true");
+    $("play").textContent = playText(true); $("play").setAttribute("aria-pressed", "true");
     renderStatus();
   }
   function stopPlay() {
     state.playing = false;
-    $("play").textContent = "▶ 播放运动"; $("play").setAttribute("aria-pressed", "false");
+    $("play").textContent = playText(false); $("play").setAttribute("aria-pressed", "false");
     renderStatus();
   }
+  window.addEventListener("modkit:lang", function () {
+    if ($("play") && !state.playing) $("play").textContent = playText(false);
+  });
   function animateLoop() {
     requestAnimationFrame(animateLoop);
     if (!view.ready) return;

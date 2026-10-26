@@ -341,6 +341,36 @@ async function main() {
     check(s.includes("无法显示"), `状态是 ${s}`);
   });
 
+  await run("移动/无障碍/i18n", async () => {
+    await cdp.navigate(`${BASE}/design.html?lang=zh&smoke=i18n`);
+    const r = await cdp.eval(`(() => {
+      const btn = document.getElementById("lang-toggle");
+      const before = document.documentElement.lang;
+      btn.click();
+      const en = {
+        lang: document.documentElement.lang, nav: document.querySelector('[data-i18n="nav.design"]').textContent,
+        play: document.getElementById("play").textContent,
+        ph: document.getElementById("search").placeholder,
+        title: document.title, skip: !!document.querySelector(".skip")
+      };
+      btn.click();
+      return {
+        before: before, en: en, zh: document.documentElement.lang,
+        navZh: document.querySelector('[data-i18n="nav.design"]').textContent,
+        tagged: document.querySelectorAll("[data-i18n],[data-i18n-ph]").length,
+        pwa: !!window.MODKIT_PWA, install: !!document.getElementById("pwa-install"),
+        reduce: matchMedia("(prefers-reduced-motion: reduce)").matches
+      };
+    })()`);
+    check(r.before === "zh-CN" && r.en.lang === "en", "语言切换失败");
+    check(r.en.nav === "Design" && r.en.play === "▶ Play motion", "英文控件未翻译");
+    check(r.en.ph.indexOf("Search") === 0, "搜索占位未翻译");
+    check(r.zh === "zh-CN" && r.navZh === "自由设计", "切回中文失败");
+    check(r.tagged >= 20, `i18n 标注仅 ${r.tagged} 个`);
+    check(r.pwa && r.install, "PWA 安装接口/按钮缺失");
+    check(typeof r.reduce === "boolean", "减少动态媒体查询不可用");
+  });
+
   await run("PWA 壳已注册", async () => {
     await cdp.navigate(`${BASE}/design.html?smoke=pwa`);
     const info = await cdp.eval(`(async () => {
@@ -358,9 +388,12 @@ async function main() {
       }
       return { state: r.active && r.active.state, keys: await caches.keys(), step: !!hit };
     })()`);
+    const manifest = await cdp.eval(`fetch("manifest.webmanifest").then((r) => r.json())`);
     check(info.state === "activated", `SW 状态 ${info.state}`);
     check(info.keys.some((k) => k.startsWith("modkit-shell-")), "没有 modkit-shell 缓存");
     check(info.step, "STEP 未预缓存，离线导出会失败");
+    check(manifest.icons.length >= 3 && manifest.icons.some((i) => i.sizes === "192x192"), "PWA 图标不完整");
+    check((await cdp.eval("!!window.MODKIT_PWA && typeof MODKIT_PWA.isStandalone() === 'boolean'")), "PWA 安装状态接口缺失");
   });
 
   await run("全页面无脚本异常", async () => {
@@ -376,7 +409,7 @@ async function main() {
     console.error(`\nweb smoke: ${failures} 项失败`);
     process.exit(1);
   }
-  console.log("\nweb smoke: PASS（12 项）");
+  console.log("\nweb smoke: PASS（13 项）");
 }
 
 main().catch((e) => {

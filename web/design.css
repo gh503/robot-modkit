@@ -261,3 +261,32 @@ body.drop-active #drop-hint{display:grid}
   background:#e6f4ea; color:#1e7b3c; font-size:8px; font-weight:700; }
 table.bom tr.bad td { color:#b42318; background:#fff4f2; }
 table.bom tr.warn td { color:#8a5a00; background:#fffaf0; }
+
+/* PWA / 语言 / 离线 */
+[hidden]{display:none!important}
+.net-pill{font:10px var(--mono);color:#7a4b00;background:#fff4d6;border:1px solid #f0d69a;
+  border-radius:999px;padding:3px 8px;white-space:nowrap}
+.lang-btn{font:700 10.5px var(--mono);min-width:34px;letter-spacing:.02em}
+.topbar-inner{flex-wrap:wrap}
+#viewport canvas{touch-action:none}
+
+@media(pointer:coarse){
+  .btn,button,select,input[type=search]{min-height:36px}
+  .btn.sm,.tree-tools .btn,.opt-meta .btn{min-height:30px}
+  .jrow input[type=range]{height:30px}
+}
+@media(max-width:560px){
+  .topbar-inner{gap:6px;padding:7px 9px;min-height:52px}
+  .brand-sub{display:none}
+  .topbar .status-pill{display:none}
+  .topbar .btn{padding:5px 7px}
+  #pwa-install{max-width:92px;overflow:hidden;text-overflow:ellipsis}
+  .stagebar{gap:4px}
+  .stagebar .btn{padding:5px 6px;font-size:10.5px}
+  .motionbar{flex-wrap:wrap}
+  .tabs{position:sticky;top:52px;z-index:5;background:var(--surface)}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+}

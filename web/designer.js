@@ -28,10 +28,11 @@
     scene: null, camera: null, renderer: null, controls: null, root: null,
     raycaster: null, pointer: null, jointVisuals: [], gripperVisuals: [], wheelVisuals: [],
     instanceGroups: {}, selectedHelper: null, issueHelpers: [],
-    materials: {}, fitPending: true, ready: false, clipboard: null
+    materials: {}, fitPending: true, ready: false, clipboard: null,
+    projectId: null
   };
   var toastTimer = 0;
-  var STUDIO_VERSION = "1.19.0";
+  var STUDIO_VERSION = "1.20.0";
 
   function toast(msg, kind) {
     var el = $("toast");
@@ -452,7 +453,8 @@
   function loadPreset(name) {
     var asm = P[name];
     if (!asm) { toast("没有预设 " + name, "err"); return; }
-    state.assembly = clone(asm);
+    state.projectId = null;
+    state.assembly = migrateAssembly(clone(asm));
     if (!state.assembly.name) state.assembly.name = name;
     if (state.assembly.budget_cny == null) state.assembly.budget_cny = 1000;
     pushHistory("载入预设 " + name);
@@ -513,10 +515,11 @@
     var m = /^#d=(.+)$/.exec(location.hash || "");
     if (!m) return false;
     try {
-      var data = JSON.parse(b64decode(m[1]));
+      var data = migrateAssembly(JSON.parse(b64decode(m[1])));
       var shape = A.check(data);
       if (!shape.ok) throw new Error(shape.errors.slice(0, 3).join("；"));
       state.assembly = data;
+      state.projectId = null;
       state.selected = data.components.length ? data.components[0].id : null;
       state.angles = {}; state.playing = false; state.fitPending = true;
       $("preset").value = "";
@@ -567,10 +570,11 @@
     var rd = new FileReader();
     rd.onload = function () {
       try {
-        var data = JSON.parse(String(rd.result));
+        var data = migrateAssembly(JSON.parse(String(rd.result)));
         var shape = A.check(data);
         if (!shape.ok) throw new Error(shape.errors.slice(0, 3).join("；"));
         state.assembly = data;
+        state.projectId = null;
         state.selected = data.components[0].id;
         state.angles = {}; state.playing = false; state.fitPending = true;
         $("preset").value = "";
@@ -582,7 +586,9 @@
     rd.readAsText(file);
   }
   function newDesign() {
+    state.projectId = null;
     state.assembly = {
+      schema_version: SCHEMA_VERSION,
       name: "未命名装配", budget_cny: 1000, description: "从底盘开始，自由添加组件。",
       components: [{ id: "chassis", type: "frame.chassis_160", parent: null, child_port: "top", at: [0, 0], spin: 0 }]
     };
@@ -770,20 +776,216 @@
   }
 
   var LOCAL_KEY = "modkit.design.v1";
+  var STORE_KEY = "modkit.workspace.v2";
+  var SCHEMA_VERSION = 2;
+  var MAX_PROJECTS = 20;
+  var MAX_VERSIONS = 20;
+  var workspace = { schema: SCHEMA_VERSION, active: null, projects: [] };
+
+  function migrateAssembly(data) {
+    if (!data || typeof data !== "object") throw new Error("不是对象");
+    data.schema_version = SCHEMA_VERSION;
+    if (data.budget_cny == null && data.budget != null) data.budget_cny = data.budget;
+    if (data.payload_g == null && data.payload != null) data.payload_g = data.payload;
+    (data.components || []).forEach(function (c) {
+      if (!Array.isArray(c.at)) c.at = [0, 0];
+      if (c.spin == null) c.spin = 0;
+      if (c.parent === undefined) c.parent = null;
+    });
+    return data;
+  }
+  function projectById(id) {
+    for (var i = 0; i < workspace.projects.length; i++) if (workspace.projects[i].id === id) return workspace.projects[i];
+    return null;
+  }
+  function newProjectId() { return "p_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6); }
+  function projectName() {
+    return (state.assembly && state.assembly.name) || "未命名装配";
+  }
+  function persistWorkspace() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(workspace)); }
+    catch (e) { toast("浏览器存储已满；项目没有保存", "err"); }
+  }
+  function trimWorkspace() {
+    workspace.projects = workspace.projects.slice(0, MAX_PROJECTS);
+    workspace.projects.forEach(function (p) {
+      p.versions = (p.versions || []).slice(0, MAX_VERSIONS);
+    });
+    if (!projectById(workspace.active)) workspace.active = workspace.projects[0] ? workspace.projects[0].id : null;
+  }
+  function loadWorkspace() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (raw && Array.isArray(raw.projects)) {
+        workspace = { schema: SCHEMA_VERSION, active: raw.active || null, projects: raw.projects };
+      }
+    } catch (e) { /* 损坏则重建 */ }
+    workspace.projects.forEach(function (p) {
+      p.versions = p.versions || [];
+      try { migrateAssembly(p.assembly); } catch (e) { /* 保留原样，加载时再报 */ }
+    });
+    if (!workspace.projects.length) {
+      try {
+        var old = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
+        var data = old && old.assembly ? old.assembly : old;
+        if (data) {
+          migrateAssembly(data);
+          var shape = A.check(data);
+          if (shape.ok) {
+            var p = { id: newProjectId(), name: data.name || "恢复的本地草稿", updatedAt: new Date().toISOString(),
+              assembly: data, versions: [] };
+            workspace.projects.push(p); workspace.active = p.id;
+          }
+        }
+      } catch (e) { /* 忽略旧草稿 */ }
+    }
+    trimWorkspace();
+  }
+  function ensureProject() {
+    var p = state.projectId ? projectById(state.projectId) : null;
+    if (p) return p;
+    if (!state.assembly) return null;
+    p = { id: newProjectId(), name: projectName(), updatedAt: new Date().toISOString(),
+      assembly: clone(state.assembly), versions: [] };
+    workspace.projects.unshift(p);
+    state.projectId = p.id;
+    workspace.active = p.id;
+    trimWorkspace();
+    return p;
+  }
   function saveLocal() {
+    if (!state.assembly) return;
+    var p = ensureProject();
+    if (!p) return;
+    p.name = projectName();
+    p.updatedAt = new Date().toISOString();
+    p.assembly = clone(state.assembly);
+    p.assembly.schema_version = SCHEMA_VERSION;
+    workspace.active = p.id;
+    trimWorkspace();
+    persistWorkspace();
     try {
       localStorage.setItem(LOCAL_KEY, JSON.stringify({
-        schema: 1, savedAt: new Date().toISOString(), assembly: state.assembly
+        schema: SCHEMA_VERSION, savedAt: new Date().toISOString(), assembly: p.assembly
       }));
-    } catch (e) { /* 隐私模式/配额满 */ }
+    } catch (e) { /* 兼容旧恢复入口；失败不影响项目存储 */ }
+    renderProjects();
+  }
+  function loadProject(id, opts) {
+    var p = projectById(id);
+    if (!p) { toast("项目不存在", "err"); return false; }
+    var data = clone(p.assembly);
+    try { migrateAssembly(data); } catch (e) { toast("项目数据损坏：" + e.message, "err"); return false; }
+    var shape = A.check(data);
+    if (!shape.ok) { toast("项目无效：" + shape.errors.slice(0, 2).join("；"), "err"); return false; }
+    state.assembly = data;
+    state.projectId = p.id;
+    workspace.active = p.id;
+    state.selected = data.components[0] ? data.components[0].id : null;
+    state.angles = {}; state.playing = false; state.fitPending = true;
+    if ($("preset")) $("preset").value = "";
+    var prev = state.suppressSave;
+    if (opts && opts.silent) state.suppressSave = true;
+    try {
+      pushHistory("打开项目 " + p.name);
+      revalidate();
+    } finally { state.suppressSave = prev; }
+    renderProjects();
+    if (!(opts && opts.silent)) toast("已打开项目：" + p.name, "ok");
+    return true;
+  }
+  function saveProject() {
+    saveLocal();
+    toast("项目已保存到浏览器", "ok");
+  }
+  function newProject() {
+    var name = window.prompt("新项目名", projectName() + " 副本");
+    if (name == null) return;
+    name = name.trim() || "未命名装配";
+    state.assembly.name = name;
+    state.projectId = null;
+    saveLocal();
+    if ($("design-name")) $("design-name").value = name;
+    toast("已另存为新项目：" + name, "ok");
+    renderProjects();
+  }
+  function deleteProject() {
+    var p = state.projectId ? projectById(state.projectId) : null;
+    if (!p) { toast("当前没有已保存项目", "err"); return; }
+    if (!window.confirm("删除项目「" + p.name + "」及其版本？")) return;
+    workspace.projects = workspace.projects.filter(function (x) { return x.id !== p.id; });
+    state.projectId = null;
+    workspace.active = workspace.projects[0] ? workspace.projects[0].id : null;
+    persistWorkspace();
+    if (workspace.active) loadProject(workspace.active, { silent: true });
+    else { state.assembly = null; revalidate(); }
+    renderProjects();
+    toast("项目已删除", "ok");
+  }
+  function snapshotVersion() {
+    var p = ensureProject();
+    if (!p) return;
+    var label = window.prompt("版本说明", new Date().toLocaleString("zh-CN"));
+    if (label == null) return;
+    p.versions = p.versions || [];
+    p.versions.unshift({ at: new Date().toISOString(), label: label.trim() || "快照", assembly: clone(state.assembly) });
+    p.updatedAt = new Date().toISOString();
+    trimWorkspace();
+    persistWorkspace();
+    renderProjects();
+    toast("已保存版本：" + (label.trim() || "快照"), "ok");
+  }
+  function restoreVersion() {
+    var p = state.projectId ? projectById(state.projectId) : null;
+    var sel = $("version-select");
+    if (!p || !sel || !sel.value) { toast("当前项目没有可恢复版本", "err"); return; }
+    var v = p.versions[Number(sel.value)];
+    if (!v) { toast("版本不存在", "err"); return; }
+    var data = clone(v.assembly);
+    try { migrateAssembly(data); } catch (e) { toast("版本损坏：" + e.message, "err"); return; }
+    var shape = A.check(data);
+    if (!shape.ok) { toast("版本无效：" + shape.errors.slice(0, 2).join("；"), "err"); return; }
+    state.assembly = data;
+    state.selected = data.components[0] ? data.components[0].id : null;
+    state.angles = {}; state.playing = false; state.fitPending = true;
+    pushHistory("恢复版本 " + v.label);
+    revalidate();
+    toast("已恢复版本：" + v.label, "ok");
+  }
+  function renderProjects() {
+    if (!$("project-select")) return;
+    var active = state.projectId ? projectById(state.projectId) : null;
+    $("project-select").innerHTML = '<option value="">（未保存草稿）</option>' +
+      workspace.projects.map(function (p) {
+        var t = (p.updatedAt || "").slice(5, 16).replace("T", " ");
+        return '<option value="' + esc(p.id) + '">' + esc(p.name) + (t ? " · " + esc(t) : "") + '</option>';
+      }).join("");
+    $("project-select").value = active ? active.id : "";
+    var vs = $("version-select");
+    if (vs) {
+      vs.innerHTML = active && active.versions.length
+        ? active.versions.map(function (v, i) {
+          return '<option value="' + i + '">' + esc(v.label) + " · " + esc((v.at || "").slice(5, 16).replace("T", " ")) + '</option>';
+        }).join("")
+        : '<option value="">（没有版本）</option>';
+    }
+    if ($("project-note")) {
+      $("project-note").textContent = active
+        ? "自动保存到浏览器 localStorage；建议重要节点“保存版本”。"
+        : "当前未保存；编辑后自动创建项目。清站点数据会丢。";
+    }
   }
   function restoreLocal() {
+    if (workspace.active && projectById(workspace.active)) { loadProject(workspace.active); return; }
     try {
       var raw = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
       var data = raw && raw.assembly ? raw.assembly : raw;
+      if (!data) { toast("没有可恢复的本地草稿", "err"); return; }
+      migrateAssembly(data);
       var shape = A.check(data);
       if (!shape.ok) { toast("本地草稿无效：" + shape.errors.slice(0, 2).join("；"), "err"); return; }
       state.assembly = data;
+      state.projectId = null;
       state.selected = data.components[0].id;
       state.angles = {}; state.playing = false; state.fitPending = true;
       $("preset").value = "";
@@ -1330,6 +1532,7 @@
   function exportJSON() {
     var data = clone(state.assembly);
     data.generator = "modkit Studio";
+    data.schema_version = SCHEMA_VERSION;
     data.version = STUDIO_VERSION;
     data.exported = new Date().toISOString();
     download(designFileName("json"), new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
@@ -1787,6 +1990,15 @@
       state.assembly.name = $("design-name").value.trim() || "未命名装配";
       revalidate();
     });
+    $("project-select").addEventListener("change", function () {
+      if ($("project-select").value) loadProject($("project-select").value);
+      else renderProjects();
+    });
+    $("project-save").addEventListener("click", saveProject);
+    $("project-new").addEventListener("click", newProject);
+    $("project-delete").addEventListener("click", deleteProject);
+    $("version-save").addEventListener("click", snapshotVersion);
+    $("version-restore").addEventListener("click", restoreVersion);
     $("play").addEventListener("click", function () { state.playing ? stopPlay() : startPlay(); });
     $("reset-motion").addEventListener("click", function () {
       stopPlay(); state.angles = {};
@@ -1839,10 +2051,18 @@
     var q = new URLSearchParams(location.search);
     var preset = q.get("preset");
     if (!preset || !P[preset]) preset = "m1";
+    loadWorkspace();
     state.suppressSave = true;
-    if (!loadShared()) loadPreset(preset);
+    if (loadShared()) {
+      // 分享快照不覆盖项目
+    } else if (workspace.active && projectById(workspace.active)) {
+      loadProject(workspace.active, { silent: true });
+    } else {
+      loadPreset(preset);
+    }
     state.suppressSave = false;
-    try { $("restore-design").disabled = !localStorage.getItem(LOCAL_KEY); } catch (e) {}
+    renderProjects();
+    try { $("restore-design").disabled = !localStorage.getItem(LOCAL_KEY) && !workspace.projects.length; } catch (e) {}
     requestAnimationFrame(animateLoop);
   }
 
@@ -1861,6 +2081,10 @@
     exportOptimizerReport: exportOptimizerReport, undo: undo, redo: redo,
     copySelected: copySelected, pasteClipboard: pasteClipboard, duplicateSelected: duplicateSelected,
     renderHighlights: renderHighlights, shareDesign: shareDesign, loadShared: loadShared,
-    openViewer: openViewer, viewerURL: viewerURL
+    openViewer: openViewer, viewerURL: viewerURL,
+    saveProject: saveProject, newProject: newProject, deleteProject: deleteProject,
+    loadProject: loadProject, snapshotVersion: snapshotVersion, restoreVersion: restoreVersion,
+    renderProjects: renderProjects, migrateAssembly: migrateAssembly,
+    workspace: function () { return workspace; }
   };
 })();

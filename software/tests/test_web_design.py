@@ -154,6 +154,19 @@ def test_export_formats_and_offline_step_models():
     assert "SHELL.concat(MODELS)" in sw
 
 
+def test_workspace_projects_versions_and_schema_migration():
+    design = (WEB / "design.html").read_text(encoding="utf-8")
+    for bid in ("project-select", "project-save", "project-new", "project-delete",
+                "version-select", "version-save", "version-restore"):
+        assert f'id="{bid}"' in design
+    js = (WEB / "designer.js").read_text(encoding="utf-8")
+    for token in ("STORE_KEY", "SCHEMA_VERSION", "function migrateAssembly",
+                  "function loadWorkspace", "function loadProject",
+                  "function snapshotVersion", "function restoreVersion"):
+        assert token in js
+    assert '"modkit.workspace.v2"' in js
+
+
 def test_browser_smoke_harness_is_wired_into_ci():
     smoke = (ROOT / "tools" / "web-smoke.mjs").read_text(encoding="utf-8")
     assert "MODKIT_STUDIO.select" in smoke and "view-joints" in smoke

@@ -202,6 +202,36 @@ async function main() {
     check(r.htmlLen > 1000 && r.hasBom && r.hasTotal, "打印页缺 BOM/TOTAL");
   });
 
+  await run("项目/版本/schema 迁移", async () => {
+    const r = await cdp.eval(`(() => {
+      MODKIT_STUDIO.saveProject();
+      const p = MODKIT_STUDIO.workspace().projects.find(x => x.id === MODKIT_STUDIO.state.projectId);
+      const before = MODKIT_STUDIO.state.assembly.name;
+      window.prompt = () => "smoke-v1";
+      MODKIT_STUDIO.snapshotVersion();
+      MODKIT_STUDIO.state.assembly.name = "smoke-change";
+      MODKIT_STUDIO.revalidate();
+      document.querySelector("#version-select").value = "0";
+      MODKIT_STUDIO.restoreVersion();
+      const old = MODKIT_STUDIO.migrateAssembly({
+        budget: 900, payload: 55,
+        components: [{ id: "root", type: "frame.chassis_160" }]
+      });
+      return {
+        projects: MODKIT_STUDIO.workspace().projects.length,
+        versions: p.versions.length,
+        restored: MODKIT_STUDIO.state.assembly.name,
+        before, oldSchema: old.schema_version, oldBudget: old.budget_cny,
+        oldPayload: old.payload_g, oldAt: old.components[0].at, oldSpin: old.components[0].spin
+      };
+    })()`);
+    check(r.projects >= 1, "项目没有保存");
+    check(r.versions >= 1, "版本没有保存");
+    check(r.restored === r.before, `版本恢复 ${r.restored} != ${r.before}`);
+    check(r.oldSchema === 2 && r.oldBudget === 900 && r.oldPayload === 55, "schema 迁移字段不对");
+    check(Array.isArray(r.oldAt) && r.oldSpin === 0, "schema 迁移组件默认值不对");
+  });
+
   await run("Studio 生成查看器链接", async () => {
     await cdp.eval('MODKIT_STUDIO.loadPreset("m1")');
     await sleep(200);
@@ -294,7 +324,7 @@ async function main() {
     console.error(`\nweb smoke: ${failures} 项失败`);
     process.exit(1);
   }
-  console.log("\nweb smoke: PASS（9 项）");
+  console.log("\nweb smoke: PASS（10 项）");
 }
 
 main().catch((e) => {

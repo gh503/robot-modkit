@@ -100,6 +100,23 @@
 
     <section class="tabpanel" id="tab-build" role="tabpanel" aria-labelledby="tab-btn-build">
       <div class="sect">
+        <h2>项目</h2>
+        <div class="form"><div class="full"><label>当前项目</label>
+          <select id="project-select"></select></div></div>
+        <div class="actions">
+          <button class="btn" id="project-save" title="保存到浏览器 localStorage">保存</button>
+          <button class="btn" id="project-new" title="复制当前设计为新项目">另存为新项目</button>
+          <button class="btn" id="project-delete" title="删除当前项目及其版本">删除</button>
+        </div>
+        <div class="form" style="margin-top:6px"><div class="full"><label>版本快照</label>
+          <select id="version-select"></select></div></div>
+        <div class="actions">
+          <button class="btn" id="version-save">保存版本</button>
+          <button class="btn" id="version-restore">恢复版本</button>
+        </div>
+        <p class="note" id="project-note" style="margin:6px 0 0"></p>
+      </div>
+      <div class="sect">
         <h2>方案</h2>
         <div class="form"><div class="full"><label>方案名（导出文件名）</label>
           <input id="design-name" maxlength="60" placeholder="未命名装配"></div></div>

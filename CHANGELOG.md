@@ -5,6 +5,8 @@
 ### CI 修复
 
 - AquaTwin 报价转义测试改用仓库绝对路径，不再依赖 CI 当前目录；
+- CLI/scenario/mission 改为惰性导入相机/视觉/仿真服务器：`modkit serve` 不再
+  因镜像未装 Pillow 而在 import 时退出（Docker 只装 `[api,world]`）；
 - Docker CI 保留容器以便失败时抓日志，并显式 `stop/rm`；
 - 版本号/SW 缓存/查看器版本同步到 1.38.1；物理闸门仍 **0/5**。
 

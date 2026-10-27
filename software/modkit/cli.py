@@ -38,10 +38,8 @@ from . import network as nwk
 from . import schema_defs as sch
 from . import world as wd
 from . import gltf as gl
-from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
-from . import simserver as ss
 from . import identify as ident
 from . import simsweep as sw
 from . import speedcal as sc
@@ -49,7 +47,6 @@ from . import kinematics as kin
 from . import nav as nv
 from . import mission as ms
 from . import telemetry as tm
-from . import vision as vis
 from . import protocol as p
 from .bus import SerialLink, SimLink
 from .robot import Robot
@@ -768,6 +765,8 @@ def cmd_simplot(args) -> int:
 
 
 def cmd_camsim(args) -> int:
+    from . import camsim as cs
+    from . import vision as vis
     cam = cs.Camera(width=args.width, height=args.height,
                     z=args.height_mm, fx=args.fx, fy=args.fx,
                     k1=args.k1, k2=args.k2, p1=args.p1, p2=args.p2)
@@ -794,6 +793,7 @@ def cmd_camsim(args) -> int:
 
 
 def cmd_simui(args) -> int:
+    from . import simserver as ss
     ss.main(port=args.port, open_browser=args.open)
     return 0
 
@@ -1027,6 +1027,7 @@ def cmd_replay(args) -> int:
 
 
 def cmd_mission(args) -> int:
+    from . import vision as vis
     if not args.sim:
         sys.exit("任务会真动；先 --sim 验证流程，真机版本等硬件到位再放开")
 
@@ -1099,6 +1100,7 @@ def cmd_mission(args) -> int:
 
 
 def cmd_pick(args) -> int:
+    from . import vision as vis
     if not args.sim:
         sys.exit("抓取会真动，先 --sim 验证点位；真机请手动示教确认后再放开")
     det = vis.detect_color(vis.load_rgb(args.image),
@@ -1128,6 +1130,7 @@ def cmd_pick(args) -> int:
 
 
 def cmd_vision(args) -> int:
+    from . import vision as vis
     try:
         img = vis.load_rgb(args.image)
     except Exception as e:

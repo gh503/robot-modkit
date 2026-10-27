@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING
 
 from . import nav
-from .vision import Detection
+
+if TYPE_CHECKING:
+    from .vision import Detection
 
 
 @dataclass

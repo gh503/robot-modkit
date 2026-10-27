@@ -10,13 +10,10 @@ import json
 import math
 from pathlib import Path
 
-from . import calib as cb
-from . import camsim as cs
 from . import kinematics as kin
 from . import mission as ms
 from . import nav as nv
 from . import contact as ct
-from . import vision as vis
 from .bus import RetryLink
 from .hwsim import BatterySpec, HardwareSim, ServoSpec
 from .robot import Robot
@@ -92,6 +89,10 @@ def _check(sim, a: dict, meta: dict | None = None) -> tuple[bool, str]:
 
 
 def run_scenario(scene: dict, dt: float = 0.002) -> dict:
+    from . import calib as cb
+    from . import camsim as cs
+    from . import vision as vis
+
     cfg = scene.get("sim", {})
     spec = ServoSpec(**cfg.get("servo", {}))
     batt = BatterySpec(**cfg.get("battery", {}))

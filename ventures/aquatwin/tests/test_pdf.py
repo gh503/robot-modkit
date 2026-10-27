@@ -43,7 +43,8 @@ def test_measurement_schema_cli(capsys):
 def test_quote_escapes_customer_html():
     from aquatwin import model, report
     from aquatwin.scenario import Study
-    s = Study.load("scenarios/small_6x3.json")
+    root = pathlib.Path(__file__).resolve().parents[1]
+    s = Study.load(root / "scenarios" / "small_6x3.json")
     r = model.run(s)
     html = report.quote(s, r, customer='<script>alert("x")</script>')
     assert "<script>" not in html

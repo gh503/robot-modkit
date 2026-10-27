@@ -61,7 +61,10 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18080/v1/world/validate)" = "401"
       - name: 停止
         if: always()
-        run: docker stop modkit-api-ci || true
+        run: |
+          docker logs modkit-api-ci || true
+          docker stop modkit-api-ci || true
+          docker rm modkit-api-ci || true
 
   web-smoke:
     name: 网页冒烟 (Chrome + CDP)

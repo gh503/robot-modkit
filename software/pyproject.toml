@@ -1,6 +1,6 @@
 [project]
 name = "modkit"
-version = "1.35.0"
+version = "1.36.0"
 description = "可拆装模块化机器人：上位机软件（协议 / 运动学 / 仿真 / CLI）"
 requires-python = ">=3.10"
 dependencies = ["pyserial>=3.5"]
@@ -9,8 +9,9 @@ dependencies = ["pyserial>=3.5"]
 vision = ["numpy>=1.24", "Pillow>=10"]
 world = ["numpy>=1.24"]
 plot = ["matplotlib>=3.6"]
+api = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "numpy>=1.24"]
 
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "httpx2>=2.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

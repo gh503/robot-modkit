@@ -11,7 +11,9 @@ from . import __version__
 from . import batch as bt
 from . import calibrate as cb
 from . import model
+from . import pdf as pdfmod
 from . import report
+from . import measurements as ms
 from .measurements import MeasurementError, MeasurementSet
 from .scenario import ScenarioError, Study
 
@@ -237,6 +239,53 @@ def cmd_quote(args) -> int:
     return 0
 
 
+def cmd_schema(args) -> int:
+    if args.what == "measurements":
+        print(json.dumps(ms.json_schema(), ensure_ascii=False, indent=2))
+        return 0
+    print(f"未知 schema：{args.what}")
+    return 2
+
+
+def cmd_pdf(args) -> int:
+    s = _load(args.scenario)
+    calibration = None
+    measurements = None
+    if args.measurements:
+        try:
+            measurements = MeasurementSet.load(args.measurements)
+            calibration = cb.calibrate(s, measurements)
+        except (OSError, MeasurementError, cb.CalibrationError) as e:
+            print(f"校准失败：{e}")
+            return 2
+    elif args.calibration:
+        try:
+            calibration = cb.load(args.calibration)
+        except (OSError, cb.CalibrationError) as e:
+            print(f"读取校准失败：{e}")
+            return 2
+    try:
+        result = model.run(s, calibration=calibration)
+    except ValueError as e:
+        print(f"运行失败：{e}")
+        return 2
+    p = pathlib.Path(args.out)
+    paths = report.write(s, result, p, calibration=calibration, measurements=measurements)
+    if args.what == "quote":
+        (p / "quote.html").write_text(report.quote(s, result, customer=args.customer,
+                                                   valid_days=args.valid_days),
+                                      encoding="utf-8")
+    src = pathlib.Path(paths[args.what])
+    dst = p / f"{args.what}.pdf"
+    try:
+        pdfmod.html_to_pdf(src, dst, engine=args.engine, title=f"AquaTwin · {s.name}")
+    except pdfmod.PdfError as e:
+        print(f"PDF 失败：{e}")
+        return 2
+    print(f"已生成 {dst}（{dst.stat().st_size / 1024:.1f} KiB，引擎 {pdfmod.engines()}）")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="aquatwin", description="AquaTwin 泳池机器人数字孪生")
     ap.add_argument("--version", action="version", version=f"aquatwin {__version__}")
@@ -297,6 +346,21 @@ def build_parser() -> argparse.ArgumentParser:
     qu.add_argument("--valid-days", type=int, default=30)
     qu.add_argument("--calibration")
     qu.set_defaults(func=cmd_quote)
+
+    pd = sub.add_parser("pdf", help="把报价/仪表盘打印成 PDF")
+    pd.add_argument("--scenario", required=True)
+    pd.add_argument("--out", required=True)
+    pd.add_argument("--what", choices=("quote", "dashboard"), default="quote")
+    pd.add_argument("--customer", default="")
+    pd.add_argument("--valid-days", type=int, default=30)
+    pd.add_argument("--calibration")
+    pd.add_argument("--measurements")
+    pd.add_argument("--engine", choices=("auto", "weasyprint", "wkhtmltopdf"), default="auto")
+    pd.set_defaults(func=cmd_pdf)
+
+    sc = sub.add_parser("schema", help="输出 JSON Schema")
+    sc.add_argument("--what", choices=("measurements",), default="measurements")
+    sc.set_defaults(func=cmd_schema)
     return ap
 
 

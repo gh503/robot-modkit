@@ -1,3 +1,18 @@
+## v1.36.0 — 2026-10-27
+
+### API / JSON Schema / PDF
+
+- 新增可选本地 REST API：`modkit serve`，FastAPI/OpenAPI，
+  `world validate`、异步 `world run` job、`network solve/validate`、`fluid pipe`；
+  默认只绑 `127.0.0.1`，远程必须 `MODKIT_API_KEY`，请求体/队列有上限；
+  `software/tests/test_api.py` 7 项；
+- 新增 `modkit.schema_defs`：世界 v2 / 管网 v1 JSON Schema；
+  `world schema --json`、`GET /v1/schemas/world|network`；
+- 新增 `aquatwin pdf`（WeasyPrint 或 wkhtmltopdf）与 `aquatwin schema`；
+  PDF 失败明确报错，不返回空文件；
+- Dockerfile/compose（非 root、只读根、端口绑本机）；`docs/86`；
+- 主测试 **352**；AquaTwin **25**；Web smoke **16 组**；物理闸门 **0/5**。
+
 ## v1.35.0 — 2026-10-27
 
 ### 世界 schema v2 + 管网 + 编辑

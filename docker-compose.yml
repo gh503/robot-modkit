@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: software/Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      MODKIT_API_KEY: ${MODKIT_API_KEY:?set MODKIT_API_KEY before docker compose up}
+      MODKIT_API_MAX_JOBS: "32"
+      MODKIT_API_WORKERS: "2"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

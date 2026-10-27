@@ -38,6 +38,8 @@ AquaTwin 就是把这个闭环做成独立产品。
 - `metrics.json`：机器可读，接 BI/CRM；
 - `study.json`：输入快照，保证复现；
 - `quote.html`：可打印报价页（0.2）；
+- `quote.pdf` / `dashboard.pdf`：`aquatwin pdf`（0.2.1，WeasyPrint/wkhtmltopdf）；
+- `aquatwin schema`：`aquatwin.measurements/1` JSON Schema；
 - `calibration.json` / `validation.md` / `measurements.json`：校准因子、逐条残差、数据快照（0.2）；
 - `portfolio.{json,md,html}`：多池组合（0.2）。
 
@@ -109,7 +111,7 @@ pip install -e .
 aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 ```
 
-测试：`make aquatwin-check`（16 项），CI 有独立 job。
+测试：`make aquatwin-check`（25 项），CI 有独立 job。
 
 ## 84.7 下一步
 

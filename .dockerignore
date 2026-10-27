@@ -1,0 +1,13 @@
+.git
+.venv
+out
+node_modules
+**/__pycache__
+**/*.pyc
+docs
+cad
+firmware
+sim
+web
+assemblies
+ventures

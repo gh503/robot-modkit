@@ -34,6 +34,7 @@ from . import draw as dr
 from . import stage as sg
 from . import fluid as fd
 from . import network as nwk
+from . import schema_defs as sch
 from . import world as wd
 from . import camsim as cs
 from . import scenario as sn
@@ -1374,6 +1375,31 @@ def cmd_fluid(args) -> int:
     return 2
 
 
+def cmd_serve(args) -> int:
+    try:
+        import uvicorn
+    except ImportError:
+        print("缺少 API 依赖：pip install -e '.[api]'（FastAPI + uvicorn + numpy）")
+        return 2
+    if args.host not in ("127.0.0.1", "localhost", "::1") and not args.allow_remote:
+        print("拒绝绑定非本机地址；如确需局域网访问，加 --allow-remote 并自行加防火墙/密钥")
+        return 2
+    if (args.host not in ("127.0.0.1", "localhost", "::1")
+            and not __import__('os').environ.get("MODKIT_API_KEY") and not args.insecure):
+        print("远程绑定必须设置 MODKIT_API_KEY；仅本机调试可显式加 --insecure")
+        return 2
+    if args.open_browser:
+        import threading
+        import webbrowser
+        url = f"http://{args.host if args.host not in ('0.0.0.0', '::') else '127.0.0.1'}:{args.http_port}/docs"
+        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    print(f"modkit API http://{args.host}:{args.http_port}  docs=/docs  "
+          f"auth={'on' if __import__('os').environ.get('MODKIT_API_KEY') else 'off'}")
+    uvicorn.run("modkit.api:app", host=args.host, port=args.http_port,
+                reload=args.reload, log_level=args.log_level)
+    return 0
+
+
 def cmd_network(args) -> int:
     if not args.file:
         print("需要 --file network.json")
@@ -1417,9 +1443,11 @@ def cmd_world(args) -> int:
     action = args.action
     if action == "schema":
         d = {"schema": wd.SCHEMA, "supported": list(wd.SUPPORTED_SCHEMAS),
-             "migration": "modkit world migrate --file old.json --out new.json"}
+             "migration": "modkit world migrate --file old.json --out new.json",
+             "json_schema": sch.world_schema()}
         print(json.dumps(d, ensure_ascii=False, indent=2) if args.json else
-              f"current {wd.SCHEMA}；supported {', '.join(wd.SUPPORTED_SCHEMAS)}")
+              f"current {wd.SCHEMA}；supported {', '.join(wd.SUPPORTED_SCHEMAS)}；"
+              f"JSON Schema 用 --json 输出")
         return 0
     if action == "migrate":
         if not args.file:
@@ -1887,6 +1915,18 @@ def main(argv: list[str] | None = None) -> int:
     flp.add_argument("--force", action="store_true")
     flp.add_argument("--json", action="store_true")
     flp.set_defaults(func=cmd_fluid)
+
+    sv = sub.add_parser("serve", help="本地 REST API（FastAPI/OpenAPI）")
+    sv.add_argument("--host", default="127.0.0.1")
+    sv.add_argument("--port", dest="http_port", type=int, default=8080)
+    sv.add_argument("--reload", action="store_true")
+    sv.add_argument("--allow-remote", action="store_true",
+                    help="允许绑定 0.0.0.0/局域网；默认只本机")
+    sv.add_argument("--insecure", action="store_true",
+                    help="远程绑定且不设 key（仅隔离调试网络；危险）")
+    sv.add_argument("--open-browser", action="store_true")
+    sv.add_argument("--log-level", default="info")
+    sv.set_defaults(func=cmd_serve)
 
     np = sub.add_parser("network", help="稳态管网：节点/管段/泵/需求")
     np.add_argument("action", choices=["validate", "solve"])

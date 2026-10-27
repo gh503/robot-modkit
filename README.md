@@ -29,6 +29,7 @@
 | 流体材料/工程计算 | `modkit fluid` | ✅ 15 种材料 + 工程公式；见 [81](docs/81-流体材料与工程计算.md) |
 | 3D 世界/环境 | `modkit world` + [world.html](https://gh503.github.io/robot-modkit/world.html) | ✅ 9 预设 + 多边形/heightfield + 编辑；见 [82](docs/82-三维世界与环境.md) |
 | 稳态管网 | `modkit network solve` | ✅ 节点/管/泵/需求；见 [85](docs/85-稳态管网.md) |
+| 本地 API | `modkit serve` + `/docs` | ✅ 世界异步 job/管网/流体；见 [86](docs/86-本地API与部署.md) |
 | 整机实测 | 按 [docs/63](docs/63-硬件到货执行单.md) 执行 | ⬜ 0/5，硬件阻塞 |
 
 完整能力地图（仿真、生产、采购、验收）见 [docs/80 §80.2](docs/80-项目状态与版本历史.md)。
@@ -39,7 +40,7 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor
-make check-fast          # 345 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 21 项
+make check-fast          # 352 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 25 项
 make web-smoke           # 需本机 Chrome
 ```
 
@@ -72,6 +73,7 @@ aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 # 有实测：measurements → calibrate → study --calibration
 aquatwin calibrate --scenario scenarios/residential_8x4.json \
   --measurements data/measurements-example.csv --out out/calibration
+aquatwin pdf --scenario scenarios/residential_8x4.json --out out/quote --what quote
 ```
 
 它不是 modkit 的包依赖；商业场景/定价/研究/验证见

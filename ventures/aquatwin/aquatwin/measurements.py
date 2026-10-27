@@ -224,3 +224,45 @@ def study_for_run(study: Study, run: MeasurementRun) -> Study:
 
 __all__ = ["MeasurementError", "MeasurementRun", "MeasurementSet",
            "SOURCE_KINDS", "CONDITION_FIELDS", "study_for_run"]
+
+
+def json_schema() -> dict:
+    """`aquatwin.measurements/1` 的 JSON Schema（结构契约；范围仍由 validate 检查）。"""
+    num = {"type": "number"}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://github.com/gh503/robot-modkit/schema/aquatwin-measurements-1.json",
+        "title": "aquatwin.measurements/1",
+        "type": "object",
+        "required": ["schema", "runs"],
+        "properties": {
+            "schema": {"const": "aquatwin.measurements/1"},
+            "study": {"type": "string"},
+            "source": {"enum": list(SOURCE_KINDS)},
+            "collected_at": {"type": "string"},
+            "instrumentation": {"type": "string"},
+            "notes": {"type": "string"},
+            "runs": {"type": "array", "minItems": 1, "items": {
+                "type": "object",
+                "required": ["run_id", "time_min", "energy_wh"],
+                "properties": {
+                    "run_id": {"type": "string", "minLength": 1},
+                    "time_min": {"type": "number", "exclusiveMinimum": 0},
+                    "energy_wh": {"type": "number", "minimum": 0},
+                    "coverage_pct": {"type": "number", "minimum": 0, "maximum": 100},
+                    "pressure_kpa": {"type": "number", "minimum": 0},
+                    "debris_g": {"type": "number", "minimum": 0},
+                    "conditions": {"type": "object",
+                                   "additionalProperties": False,
+                                   "properties": {k: num for k in CONDITION_FIELDS}},
+                    "notes": {"type": "string"},
+                },
+                "additionalProperties": False,
+            }},
+        },
+        "additionalProperties": False,
+    }
+
+
+__all__ = ["MeasurementError", "MeasurementRun", "MeasurementSet", "SOURCE_KINDS",
+           "CONDITION_FIELDS", "json_schema"]

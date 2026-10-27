@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "实验室水槽实验",
   "description": "6x4m 实验室；工作台 + 0.6m 水槽。",
   "units": "m",
@@ -167,5 +167,7 @@
     "sky": "#0b1017"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

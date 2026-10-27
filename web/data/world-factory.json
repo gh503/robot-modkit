@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "车间冷却液",
   "description": "12x8m；冷却液罐 + 泄漏水坑。",
   "units": "m",
@@ -164,5 +164,7 @@
     "sky": "#0b1017"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

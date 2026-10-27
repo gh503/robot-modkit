@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "管道检查",
   "description": "6m 水平管道；水 + 检查机器人。",
   "units": "m",
@@ -138,5 +138,7 @@
     "sky": "#0b1017"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

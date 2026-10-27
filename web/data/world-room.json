@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "真实房间 OBJ 示例",
   "description": "6×4×3m 开放房间；演示 OBJ 导入，不是扫描重建。",
   "units": "m",
@@ -126,5 +126,7 @@
     "sky": "#0b1017"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

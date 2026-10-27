@@ -75,12 +75,28 @@ class WorldRun:
         dx = min(self.dx, w / 8.0, h / 8.0)
         nx = max(8, int(round(w / dx)))
         ny = max(8, int(round(h / dx)))
-        dx = math.sqrt((w * h) / (nx * ny))
-        depth = body.volume / (w * h)      # 用体积反推初始水深，避免网格面积误差
+        area = w * h
+        mask = None
+        if body.footprint:
+            area = wd._polygon_area(body.footprint)
+            # 用两轮迭代让 dx/掩膜面积一致；结果对可视化/守恒足够
+            for _ in range(2):
+                dx = math.sqrt(area / (nx * ny))
+                xs = (np.arange(nx) + 0.5) * dx - w / 2
+                ys = (np.arange(ny) + 0.5) * dx - h / 2
+                gx, gy = np.meshgrid(xs, ys)
+                mask = np.array([[wd._point_in_polygon(body.footprint, float(gx[j, i]), float(gy[j, i]))
+                                  for i in range(nx)] for j in range(ny)], dtype=bool)
+                nx_area = int(np.count_nonzero(mask)) * dx * dx
+                if nx_area > 0:
+                    area = nx_area
+        else:
+            dx = math.sqrt(area / (nx * ny))
+        depth = body.volume / area      # 用体积反推初始水深，避免网格面积误差
         if depth <= 0:
             return {"type": body.type, "volume_m3": 0.0, "frames": [],
                     "metrics": {"volume_m3": 0.0, "max_depth_m": 0.0}}
-        sim = fs.ShallowWater(fluid, nx=nx, ny=ny, dx=dx, depth=depth,
+        sim = fs.ShallowWater(fluid, nx=nx, ny=ny, dx=dx, depth=depth, mask=mask,
                               manning=float(body.metadata.get("manning", 0.025)),
                               boundary=body.metadata.get("boundary", "closed"))
         for s in body.metadata.get("sources", []):
@@ -96,6 +112,7 @@ class WorldRun:
                 frames.append(sim.frame(downsample=max(1, int(body.metadata.get("downsample", 1)))))
         return {"type": body.type, "fluid": fluid.key,
                 "capacity_m3": body.capacity_m3, "volume_m3": body.volume,
+                "footprint": body.footprint,
                 "frames": frames, "metrics": sim.metrics()}
 
     def _tank(self, body: wd.FluidBody, fluid: fl.Fluid) -> dict:

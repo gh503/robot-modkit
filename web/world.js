@@ -6,15 +6,17 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.33.1";
-  var PRESETS = ["pool", "lab", "kitchen", "greenhouse", "pipeline", "factory", "outdoor", "aquarium"];
+  var VERSION = "1.35.0";
+  var PRESETS = ["pool", "pool_l", "lab", "kitchen", "greenhouse", "pipeline", "factory", "outdoor", "aquarium"];
   var $ = function (id) { return document.getElementById(id); };
   var state = {
     world: null, fluids: {}, selected: null, playing: true, t: 0,
     scene: null, camera: null, renderer: null, root: null, water: [],
     heightMesh: null, frames: null, frameIdx: 0, lastFrameAt: 0,
     theta: 0.8, phi: 1.05, radius: 12, target: new THREE.Vector3(0, 0.8, 0),
-    drag: null, schema: "modkit.world/1"
+    drag: null, schema: "modkit.world/2", selectedObject: null,
+    objectMeshes: {}, history: [], historyIndex: -1, pointerStart: null,
+    objectDrag: null
   };
 
   function toast(msg) {
@@ -26,6 +28,35 @@
     return Number(v).toFixed(n === undefined ? 3 : n);
   }
   function deg(d) { return (Number(d) || 0) * Math.PI / 180; }
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+  function migrateWorld(w) {
+    if (!w || typeof w !== "object") throw new Error("世界必须是对象");
+    if (!w.schema) w.schema = "modkit.world/2";
+    if (w.schema === "modkit.world/1") {
+      w.schema = "modkit.world/2";
+      w.metadata = w.metadata || {};
+      if (!w.metadata.migrated_from) w.metadata.migrated_from = "modkit.world/1";
+    }
+    w.objects = w.objects || []; w.fluids = w.fluids || []; w.sensors = w.sensors || [];
+    w.custom_fluids = w.custom_fluids || [];
+    return w;
+  }
+  function polygonArea(pts) {
+    var a = 0;
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i], q = pts[(i + 1) % pts.length];
+      a += Number(p[0]) * Number(q[1]) - Number(q[0]) * Number(p[1]);
+    }
+    return Math.abs(a) / 2;
+  }
+  function bodyVolume(f) {
+    if (f.volume_m3 !== undefined && f.volume_m3 !== null) return Number(f.volume_m3) || 0;
+    var level = f.level === undefined ? 1 : Number(f.level) || 0;
+    if (f.type === "pipe") return Math.PI * Math.pow(f.radius || 0, 2) * (f.height || 0) * level;
+    if (f.type === "tank" && f.radius && f.height) return Math.PI * Math.pow(f.radius, 2) * f.height * level;
+    var area = f.footprint ? polygonArea(f.footprint) : (Number(f.size[0]) || 0) * (Number(f.size[1]) || 0);
+    return area * (Number(f.size[2]) || 0) * level;
+  }
   function vec(x, y, z) { return new THREE.Vector3(Number(x) || 0, Number(z) || 0, -(Number(y) || 0)); }
 
   // ------------------------------------------------------------ 世界几何
@@ -64,6 +95,8 @@
       var rr = Number(o.radius) || 0.2;
       mesh = new THREE.Mesh(new THREE.SphereGeometry(rr, 24, 16), mat);
       mesh.position.set(x, z + rr, -y);
+    } else if (o.type === "heightfield" && Array.isArray(o.heights) && o.heights.length >= 2) {
+      mesh = heightfieldMesh(o, mat);
     } else if (o.type === "mesh" || o.type === "heightfield") {
       var s = o.size || [1, 1, 1];
       mesh = new THREE.Mesh(new THREE.BoxGeometry(s[0], s[2], s[1]), mat);
@@ -81,10 +114,44 @@
     mesh.rotation.z = deg(o.rotation && o.rotation[1]);
     mesh.rotation.y = -deg(o.rotation && o.rotation[2]);
     mesh.userData.worldObject = o.id;
+    mesh.userData.objectId = o.id;
     state.root.add(mesh);
     var objLoading = o.type === "mesh" && o.source && /\.obj(\?|$)/i.test(o.source);
     if (!objLoading && (o.opacity === undefined || o.opacity > 0.2)) addEdges(mesh, o.semantic === "floor" ? 0x546a80 : 0x9fb3c8);
     return mesh;
+  }
+
+  function heightfieldMesh(o, mat) {
+    var s = o.size || [1, 1, 1];
+    var rows = o.heights.length, cols = o.heights[0].length;
+    var pos = [], col = [], idx = [];
+    var hmin = Infinity, hmax = -Infinity;
+    o.heights.forEach(function (row) { row.forEach(function (h) {
+      hmin = Math.min(hmin, Number(h)); hmax = Math.max(hmax, Number(h));
+    }); });
+    var span = Math.max(1e-6, hmax - hmin);
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var h = Number(o.heights[r][c]);
+        var px = o.position[0] - s[0] / 2 + (c / (cols - 1)) * s[0];
+        var py = o.position[1] - s[1] / 2 + (r / (rows - 1)) * s[1];
+        pos.push(px, o.position[2] + h, -py);
+        var t = (h - hmin) / span;
+        col.push(0.18 + 0.32 * t, 0.30 + 0.36 * t, 0.24 + 0.30 * t);
+      }
+    }
+    for (var yy = 0; yy < rows - 1; yy++) {
+      for (var xx = 0; xx < cols - 1; xx++) {
+        var a = yy * cols + xx, b = a + 1, cc = a + cols, d = cc + 1;
+        idx.push(a, cc, b, b, cc, d);
+      }
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    mat.vertexColors = true; mat.wireframe = false;
+    return new THREE.Mesh(geo, mat);
   }
 
   function loadOBJ(o, placeholder) {
@@ -134,6 +201,7 @@
       mesh.position.set(o.position[0], o.position[2], -o.position[1]);
       mesh.rotation.y = -deg(o.rotation && o.rotation[2]);
       mesh.userData.worldObject = o.id;
+      mesh.userData.objectId = o.id;
       state.root.remove(placeholder);
       placeholder.geometry.dispose(); placeholder.material.dispose();
       state.root.add(mesh);
@@ -172,6 +240,30 @@
     }
     var sx = f.size[0], sy = f.size[1], sz = f.size[2];
     depth = sz * (f.level === undefined ? 1 : f.level);
+    if (Array.isArray(f.footprint) && f.footprint.length >= 3) {
+      var shape = new THREE.Shape();
+      f.footprint.forEach(function (p, i) {
+        if (i === 0) shape.moveTo(Number(p[0]), Number(p[1]));
+        else shape.lineTo(Number(p[0]), Number(p[1]));
+      });
+      shape.closePath();
+      var eg = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.004, depth), bevelEnabled: false, steps: 1 });
+      mesh = new THREE.Mesh(eg, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(f.position[0], f.position[2], -f.position[1]);
+      mesh.userData.isWater = true;
+      state.root.add(mesh);
+      var sg = new THREE.ShapeGeometry(shape);
+      var surf2 = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({
+        color: 0xbfe6ff, transparent: true, opacity: 0.10, side: THREE.DoubleSide, depthWrite: false
+      }));
+      surf2.rotation.x = -Math.PI / 2;
+      surf2.position.set(f.position[0], f.position[2] + Math.max(0.004, depth) + 0.002, -f.position[1]);
+      surf2.userData.isWaterSurface = true;
+      state.root.add(surf2);
+      mesh.userData.surface = surf2;
+      return mesh;
+    }
     mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, Math.max(0.004, depth), sy), mat);
     mesh.position.set(f.position[0], f.position[2] + Math.max(0.002, depth) / 2, -f.position[1]);
     mesh.userData.isWater = true;
@@ -217,6 +309,123 @@
     return m;
   }
 
+  // ------------------------------------------------------------ 编辑/历史
+  function pushHistory() {
+    if (!state.world) return;
+    var snap = JSON.stringify(state.world);
+    if (state.historyIndex >= 0 && state.history[state.historyIndex] === snap) return;
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push(snap);
+    if (state.history.length > 40) state.history.shift();
+    state.historyIndex = state.history.length - 1;
+    updateHistoryButtons();
+  }
+  function updateHistoryButtons() {
+    var u = $("undo"), r = $("redo");
+    if (u) u.disabled = state.historyIndex <= 0;
+    if (r) r.disabled = state.historyIndex >= state.history.length - 1;
+  }
+  function restoreHistory(i) {
+    if (i < 0 || i >= state.history.length) return;
+    state.historyIndex = i;
+    state.world = JSON.parse(state.history[i]);
+    rebuild();
+    updateHistoryButtons();
+    toast(i === 0 ? "已回到初始状态" : "已撤销/重做");
+  }
+  function commit(label) {
+    pushHistory();
+    rebuild();
+    if (label) toast(label);
+  }
+  function objectById(id) {
+    return (state.world.objects || []).filter(function (o) { return o.id === id; })[0] || null;
+  }
+  function selectedObject() { return objectById(state.selectedObject); }
+  function populateObjects() {
+    var sel = $("object"); if (!sel) return;
+    var objs = state.world.objects || [];
+    if (!state.selectedObject || !objectById(state.selectedObject)) {
+      state.selectedObject = objs.length ? objs[0].id : null;
+    }
+    sel.innerHTML = "";
+    objs.forEach(function (o) {
+      var opt = document.createElement("option");
+      opt.value = o.id;
+      opt.textContent = (o.name || o.id) + " · " + o.type;
+      sel.appendChild(opt);
+    });
+    if (state.selectedObject) sel.value = state.selectedObject;
+    syncObject();
+  }
+  function syncObject() {
+    var o = selectedObject(); if (!o || !$("obj-x")) return;
+    var size = o.size || [1, 1, 1];
+    $("obj-x").value = fmt(o.position[0], 3); $("obj-y").value = fmt(o.position[1], 3); $("obj-z").value = fmt(o.position[2], 3);
+    $("obj-rx").value = fmt(o.rotation ? o.rotation[0] : 0, 1);
+    $("obj-ry").value = fmt(o.rotation ? o.rotation[1] : 0, 1);
+    $("obj-rz").value = fmt(o.rotation ? o.rotation[2] : 0, 1);
+    $("obj-sx").value = fmt(size[0], 3); $("obj-sy").value = fmt(size[1], 3); $("obj-sz").value = fmt(size[2], 3);
+  }
+  function selectObject(id) {
+    if (!objectById(id)) return;
+    state.selectedObject = id;
+    if ($("object")) $("object").value = id;
+    syncObject();
+    applyHighlight();
+  }
+  function applyHighlight() {
+    state.root.traverse(function (o) {
+      if (o.isMesh && o.userData.objectId && o.material && !Array.isArray(o.material)) {
+        var on = o.userData.objectId === state.selectedObject;
+        if (o.material.emissive) o.material.emissive.setHex(on ? 0x1b4f7a : 0x000000);
+        o.material.emissiveIntensity = on ? 0.9 : 0;
+      }
+    });
+  }
+  function applyObject() {
+    var o = selectedObject();
+    if (!o) { toast("没有选中对象"); return; }
+    var vals = ["obj-x", "obj-y", "obj-z", "obj-rx", "obj-ry", "obj-rz", "obj-sx", "obj-sy", "obj-sz"].map(function (id) { return Number($(id).value); });
+    if (vals.some(function (v) { return !isFinite(v); })) { toast("对象参数必须是有限数字"); return; }
+    if (vals[6] <= 0 || vals[7] <= 0 || vals[8] <= 0) { toast("尺寸必须 >0"); return; }
+    o.position = [vals[0], vals[1], vals[2]];
+    o.rotation = [vals[3], vals[4], vals[5]];
+    o.size = [vals[6], vals[7], vals[8]];
+    commit("已应用对象变换");
+  }
+  function addBox() {
+    var id = "box-1", n = 1;
+    while (objectById(id)) { n++; id = "box-" + n; }
+    state.world.objects.push({ id: id, type: "box", name: "新盒体", position: [0, 0, 0.1],
+      rotation: [0, 0, 0], size: [1, 1, 1], color: "#7d8b99", opacity: 1, collider: "box",
+      semantic: "obstacle", metadata: {} });
+    state.selectedObject = id;
+    commit("已添加 " + id);
+    selectObject(id);
+  }
+  function duplicateObject() {
+    var o = selectedObject();
+    if (!o) { toast("没有选中对象"); return; }
+    var base = o.id.replace(/-copy\d*$/, ""), id = base + "-copy1", n = 1;
+    while (objectById(id)) { n++; id = base + "-copy" + n; }
+    var c = clone(o); c.id = id; c.name = (o.name || o.id) + " 副本";
+    c.position = [o.position[0] + 0.5, o.position[1], o.position[2]];
+    state.world.objects.push(c); state.selectedObject = id;
+    commit("已复制对象");
+    selectObject(id);
+  }
+  function deleteObject() {
+    var o = selectedObject();
+    if (!o) { toast("没有选中对象"); return; }
+    var idx = state.world.objects.indexOf(o);
+    state.world.objects.splice(idx, 1);
+    state.selectedObject = state.world.objects.length ? state.world.objects[Math.max(0, idx - 1)].id : null;
+    commit("已删除对象");
+    populateObjects();
+  }
+  function undo() { if (state.historyIndex > 0) restoreHistory(state.historyIndex - 1); }
+  function redo() { if (state.historyIndex < state.history.length - 1) restoreHistory(state.historyIndex + 1); }
   function clearRoot() {
     while (state.root.children.length) {
       var c = state.root.children.pop();
@@ -249,7 +458,11 @@
     var center = boundsCenter(w);
     state.target.set(center.c[0], center.c[2], -center.c[1]);
     state.radius = Math.max(4, center.size * 1.4);
-    (w.objects || []).forEach(objectMesh);
+    state.objectMeshes = {};
+    (w.objects || []).forEach(function (o) {
+      var om = objectMesh(o);
+      if (om) state.objectMeshes[o.id] = om;
+    });
     (w.fluids || []).forEach(function (f) {
       var fluid = state.fluids[f.fluid];
       var m = waterMesh(f, fluid);
@@ -263,6 +476,8 @@
     $("schema-badge").textContent = w.schema || state.schema;
     $("preset").value = PRESETS.indexOf(w.environment) >= 0 ? w.environment : "pool";
     populateBodies();
+    populateObjects();
+    applyHighlight();
     // 场景替代色
     if (w.lighting && w.lighting.sky) {
       state.scene.background = new THREE.Color(w.lighting.sky);
@@ -277,11 +492,7 @@
 
   function rebuildStats() {
     var w = state.world, vol = 0;
-    (w.fluids || []).forEach(function (f) {
-      if (f.volume_m3 !== undefined && f.volume_m3 !== null) vol += Number(f.volume_m3) || 0;
-      else if (f.type === "pipe") vol += Math.PI * Math.pow(f.radius || 0, 2) * (f.height || 0) * (f.level || 0);
-      else vol += (f.size[0] * f.size[1] * f.size[2]) * (f.level || 0);
-    });
+    (w.fluids || []).forEach(function (f) { vol += bodyVolume(f); });
     var errs = validateBasic(w);
     $("stats").innerHTML =
       "<dt>对象</dt><dd>" + (w.objects || []).length + "</dd>" +
@@ -294,7 +505,7 @@
 
   function validateBasic(w) {
     var e = [];
-    if (!w || w.schema !== "modkit.world/1") e.push("schema");
+    if (!w || (w.schema !== "modkit.world/2" && w.schema !== "modkit.world/1")) e.push("schema");
     if (w && w.units !== "m") e.push("units");
     if (!w || !Array.isArray(w.objects)) e.push("objects");
     if (!w || !Array.isArray(w.fluids)) e.push("fluids");
@@ -312,7 +523,8 @@
       o.value = f.id; o.textContent = (f.name || f.id) + " (" + f.type + ")";
       sel.appendChild(o);
     });
-    state.selected = state.world.fluids && state.world.fluids.length ? state.world.fluids[0].id : null;
+    var exists = (state.world.fluids || []).some(function (f) { return f.id === state.selected; });
+    if (!exists) state.selected = state.world.fluids && state.world.fluids.length ? state.world.fluids[0].id : null;
     if (state.selected) sel.value = state.selected;
     syncBody();
   }
@@ -368,8 +580,11 @@
   }
 
   function setWorld(w) {
-    state.world = w;
+    state.world = migrateWorld(w);
+    state.selectedObject = (state.world.objects || []).length ? state.world.objects[0].id : null;
     state.frames = null; state.frameIdx = 0;
+    state.history = []; state.historyIndex = -1;
+    pushHistory();
     rebuild();
     $("run-label").textContent = "视觉预览";
   }
@@ -450,8 +665,7 @@
     f.level = Number($("level").value) / 100;
     f.temperature_c = Number($("temp").value);
     f.salinity_ppt = Number($("salinity").value);
-    rebuild();
-    toast("已应用：液位 " + Math.round(f.level * 100) + "%，" + f.fluid);
+    commit("已应用：液位 " + Math.round(f.level * 100) + "%，" + f.fluid);
   }
 
   function applyJson() {
@@ -480,6 +694,58 @@
     } else { toast("浏览器不支持剪贴板"); }
   }
 
+  function pickObject(e, onlyReturn) {
+    var canvas = $("canvas"), rect = canvas.getBoundingClientRect();
+    var mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    var ray = new THREE.Raycaster(); ray.setFromCamera(mouse, state.camera);
+    var hits = ray.intersectObjects(state.root.children, true);
+    for (var i = 0; i < hits.length; i++) {
+      var o = hits[i].object;
+      while (o && !o.userData.objectId) o = o.parent;
+      if (o && o.userData.objectId) {
+        if (!onlyReturn) selectObject(o.userData.objectId);
+        return o.userData.objectId;
+      }
+    }
+    return null;
+  }
+
+  function b64encode(s) {
+    var bytes = new TextEncoder().encode(s), bin = "";
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64decode(s) {
+    var bin = atob(s), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function shareLink() {
+    try {
+      var b = b64encode(JSON.stringify(state.world));
+      if (b.length > 180000) { toast("场景太大，链接会超长；请导出 JSON"); return; }
+      var url = location.origin + location.pathname + "#world=" + b;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () { toast("分享链接已复制"); })
+          .catch(function () { toast(url); });
+      } else { toast(url); }
+    } catch (e) { toast("生成链接失败：" + e.message); }
+  }
+  function saveLocal() {
+    try {
+      localStorage.setItem("modkit.world.draft", JSON.stringify(state.world));
+      toast("已保存到本地");
+    } catch (e) { toast("本地保存失败：" + e.message); }
+  }
+  function loadLocal() {
+    try {
+      var raw = localStorage.getItem("modkit.world.draft");
+      if (!raw) { toast("本地没有草稿"); return; }
+      setWorld(JSON.parse(raw)); toast("已读取本地草稿");
+    } catch (e) { toast("读取失败：" + e.message); }
+  }
+
   // ------------------------------------------------------------ 相机/渲染
   function initThree() {
     var canvas = $("canvas");
@@ -496,13 +762,43 @@
     grid.position.y = 0.001; state.scene.add(grid);
     resize();
     window.addEventListener("resize", resize);
+    window.addEventListener("keydown", onKey);
     canvas.addEventListener("pointerdown", function (e) {
+      state.pointerStart = { x: e.clientX, y: e.clientY, button: e.button, moved: false };
       state.drag = { x: e.clientX, y: e.clientY, button: e.button };
+      if (e.button === 0 && !e.altKey) {
+        var hit = pickObject(e, true);
+        if (hit) {
+          selectObject(hit);
+          var o = objectById(hit);
+          state.objectDrag = { id: hit, x: e.clientX, y: e.clientY,
+            start: (o.position || [0, 0, 0]).slice(), moved: false };
+          state.drag = null;
+        }
+      }
       canvas.setPointerCapture(e.pointerId);
     });
     canvas.addEventListener("pointermove", function (e) {
+      if (state.objectDrag) {
+        var od = state.objectDrag, oo = objectById(od.id);
+        if (!oo) return;
+        var mdx = e.clientX - od.x, mdy = e.clientY - od.y;
+        if (Math.abs(mdx) + Math.abs(mdy) > 2) od.moved = true;
+        var right = new THREE.Vector3().setFromMatrixColumn(state.camera.matrix, 0); right.y = 0; right.normalize();
+        var fwd = new THREE.Vector3(); state.camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+        var k = state.radius * 0.0016;
+        oo.position[0] = od.start[0] + (right.x * mdx - fwd.x * mdy) * k;
+        oo.position[1] = od.start[1] + (-right.z * mdx + fwd.z * mdy) * k;
+        var mesh = state.objectMeshes[od.id];
+        if (mesh) mesh.position.set(oo.position[0], oo.position[2], -oo.position[1]);
+        syncObject();
+        return;
+      }
       if (!state.drag) return;
       var dx = e.clientX - state.drag.x, dy = e.clientY - state.drag.y;
+      if (state.pointerStart && (Math.abs(e.clientX - state.pointerStart.x) > 4 || Math.abs(e.clientY - state.pointerStart.y) > 4)) {
+        state.pointerStart.moved = true;
+      }
       if (state.drag.button === 2) {
         var right = new THREE.Vector3().subVectors(state.camera.position, state.target).cross(new THREE.Vector3(0, 1, 0)).normalize();
         var up = new THREE.Vector3(0, 1, 0);
@@ -514,7 +810,13 @@
       }
       state.drag.x = e.clientX; state.drag.y = e.clientY;
     });
-    canvas.addEventListener("pointerup", function () { state.drag = null; });
+    canvas.addEventListener("pointerup", function (e) {
+      var st = state.pointerStart, od = state.objectDrag;
+      state.drag = null; state.pointerStart = null; state.objectDrag = null;
+      if (od && od.moved) { commit("已移动对象"); return; }
+      if (od) { selectObject(od.id); return; }
+      if (st && !st.moved && st.button === 0) pickObject(e);
+    });
     canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
     canvas.addEventListener("wheel", function (e) {
       e.preventDefault(); state.radius = Math.max(1.5, Math.min(80, state.radius * (1 + e.deltaY * 0.0012)));
@@ -582,13 +884,49 @@
       state.target.set(c.c[0], c.c[2], -c.c[1]);
       state.theta = 0.8; state.phi = 1.05; state.radius = Math.max(4, c.size * 1.4);
     });
+    $("object").addEventListener("change", function () { selectObject(this.value); });
+    $("apply-object").addEventListener("click", applyObject);
+    $("add-box").addEventListener("click", addBox);
+    $("duplicate-object").addEventListener("click", duplicateObject);
+    $("delete-object").addEventListener("click", deleteObject);
+    $("undo").addEventListener("click", undo);
+    $("redo").addEventListener("click", redo);
+    $("share").addEventListener("click", shareLink);
+    $("save-local").addEventListener("click", saveLocal);
+    $("load-local").addEventListener("click", loadLocal);
     $("load-frames").addEventListener("click", function () { $("frames-file").click(); });
     $("frames-file").addEventListener("change", function () { if (this.files[0]) loadFile(this.files[0], true); this.value = ""; });
+  }
+
+  function onKey(e) {
+    var tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    var mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault(); if (e.shiftKey) redo(); else undo(); return;
+    }
+    if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
+    var o = selectedObject(); if (!o) return;
+    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteObject(); return; }
+    var step = e.shiftKey ? 0.25 : 0.05, changed = true;
+    if (e.key === "ArrowLeft") o.position[0] -= step;
+    else if (e.key === "ArrowRight") o.position[0] += step;
+    else if (e.key === "ArrowUp") o.position[1] += step;
+    else if (e.key === "ArrowDown") o.position[1] -= step;
+    else if (e.key === "[") o.rotation[2] = (Number(o.rotation[2]) || 0) - 5;
+    else if (e.key === "]") o.rotation[2] = (Number(o.rotation[2]) || 0) + 5;
+    else changed = false;
+    if (changed) { e.preventDefault(); commit(""); }
   }
 
   function boot() {
     initThree(); bind();
     loadFluids().then(function () {
+      var h = location.hash || "";
+      if (h.indexOf("#world=") === 0) {
+        try { setWorld(JSON.parse(b64decode(h.slice(7)))); toast("已从分享链接载入"); return; }
+        catch (e) { toast("分享链接解析失败：" + e.message); }
+      }
       var q = new URLSearchParams(location.search).get("world");
       if (q) return fetch(q, { cache: "no-store" }).then(function (r) { return r.json(); }).then(setWorld);
       return loadPreset("pool");
@@ -600,7 +938,11 @@
   window.MODKIT_WORLD = {
     version: VERSION, state: state, presets: PRESETS,
     loadPreset: loadPreset, setWorld: setWorld, applyFluid: applyFluid,
-    applyJson: applyJson, validateBasic: validateBasic
+    applyJson: applyJson, validateBasic: validateBasic, selectObject: selectObject,
+    addBox: addBox, applyObject: applyObject, duplicateObject: duplicateObject,
+    deleteObject: deleteObject, undo: undo, redo: redo, commit: commit,
+    shareLink: shareLink, saveLocal: saveLocal, loadLocal: loadLocal,
+    bodyVolume: bodyVolume, polygonArea: polygonArea
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

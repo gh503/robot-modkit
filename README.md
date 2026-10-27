@@ -27,7 +27,8 @@
 | 阶段硬件包 | `modkit assemble pack` | ✅ 生成 bring-up/接线/装配/打印/采购/验收/固件配置 |
 | 阶段 bring-up 记录 | `modkit stage` | ✅ 证据 + sha256；不伪造实测 |
 | 流体材料/工程计算 | `modkit fluid` | ✅ 15 种材料 + 工程公式；见 [81](docs/81-流体材料与工程计算.md) |
-| 3D 世界/环境 | `modkit world` + [world.html](https://gh503.github.io/robot-modkit/world.html) | ✅ 8 预设 + 流体实验；见 [82](docs/82-三维世界与环境.md)、[83](docs/83-仿真实验环境.md) |
+| 3D 世界/环境 | `modkit world` + [world.html](https://gh503.github.io/robot-modkit/world.html) | ✅ 9 预设 + 多边形/heightfield + 编辑；见 [82](docs/82-三维世界与环境.md) |
+| 稳态管网 | `modkit network solve` | ✅ 节点/管/泵/需求；见 [85](docs/85-稳态管网.md) |
 | 整机实测 | 按 [docs/63](docs/63-硬件到货执行单.md) 执行 | ⬜ 0/5，硬件阻塞 |
 
 完整能力地图（仿真、生产、采购、验收）见 [docs/80 §80.2](docs/80-项目状态与版本历史.md)。
@@ -38,7 +39,7 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor
-make check-fast          # 333 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 16 项
+make check-fast          # 345 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 21 项
 make web-smoke           # 需本机 Chrome
 ```
 
@@ -68,7 +69,9 @@ cd software
 cd ventures/aquatwin && python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
 aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
-# report.md / dashboard.html / coverage.svg / metrics.json
+# 有实测：measurements → calibrate → study --calibration
+aquatwin calibrate --scenario scenarios/residential_8x4.json \
+  --measurements data/measurements-example.csv --out out/calibration
 ```
 
 它不是 modkit 的包依赖；商业场景/定价/研究/验证见

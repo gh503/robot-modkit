@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "室外地形",
   "description": "20x20m；缓坡 + 水坑；用于户外/农业机器人。",
   "units": "m",
@@ -33,11 +33,12 @@
       "collider": "box",
       "semantic": "ground",
       "source": "",
+      "heights": null,
       "metadata": {}
     },
     {
       "id": "slope",
-      "type": "box",
+      "type": "heightfield",
       "name": "缓坡",
       "position": [
         0,
@@ -52,7 +53,7 @@
       "size": [
         12,
         4,
-        0.3
+        1.0
       ],
       "radius": null,
       "height": null,
@@ -62,6 +63,32 @@
       "collider": "box",
       "semantic": "obstacle",
       "source": "",
+      "heights": [
+        [
+          0.0,
+          0.06,
+          0.12,
+          0.18
+        ],
+        [
+          0.04,
+          0.1,
+          0.16,
+          0.22
+        ],
+        [
+          0.08,
+          0.14,
+          0.2,
+          0.26
+        ],
+        [
+          0.12,
+          0.18,
+          0.24,
+          0.3
+        ]
+      ],
       "metadata": {}
     }
   ],
@@ -81,6 +108,7 @@
         2.0,
         0.15
       ],
+      "footprint": null,
       "level": 0.6,
       "radius": null,
       "height": null,

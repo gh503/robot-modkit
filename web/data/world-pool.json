@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "泳池清洗实验",
   "description": "8x4m，水深 1.2m；泳池机器人的典型场景。",
   "units": "m",
@@ -150,5 +150,7 @@
     "sky": "#0a1622"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

@@ -10,6 +10,8 @@ import math
 import pathlib
 from dataclasses import asdict, dataclass, field
 
+from . import geometry as geo
+
 
 class ScenarioError(ValueError):
     pass
@@ -24,24 +26,50 @@ class Pool:
     salinity_ppt: float = 2.0
     debris_g_m3: float = 5.0
     shape: str = "rect"
+    footprint: list[list[float]] | None = None
     volume_m3: float | None = None
     notes: str = ""
+
+    @property
+    def area_m2(self) -> float:
+        if self.footprint:
+            return geo.polygon_area(self.footprint)
+        return self.length_m * self.width_m
 
     @property
     def volume(self) -> float:
         if self.volume_m3 is not None:
             return self.volume_m3
-        if self.shape != "rect":
-            raise ScenarioError("当前只支持 rect；其他形状请显式给 volume_m3")
-        return self.length_m * self.width_m * self.depth_m
+        if self.shape == "rect":
+            return self.length_m * self.width_m * self.depth_m
+        if self.shape == "polygon" and self.footprint:
+            return self.area_m2 * self.depth_m
+        raise ScenarioError("非矩形池必须给 footprint（或显式 volume_m3）")
 
     def validate(self, errors: list[str]) -> None:
         if self.length_m <= 0 or self.width_m <= 0 or self.depth_m <= 0:
             errors.append("pool length/width/depth 必须 >0")
         if self.volume_m3 is not None and self.volume_m3 <= 0:
             errors.append("pool.volume_m3 必须 >0")
-        if self.shape != "rect":
-            errors.append("pool.shape 目前只支持 rect")
+        if self.shape not in ("rect", "polygon"):
+            errors.append("pool.shape 只能是 rect/polygon")
+        if self.shape == "polygon":
+            if not self.footprint:
+                errors.append("pool.shape=polygon 时必须给 footprint")
+            else:
+                try:
+                    pts, area = geo.validate_polygon(self.footprint)
+                except geo.GeometryError as e:
+                    errors.append(f"pool.footprint 非法：{e}")
+                else:
+                    if area <= 0:
+                        errors.append("pool.footprint 面积必须 >0")
+                    for (x, y) in pts:
+                        if x < -1e-6 or y < -1e-6 or x > self.length_m + 1e-6 or y > self.width_m + 1e-6:
+                            errors.append("pool.footprint 必须落在 length_m×width_m 包围盒内（原点左下角）")
+                            break
+        elif self.footprint:
+            errors.append("pool.footprint 只用于 shape=polygon")
         if not -2 <= self.water_temp_c <= 60:
             errors.append("pool.water_temp_c 超出 -2..60")
         if not 0 <= self.salinity_ppt <= 60:

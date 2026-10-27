@@ -20,7 +20,9 @@ from typing import Any
 
 from . import fluid as fl
 
-SCHEMA = "modkit.world/1"
+SCHEMA = "modkit.world/2"
+SCHEMA_V1 = "modkit.world/1"
+SUPPORTED_SCHEMAS = (SCHEMA_V1, SCHEMA)
 OBJECT_TYPES = ("box", "cylinder", "sphere", "plane", "mesh", "heightfield")
 FLUID_TYPES = ("pool", "tank", "pipe", "puddle", "rain", "reservoir")
 SENSOR_TYPES = ("level", "pressure", "flow", "temperature", "turbidity", "camera", "imu")
@@ -28,6 +30,31 @@ SENSOR_TYPES = ("level", "pressure", "flow", "temperature", "turbidity", "camera
 
 class WorldError(ValueError):
     pass
+
+
+def _polygon_area(points: list[list[float]]) -> float:
+    if len(points) < 3:
+        raise ValueError("多边形至少需要 3 个点")
+    area = 0.0
+    for i, p in enumerate(points):
+        q = points[(i + 1) % len(points)]
+        area += float(p[0]) * float(q[1]) - float(q[0]) * float(p[1])
+    area = abs(area) / 2.0
+    if area < 1e-9:
+        raise ValueError("面积接近 0")
+    return area
+
+
+def _point_in_polygon(points: list[list[float]], x: float, y: float) -> bool:
+    inside = False
+    j = len(points) - 1
+    for i, p in enumerate(points):
+        xi, yi = float(p[0]), float(p[1])
+        xj, yj = float(points[j][0]), float(points[j][1])
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
 
 
 @dataclass
@@ -46,6 +73,7 @@ class WorldObject:
     collider: str = "box"          # box|mesh|none
     semantic: str = ""             # floor|wall|pool|pipe|obstacle|table|...
     source: str = ""              # mesh/heightfield URI
+    heights: list[list[float]] | None = None  # heightfield 采样（米，行=y，列=x）
     metadata: dict = field(default_factory=dict)
 
     def bounds(self) -> tuple[list[float], list[float]]:
@@ -88,10 +116,21 @@ class WorldObject:
             if len(self.size) < 2 or self.size[0] <= 0 or self.size[1] <= 0:
                 errors.append(f"{self.id}: plane.size 需要 [x,y] 正数")
         elif self.type in ("mesh", "heightfield"):
-            if not self.source:
-                errors.append(f"{self.id}: {self.type} 需要 source")
+            if not self.source and not (self.type == "heightfield" and self.heights):
+                errors.append(f"{self.id}: {self.type} 需要 source 或 heights")
             if len(self.size) != 3 or any(v <= 0 for v in self.size):
                 errors.append(f"{self.id}: {self.type}.size 需要 3 个正数")
+            if self.heights is not None:
+                if self.type != "heightfield":
+                    errors.append(f"{self.id}: heights 只用于 heightfield")
+                elif len(self.heights) < 2 or len(self.heights[0]) < 2:
+                    errors.append(f"{self.id}: heights 至少 2x2")
+                else:
+                    n = len(self.heights[0])
+                    if any(len(row) != n for row in self.heights):
+                        errors.append(f"{self.id}: heights 每行长度必须一致")
+                    if any(not math.isfinite(float(v)) for row in self.heights for v in row):
+                        errors.append(f"{self.id}: heights 含 NaN/Inf")
         if not 0 <= self.opacity <= 1:
             errors.append(f"{self.id}: opacity 必须在 0..1")
         if self.collider not in ("box", "mesh", "none"):
@@ -112,6 +151,7 @@ class FluidBody:
     name: str = ""
     position: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     size: list[float] = field(default_factory=lambda: [1.0, 1.0, 1.0])
+    footprint: list[list[float]] | None = None  # 局部 XY，相对 position，单位 m
     level: float = 1.0              # 0..1，占容器高度
     radius: float | None = None
     height: float | None = None
@@ -139,6 +179,19 @@ class FluidBody:
         if self.type in ("pool", "reservoir", "puddle"):
             if len(self.size) != 3 or any(v <= 0 for v in self.size):
                 errors.append(f"{self.id}: {self.type}.size 需要 3 个正数")
+            if self.footprint:
+                if len(self.footprint) < 3:
+                    errors.append(f"{self.id}: footprint 至少 3 个点")
+                else:
+                    try:
+                        area = _polygon_area(self.footprint)
+                    except ValueError as e:
+                        errors.append(f"{self.id}: footprint 非法：{e}")
+                    else:
+                        hx, hy = self.size[0] / 2, self.size[1] / 2
+                        if any(abs(float(p[0])) > hx + 1e-6 or abs(float(p[1])) > hy + 1e-6
+                               for p in self.footprint):
+                            errors.append(f"{self.id}: footprint 必须落在 size 包围盒内（局部中心坐标）")
         elif self.type == "tank":
             if self.radius or self.height:
                 if not self.radius or not self.height:
@@ -164,7 +217,8 @@ class FluidBody:
     @property
     def capacity_m3(self) -> float:
         if self.type in ("pool", "reservoir", "puddle"):
-            return max(0.0, self.size[0] * self.size[1] * self.size[2])
+            area = _polygon_area(self.footprint) if self.footprint else self.size[0] * self.size[1]
+            return max(0.0, area * self.size[2])
         if self.type == "tank":
             if self.radius and self.height:
                 return math.pi * self.radius**2 * self.height
@@ -358,6 +412,7 @@ class World:
 
     @classmethod
     def from_dict(cls, d: dict) -> "World":
+        d = migrate_dict(d)
         try:
             objs = [WorldObject(**o) for o in d.get("objects", [])]
             fluids = [FluidBody(**f) for f in d.get("fluids", [])]
@@ -375,6 +430,21 @@ class World:
             raise WorldError(f"世界字段不匹配：{e}") from e
 
 
+def migrate_dict(d: dict) -> dict:
+    """把旧世界迁移到当前 schema；未知版本直接拒绝，避免静默误读。"""
+    s = d.get("schema", SCHEMA_V1)
+    if s == SCHEMA:
+        return d
+    if s != SCHEMA_V1:
+        raise WorldError(f"不支持的世界 schema：{s}；支持 {SUPPORTED_SCHEMAS}")
+    out = copy.deepcopy(d)
+    out["schema"] = SCHEMA
+    md = out.setdefault("metadata", {})
+    if isinstance(md, dict):
+        md.setdefault("migrated_from", SCHEMA_V1)
+    return out
+
+
 # ---------------------------------------------------------------- 环境预设
 def _box(oid: str, name: str, pos: list[float], size: list[float],
          color: str = "#5a6678", semantic: str = "", opacity: float = 1.0) -> WorldObject:
@@ -385,6 +455,7 @@ def _box(oid: str, name: str, pos: list[float], size: list[float],
 def presets() -> dict[str, str]:
     return {
         "pool": "8x4m 泳池 + 池边 + 池水",
+        "pool_l": "8x4m L 形泳池 + 多边形水面",
         "lab": "6x4m 实验室 + 工作台 + 水槽",
         "kitchen": "4x3m 厨房 + 台面 + 水槽/水渍",
         "greenhouse": "10x6m 温室 + 种植槽 + 灌溉罐",
@@ -407,6 +478,22 @@ def from_preset(key: str) -> World:
                      Sensor("temp", "temperature", [0, 0, 2.0], "water", "C"),
                      Sensor("turb", "turbidity", [0, 0, 2.0], "water", "NTU")]
         w.robot = RobotPlacement("assemblies/m1_pen.json", [4.5, 0, 0.1], 0, "pool_clean")
+        w.lighting = {"sun_azimuth_deg": 135, "sun_elevation_deg": 55,
+                      "intensity": 1.2, "ambient": 0.45, "sky": "#0a1622"}
+        return w
+    if key == "pool_l":
+        w = World("L 形泳池实验", "8x4m 包围盒，切掉右下 4x2m；polygon footprint。",
+                  environment="pool")
+        w.add(_box("deck_l", "池边地坪", [0, 0, 0], [10.0, 6.0, 0.1], "#6b7280", "floor"))
+        w.add(_box("pool_shell_l", "池体包围盒", [0, 0, 0.1], [8.0, 4.0, 1.5],
+                   "#34495e", "pool", opacity=0.18))
+        w.add_fluid(FluidBody("water_l", "pool", "water", "L 形池水", [0, 0, 0.1],
+                              [8.0, 4.0, 1.5],
+                              footprint=[[-4, -2], [4, -2], [4, 2], [0, 2], [0, 0], [-4, 0]],
+                              level=0.8, temperature_c=26, salinity_ppt=2))
+        w.sensors = [Sensor("level_l", "level", [0, 0, 1.5], "water_l", "m"),
+                     Sensor("temp_l", "temperature", [0, 0, 2.0], "water_l", "C")]
+        w.robot = RobotPlacement("assemblies/m1_pen.json", [0, -2.5, 0.1], 0, "pool_clean")
         w.lighting = {"sun_azimuth_deg": 135, "sun_elevation_deg": 55,
                       "intensity": 1.2, "ambient": 0.45, "sky": "#0a1622"}
         return w
@@ -473,8 +560,12 @@ def from_preset(key: str) -> World:
     if key == "outdoor":
         w = World("室外地形", "20x20m；缓坡 + 水坑；用于户外/农业机器人。", environment="outdoor")
         w.add(_box("ground", "地面", [0, 0, 0], [20.0, 20.0, 0.1], "#4e5b43", "ground"))
-        w.add(WorldObject("slope", "box", "缓坡", [0, 4, 0.1], [0, 0, 0],
-                          [12, 4, 0.3], color="#55624a", semantic="obstacle"))
+        w.add(WorldObject("slope", "heightfield", "缓坡", [0, 4, 0.1], [0, 0, 0],
+                          [12, 4, 1.0], color="#55624a", semantic="obstacle",
+                          heights=[[0.0, 0.06, 0.12, 0.18],
+                                   [0.04, 0.10, 0.16, 0.22],
+                                   [0.08, 0.14, 0.20, 0.26],
+                                   [0.12, 0.18, 0.24, 0.30]]))
         w.add_fluid(FluidBody("puddle", "puddle", "water", "水坑", [2, -3, 0.1],
                               [3.0, 2.0, 0.15], level=0.6, temperature_c=16,
                               volume_m3=0.54))
@@ -494,5 +585,6 @@ def from_preset(key: str) -> World:
     raise WorldError(f"未知环境预设：{key}；可用：{', '.join(presets())}")
 
 
-__all__ = ["SCHEMA", "WorldError", "WorldObject", "FluidBody", "RobotPlacement",
-           "Sensor", "World", "presets", "from_preset"]
+__all__ = ["SCHEMA", "SCHEMA_V1", "SUPPORTED_SCHEMAS", "WorldError", "WorldObject",
+           "FluidBody", "RobotPlacement", "Sensor", "World", "presets", "from_preset",
+           "migrate_dict"]

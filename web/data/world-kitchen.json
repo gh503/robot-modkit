@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "厨房湿区",
   "description": "4x3m；台面、水槽和地面水渍。",
   "units": "m",
@@ -181,5 +181,7 @@
     "sky": "#0b1017"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

@@ -1,0 +1,170 @@
+{
+  "schema": "modkit.world/2",
+  "name": "L 形泳池实验",
+  "description": "8x4m 包围盒，切掉右下 4x2m；polygon footprint。",
+  "units": "m",
+  "gravity": 9.80665,
+  "environment": "pool",
+  "objects": [
+    {
+      "id": "deck_l",
+      "type": "box",
+      "name": "池边地坪",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        10.0,
+        6.0,
+        0.1
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#6b7280",
+      "opacity": 1.0,
+      "collider": "box",
+      "semantic": "floor",
+      "source": "",
+      "heights": null,
+      "metadata": {}
+    },
+    {
+      "id": "pool_shell_l",
+      "type": "box",
+      "name": "池体包围盒",
+      "position": [
+        0,
+        0,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        8.0,
+        4.0,
+        1.5
+      ],
+      "radius": null,
+      "height": null,
+      "material": "default",
+      "color": "#34495e",
+      "opacity": 0.18,
+      "collider": "box",
+      "semantic": "pool",
+      "source": "",
+      "heights": null,
+      "metadata": {}
+    }
+  ],
+  "fluids": [
+    {
+      "id": "water_l",
+      "type": "pool",
+      "fluid": "water",
+      "name": "L 形池水",
+      "position": [
+        0,
+        0,
+        0.1
+      ],
+      "size": [
+        8.0,
+        4.0,
+        1.5
+      ],
+      "footprint": [
+        [
+          -4,
+          -2
+        ],
+        [
+          4,
+          -2
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          -4,
+          0
+        ]
+      ],
+      "level": 0.8,
+      "radius": null,
+      "height": null,
+      "volume_m3": null,
+      "flow_m3_s": 0.0,
+      "temperature_c": 26,
+      "salinity_ppt": 2,
+      "color": null,
+      "opacity": null,
+      "metadata": {}
+    }
+  ],
+  "robot": {
+    "assembly": "assemblies/m1_pen.json",
+    "position": [
+      0,
+      -2.5,
+      0.1
+    ],
+    "yaw_deg": 0,
+    "task": "pool_clean"
+  },
+  "sensors": [
+    {
+      "id": "level_l",
+      "type": "level",
+      "position": [
+        0,
+        0,
+        1.5
+      ],
+      "target": "water_l",
+      "unit": "m",
+      "metadata": {}
+    },
+    {
+      "id": "temp_l",
+      "type": "temperature",
+      "position": [
+        0,
+        0,
+        2.0
+      ],
+      "target": "water_l",
+      "unit": "C",
+      "metadata": {}
+    }
+  ],
+  "custom_fluids": [],
+  "lighting": {
+    "sun_azimuth_deg": 135,
+    "sun_elevation_deg": 55,
+    "intensity": 1.2,
+    "ambient": 0.45,
+    "sky": "#0a1622"
+  },
+  "georeference": null,
+  "metadata": {}
+}

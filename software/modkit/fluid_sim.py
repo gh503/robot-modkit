@@ -50,6 +50,7 @@ class ShallowWater:
     dx: float = 0.05
     depth: float | np.ndarray = 0.2
     terrain: np.ndarray | None = None
+    mask: np.ndarray | None = None
     u: np.ndarray | None = None
     v: np.ndarray | None = None
     manning: float = 0.025
@@ -75,6 +76,13 @@ class ShallowWater:
                   else np.array(self.terrain, dtype=float))
         if self.b.shape != self.h.shape:
             raise FluidSimError("terrain shape 必须与 depth 一致")
+        if self.mask is None:
+            self.mask = np.ones_like(self.h, dtype=bool)
+        else:
+            self.mask = np.array(self.mask, dtype=bool)
+            if self.mask.shape != self.h.shape:
+                raise FluidSimError("mask shape 必须与 depth 一致")
+        self.h = np.where(self.mask, self.h, 0.0)
         self.u = np.zeros_like(self.h) if self.u is None else np.array(self.u, dtype=float)
         self.v = np.zeros_like(self.h) if self.v is None else np.array(self.v, dtype=float)
         self.h = np.maximum(self.h, 0.0)
@@ -121,7 +129,10 @@ class ShallowWater:
             n = int(np.count_nonzero(m))
             if not n:
                 continue
-            self.h[m] = np.maximum(0.0, self.h[m] + s.rate_m3_s * dt / (n * cell_area))
+            use = m & self.mask
+            n2 = int(np.count_nonzero(use))
+            if n2:
+                self.h[use] = np.maximum(0.0, self.h[use] + s.rate_m3_s * dt / (n2 * cell_area))
             self._injected += s.rate_m3_s * dt
 
     def step(self, dt: float | None = None) -> float:
@@ -149,6 +160,10 @@ class ShallowWater:
             hx[:, -1] = hx[:, 0]
         else:  # open
             hx[:, 0] = h_safe[:, 0]; hx[:, -1] = h_safe[:, -1]
+        # 多边形/掩膜边界：跨越干格的面通量置零
+        mx = self.mask[:, :-1] & self.mask[:, 1:]
+        ux[:, 1:-1] = np.where(mx, ux[:, 1:-1], 0.0)
+        hx[:, 1:-1] = np.where(mx, hx[:, 1:-1], 0.0)
         fx = ux * hx
         # y 方向面通量：形状 (ny+1, nx)
         vy = np.zeros((self.ny + 1, self.nx))
@@ -163,9 +178,12 @@ class ShallowWater:
             hy[-1, :] = hy[0, :]
         else:
             hy[0, :] = h_safe[0, :]; hy[-1, :] = h_safe[-1, :]
+        my = self.mask[:-1, :] & self.mask[1:, :]
+        vy[1:-1, :] = np.where(my, vy[1:-1, :], 0.0)
+        hy[1:-1, :] = np.where(my, hy[1:-1, :], 0.0)
         fy = vy * hy
         dh = -((fx[:, 1:] - fx[:, :-1]) + (fy[1:, :] - fy[:-1, :])) / self.dx
-        self.h = np.maximum(0.0, h + dt * dh)
+        self.h = np.where(self.mask, np.maximum(0.0, h + dt * dh), 0.0)
 
         # 压力（中心）+ 对流（迎风）+ Manning 摩阻 + 粘性
         hh = np.maximum(self.h, self.min_depth)
@@ -197,8 +215,8 @@ class ShallowWater:
         u_new = np.where(wet, u_new, 0.0)
         v_new = np.where(wet, v_new, 0.0)
         # 干湿边界：不让水从干格被吸走
-        self.u = np.clip(u_new, -20.0, 20.0)
-        self.v = np.clip(v_new, -20.0, 20.0)
+        self.u = np.where(self.mask, np.clip(u_new, -20.0, 20.0), 0.0)
+        self.v = np.where(self.mask, np.clip(v_new, -20.0, 20.0), 0.0)
         self._apply_sources(dt)
         self.t += dt
         self._enforce_boundary()
@@ -208,6 +226,8 @@ class ShallowWater:
         if self.boundary == "closed":
             self.u[:, 0] = 0.0; self.u[:, -1] = 0.0
             self.v[0, :] = 0.0; self.v[-1, :] = 0.0
+            self.u = np.where(self.mask, self.u, 0.0)
+            self.v = np.where(self.mask, self.v, 0.0)
         elif self.boundary == "open":
             # 零梯度出流，避免反射
             self.u[:, 0] = self.u[:, 1]; self.u[:, -1] = self.u[:, -2]

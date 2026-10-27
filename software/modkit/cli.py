@@ -33,6 +33,7 @@ from . import pack as hp
 from . import draw as dr
 from . import stage as sg
 from . import fluid as fd
+from . import network as nwk
 from . import world as wd
 from . import camsim as cs
 from . import scenario as sn
@@ -1373,8 +1374,67 @@ def cmd_fluid(args) -> int:
     return 2
 
 
+def cmd_network(args) -> int:
+    if not args.file:
+        print("需要 --file network.json")
+        return 2
+    try:
+        net = nwk.Network.load(args.file)
+    except (OSError, nwk.NetworkError, json.JSONDecodeError) as e:
+        print(f"读取失败：{e}")
+        return 2
+    if args.action == "validate":
+        v = net.validate()
+        print(json.dumps(v, ensure_ascii=False, indent=2) if args.json else
+              ("PASS" if v["ok"] else "FAIL"))
+        if not args.json:
+            for x in v["errors"]:
+                print("  ✗ " + x)
+        return 0 if v["ok"] else 2
+    try:
+        r = nwk.run_file(args.file, args.out)
+    except (nwk.NetworkError, ValueError) as e:
+        print(f"求解失败：{e}")
+        return 2
+    if args.json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+    else:
+        print(f"管网：{net.name}；迭代 {r['iterations']}；"
+              f"质量误差 {r['mass_balance_error_m3_s']:.2e} m³/s")
+        for k, v in r["edges"].items():
+            if v["type"] == "pipe":
+                print(f"  {k:12} Q={v['flow_m3_s']:.4e} m³/s  v={v['velocity_m_s']:.3f} m/s  "
+                      f"损失={v['head_loss_m']:.4f} m")
+            else:
+                print(f"  {k:12} 泵 Q={v['flow_m3_s']:.4e} m³/s  H={v['head_m']:.2f} m  "
+                      f"轴功率={v['shaft_w']:.1f} W")
+        if args.out:
+            print(f"输出：{args.out}/network-result.json、report.md")
+    return 0
+
+
 def cmd_world(args) -> int:
     action = args.action
+    if action == "schema":
+        d = {"schema": wd.SCHEMA, "supported": list(wd.SUPPORTED_SCHEMAS),
+             "migration": "modkit world migrate --file old.json --out new.json"}
+        print(json.dumps(d, ensure_ascii=False, indent=2) if args.json else
+              f"current {wd.SCHEMA}；supported {', '.join(wd.SUPPORTED_SCHEMAS)}")
+        return 0
+    if action == "migrate":
+        if not args.file:
+            print("需要 --file world.json")
+            return 2
+        try:
+            w = wd.World.load(args.file)
+        except (OSError, wd.WorldError, json.JSONDecodeError) as e:
+            print(f"读取失败：{e}")
+            return 2
+        dst = (args.out if args.out and args.out != "out/world"
+               else pathlib.Path(args.file).with_suffix(".v2.json"))
+        p = w.save(dst)
+        print(f"已迁移到 {wd.SCHEMA}：{p}")
+        return 0
     if action == "list":
         rows = wd.presets()
         if args.json:
@@ -1828,8 +1888,16 @@ def main(argv: list[str] | None = None) -> int:
     flp.add_argument("--json", action="store_true")
     flp.set_defaults(func=cmd_fluid)
 
+    np = sub.add_parser("network", help="稳态管网：节点/管段/泵/需求")
+    np.add_argument("action", choices=["validate", "solve"])
+    np.add_argument("--file", required=True)
+    np.add_argument("--out")
+    np.add_argument("--json", action="store_true")
+    np.set_defaults(func=cmd_network)
+
     wp = sub.add_parser("world", help="三维世界/实验环境（JSON + 流体仿真）")
-    wp.add_argument("action", choices=["list", "init", "demo", "validate", "summary", "run"])
+    wp.add_argument("action", choices=["list", "init", "demo", "schema", "migrate",
+                                       "validate", "summary", "run"])
     wp.add_argument("--preset", default="pool")
     wp.add_argument("--file")
     wp.add_argument("--out", default="out/world")

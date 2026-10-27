@@ -1,0 +1,35 @@
+{
+  "schema": "aquatwin.study/1",
+  "name": "L 形泳池 8×4m",
+  "description": "L 形住宅池；用 polygon footprint 验证非矩形覆盖/体积。",
+  "pool": {
+    "length_m": 8.0,
+    "width_m": 4.0,
+    "depth_m": 1.5,
+    "water_temp_c": 26.0,
+    "salinity_ppt": 2.0,
+    "debris_g_m3": 5.0,
+    "shape": "polygon",
+    "footprint": [[0, 0], [8, 0], [8, 4], [4, 4], [4, 2], [0, 2]]
+  },
+  "robot": {
+    "swath_m": 0.45,
+    "overlap": 0.10,
+    "speed_m_s": 0.25,
+    "turn_time_s": 4.0,
+    "battery_wh": 90.0,
+    "charge_time_h": 2.0,
+    "drive_efficiency": 0.60,
+    "pump_flow_m3_s": 0.0008,
+    "pump_head_m": 3.0,
+    "pump_efficiency": 0.35,
+    "brush_power_w": 25.0,
+    "electronics_power_w": 10.0,
+    "body_area_m2": 0.12,
+    "drag_cd": 1.0
+  },
+  "filter": {"capture_efficiency": 0.90, "capacity_g": 500, "backwash_cost_cny": 30,
+             "pressure_rise_kpa_per_100g": 2.0, "max_pressure_kpa": 40},
+  "economics": {"electricity_cny_kwh": 0.8, "labor_cny_h": 60, "service_price_cny": 300,
+                "robot_capex_cny": 6000, "cleanings_per_week": 5}
+}

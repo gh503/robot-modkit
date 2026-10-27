@@ -61,7 +61,7 @@ aquatwin quote --scenario scenarios/residential_8x4.json \
 - `out/calibration/calibration.json` + `validation.md`：校准因子与逐条残差；
 - `out/portfolio/portfolio.{json,md,html}`：多池组合。
 
-三个内置场景：住宅 8×4m、商业 25×10m、小型 6×3m。
+四个内置场景：住宅 8×4m、商业 25×10m、小型 6×3m、L 形 8×4m（polygon）。
 
 ## 输出长什么样
 
@@ -125,8 +125,9 @@ study,source,run_id,time_min,energy_wh,coverage_pct,pressure_kpa,speed_m_s,debri
 ## 模型（可手算）
 
 1. **体积/水质**：`V=L×W×D`；`ρ≈998.2+0.8S−0.25(T−20)`；水质量 `ρV`。
-2. **覆盖**：有效宽度 `w=swath×(1−overlap)`；lane 数 `⌈W/w⌉`；
-   路径 `L×lanes+(lanes−1)w`；覆盖率按实际覆盖面积截断到 100%。
+2. **覆盖**：有效宽度 `w=swath×(1−overlap)`；矩形 lane 数 `⌈W/w⌉`，
+   路径 `L×lanes+(lanes−1)w`；多边形用扫描线交区间 + travel，覆盖率按
+   `区间长×w/多边形面积` 截断到 100%。
 3. **阻力**：`F=½ρCdAv²`；驱动功率 `Fv/η` + 刷/电子。
 4. **泵**：水力 `ρgQH`；轴功率 `/η_pump`。
 5. **时间**：`路径/v + 转向×turn_time`；电池不足按 80% 可用容量加补电。
@@ -214,7 +215,7 @@ docs/            # calibration/business/research/pricing/roadmap
 ## 边界（必须读）
 
 - 不是 CFD：阻力系数、泵曲线、过滤曲线都是假设，需实测标定；
-- 不是全向覆盖规划：只支持矩形、无障碍、匀速 boustrophedon；
+- 覆盖只支持矩形 + 无自交多边形；不含障碍/台阶/斜池/水流，路径是扫描线近似；
 - 不含水质化学、藻类、消毒副产物、溺水/电气安全；
 - 经济模型是**方案比较**，不是报价、收益承诺或投资建议；
 - 没有现场数据/物理闸门；对外必须标“modeled, not measured”；

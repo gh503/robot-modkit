@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "水族箱",
   "description": "1.2x0.6x0.6m 玻璃缸；海水/淡水实验。",
   "units": "m",
@@ -138,5 +138,7 @@
     "sky": "#0b1017"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

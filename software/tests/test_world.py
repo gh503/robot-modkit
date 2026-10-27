@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def test_all_presets_validate_and_roundtrip(tmp_path):
-    assert len(wd.presets()) == 8
+    assert len(wd.presets()) == 9
     for key in wd.presets():
         w = wd.from_preset(key)
         v = w.validate()
@@ -79,7 +79,7 @@ def test_cli_world_list_init_validate_summary(tmp_path, capsys):
 def test_web_world_data_is_valid():
     files = sorted((ROOT / "web" / "data").glob("world-*.json"))
     presets = [p for p in files if p.name != "world-room.json"]
-    assert len(presets) == 8
+    assert len(presets) == 9
     for p in files:
         w = wd.World.load(p)
         v = w.validate()

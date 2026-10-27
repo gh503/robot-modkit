@@ -43,6 +43,9 @@ h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.07
 .field input[type=range]{width:100%;accent-color:var(--accent);margin-top:7px}
 .field output{float:right;color:var(--accent-2);font:12px var(--mono)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px}
+.row3 .field{margin:0}
+.selected{outline:2px solid var(--accent);outline-offset:1px}
 .file{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;min-height:36px;padding:7px 12px;background:var(--surface-2);color:var(--text);cursor:pointer;font-size:13px}
 .file:hover{border-color:var(--line-strong);background:var(--surface-3)}
 .file input{display:none}

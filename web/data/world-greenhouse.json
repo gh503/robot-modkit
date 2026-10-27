@@ -1,5 +1,5 @@
 {
-  "schema": "modkit.world/1",
+  "schema": "modkit.world/2",
   "name": "温室灌溉",
   "description": "10x6m 温室；种植槽 + 1m³ 灌溉罐。",
   "units": "m",
@@ -225,5 +225,7 @@
     "sky": "#0b1017"
   },
   "georeference": null,
-  "metadata": {}
+  "metadata": {
+    "migrated_from": "modkit.world/1"
+  }
 }

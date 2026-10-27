@@ -71,7 +71,8 @@ def markdown(study: Study, result: dict) -> str:
           else "> 未应用实测校准；结论仅代表模型假设。"), "",
          "## 输入", "",
          "| 输入 | 值 |", "|---|---|",
-         f"| 泳池 | {p.length_m:g}×{p.width_m:g}×{p.depth_m:g} m；{p.water_temp_c:g}°C；{p.salinity_ppt:g} ppt |",
+         f"| 泳池 | {p.length_m:g}×{p.width_m:g}×{p.depth_m:g} m；面积 {p.area_m2:.2f} m²；"
+         f"{p.water_temp_c:g}°C；{p.salinity_ppt:g} ppt |",
          f"| 水体积 | {_f(r['pool_volume_m3'])} m³；{_f(r['water_mass_kg'],0)} kg；ρ={_f(r['water_density_kg_m3'],1)} kg/m³ |",
          f"| 机器人 | 宽 {rob.swath_m:g} m（重叠 {rob.overlap*100:g}%）；速度 {rob.speed_m_s:g} m/s；电池 {rob.battery_wh:g} Wh |",
          f"| 泵 | {rob.pump_flow_m3_s*1000:g} L/s；扬程 {rob.pump_head_m:g} m；效率 {rob.pump_efficiency:g} |",
@@ -221,7 +222,7 @@ th,td{{text-align:left;padding:8px;border-bottom:1px solid #e6edf3}}th{{width:42
 <h1>AquaTwin 清洁方案报价</h1>
 <div class="meta">客户：{escape(customer or '（待填）')} · 场景：{escape(study.name)} · 有效期：{valid_days} 天 · 模型：{escape(result.get('model_version','—'))}</div>
 <h2>方案输入</h2>
-<table><tr><th>泳池</th><td>{study.pool.length_m:g}×{study.pool.width_m:g}×{study.pool.depth_m:g} m；{study.pool.water_temp_c:g}°C；{study.pool.salinity_ppt:g} ppt</td></tr>
+<table><tr><th>泳池</th><td>{study.pool.length_m:g}×{study.pool.width_m:g}×{study.pool.depth_m:g} m；面积 {study.pool.area_m2:.2f} m²；{study.pool.water_temp_c:g}°C；{study.pool.salinity_ppt:g} ppt</td></tr>
 <tr><th>机器人</th><td>清洁宽度 {study.robot.swath_m:g} m；速度 {study.robot.speed_m_s:g} m/s；电池 {study.robot.battery_wh:g} Wh</td></tr>
 <tr><th>过滤</th><td>捕获 {study.filter.capture_efficiency*100:g}%；容量 {study.filter.capacity_g:g} g</td></tr></table>
 <h2>结果与商务</h2><table>{tr}</table>

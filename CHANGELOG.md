@@ -1,3 +1,19 @@
+## v1.35.0 — 2026-10-27
+
+### 世界 schema v2 + 管网 + 编辑
+
+- `modkit.world/2`：`FluidBody.footprint` 多边形水面（局部中心坐标、面积/体积/
+  浅水掩膜）、`WorldObject.heights` 真实 heightfield 网格；v1 自动迁移，未知版本拒绝；
+- `world run` 用多边形掩膜，边界面通量置零；L 形池体积按鞋带面积算；
+- 新增 `pool_l` 预设（8×4m L 形，28.8m³）；`outdoor` 的缓坡改为 heightfield；
+- `web/world.html`：点选/拖动对象、位置/旋转/尺寸面板、方向键微调、添加/复制/删除、
+  40 步撤销重做、本地草稿、`#world=` 分享链接；多边形水面/heightfield 渲染；
+- 新增 `modkit.network`：`modkit.network/1` 节点/管段/泵曲线/需求，
+  Darcy-Weisbach + 阻尼 Newton + 数值 Jacobian；`network validate/solve`；
+  `networks/pool_loop.json` 示例；`docs/85`；
+- 新增 `world schema` / `world migrate`（非破坏性，默认写 `.v2.json`）；
+- 主测试 333 → **345**；AquaTwin 16 → **21**；Web smoke **16 组**；物理闸门 **0/5**。
+
 # 更新日志
 
 ## v1.33.1 — 2026-10-26

@@ -19,13 +19,18 @@
       </span>
       <span><span class="brand-name">modkit World</span><span class="brand-sub">三维环境 · 流体 · 数字孪生</span></span>
     </a>
-    <span class="badge" id="schema-badge">modkit.world/1</span>
+    <span class="badge" id="schema-badge">modkit.world/2</span>
     <nav class="topnav" aria-label="项目链接"><a href="./design.html">自由设计</a><a href="./view.html">结构查看器</a><a href="./index.html">3D 查看器</a></nav>
     <span class="spacer"></span>
     <div class="run-status" id="run-status"><span class="dot"></span><span id="run-label">视觉预览</span></div>
     <div class="btns">
       <button id="play" class="primary" type="button" aria-pressed="true">暂停</button>
+      <button id="undo" type="button" title="撤销 (Ctrl+Z)">撤销</button>
+      <button id="redo" type="button" title="重做 (Ctrl+Shift+Z)">重做</button>
       <button id="reset-view" type="button">重置视角</button>
+      <button id="share" type="button">分享链接</button>
+      <button id="save-local" type="button">保存本地</button>
+      <button id="load-local" type="button">读本地</button>
       <button id="export" type="button">导出 JSON</button>
     </div>
   </div>
@@ -38,6 +43,7 @@
       <label class="field">环境预设
         <select id="preset">
           <option value="pool">泳池清洗</option>
+          <option value="pool_l">L 形泳池</option>
           <option value="lab">实验室水槽</option>
           <option value="kitchen">厨房湿区</option>
           <option value="greenhouse">温室灌溉</option>
@@ -51,7 +57,34 @@
         <button id="load-preset" type="button">加载预设</button>
         <label class="file">导入 JSON<input id="file" type="file" accept="application/json,.json"></label>
       </div>
-      <p class="hint" id="world-desc">8x4m 泳池，水深 1.2m；泳池机器人的典型场景。</p>
+      <p class="hint" id="world-desc">9 个预设；L 形池演示 polygon footprint；室外预设演示 heightfield。</p>
+    </section>
+
+    <section>
+      <h2>对象编辑</h2>
+      <label class="field">对象<select id="object"></select></label>
+      <div class="row3">
+        <label class="field">X<input id="obj-x" type="number" step="0.05"></label>
+        <label class="field">Y<input id="obj-y" type="number" step="0.05"></label>
+        <label class="field">Z<input id="obj-z" type="number" step="0.05"></label>
+      </div>
+      <div class="row3">
+        <label class="field">RX°<input id="obj-rx" type="number" step="5"></label>
+        <label class="field">RY°<input id="obj-ry" type="number" step="5"></label>
+        <label class="field">RZ°<input id="obj-rz" type="number" step="5"></label>
+      </div>
+      <div class="row3">
+        <label class="field">SX<input id="obj-sx" type="number" min="0.01" step="0.05"></label>
+        <label class="field">SY<input id="obj-sy" type="number" min="0.01" step="0.05"></label>
+        <label class="field">SZ<input id="obj-sz" type="number" min="0.01" step="0.05"></label>
+      </div>
+      <button id="apply-object" class="wide" type="button">应用对象变换</button>
+      <div class="row2">
+        <button id="duplicate-object" type="button">复制对象</button>
+        <button id="delete-object" type="button">删除对象</button>
+      </div>
+      <button id="add-box" class="wide" type="button">添加盒体</button>
+      <p class="hint">选中对象后可改位置/旋转/尺寸；方向键微调，Shift+方向键步进 0.25m；Delete 删除，Ctrl+Z 撤销。</p>
     </section>
 
     <section>
@@ -99,8 +132,8 @@
   <main id="stage" class="stage" aria-label="三维世界视图">
     <canvas id="canvas"></canvas>
     <div class="overlay" id="overlay">
-      <strong>拖动旋转 · 滚轮缩放 · 右键平移</strong>
-      <span>水体的颜色/透明度来自材料库；地形/碰撞体按 JSON 尺寸</span>
+      <strong>拖动对象移动 · 空白处拖动旋转 · 滚轮缩放 · 右键平移 · Alt+拖动旋转</strong>
+      <span>点选对象后可拖动/键盘微调；多边形水体与 heightfield 按 schema v2 渲染</span>
     </div>
     <div class="legend" id="legend"></div>
   </main>

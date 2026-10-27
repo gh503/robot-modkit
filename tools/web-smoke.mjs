@@ -347,9 +347,11 @@ async function main() {
       water: MODKIT_WORLD.state.water.length,
       triangles: MODKIT_WORLD.state.renderer.info.render.triangles,
       fluidOptions: document.querySelectorAll("#fluid option").length,
-      bodyOptions: document.querySelectorAll("#body option").length
+      bodyOptions: document.querySelectorAll("#body option").length,
+      schema: MODKIT_WORLD.state.world.schema
     }))()`);
-    check(r.presets === 8, `预设 ${r.presets} != 8`);
+    check(r.presets === 9, `预设 ${r.presets} != 9`);
+    check(r.schema === "modkit.world/2", `schema ${r.schema}`);
     check(r.env === "pool" && r.objects >= 2 && r.fluids >= 1, "默认泳池世界不完整");
     check(r.water >= 1, "没有水体网格");
     check(r.triangles > 100, `三角形 ${r.triangles} 太少`);
@@ -367,6 +369,19 @@ async function main() {
     await sleep(700);
     const room = await cdp.eval('(() => ({ objects: MODKIT_WORLD.state.world.objects.length, tris: MODKIT_WORLD.state.renderer.info.render.triangles, children: MODKIT_WORLD.state.root.children.length }))()');
     check(room.objects === 2 && room.tris > 100, "OBJ 房间没有渲染");
+    await cdp.eval('MODKIT_WORLD.loadPreset("pool_l")');
+    await waitFor(() => cdp.eval('MODKIT_WORLD.state.world.environment === "pool" && MODKIT_WORLD.state.world.fluids[0].footprint.length === 6'), 5000, "L 形池");
+    const l = await cdp.eval('(() => ({ volume: MODKIT_WORLD.bodyVolume(MODKIT_WORLD.state.world.fluids[0]), tris: MODKIT_WORLD.state.renderer.info.render.triangles, errors: MODKIT_WORLD.validateBasic(MODKIT_WORLD.state.world).length }))()');
+    check(Math.abs(l.volume - 28.8) < 0.2, `L 形体积 ${l.volume}`);
+    check(l.tris > 100 && l.errors === 0, "L 形池不完整");
+    const before = await cdp.eval('MODKIT_WORLD.state.world.objects.length');
+    await cdp.eval('MODKIT_WORLD.addBox()');
+    check(await cdp.eval('MODKIT_WORLD.state.world.objects.length') === before + 1, "添加盒体失败");
+    await cdp.eval('MODKIT_WORLD.undo()');
+    check(await cdp.eval('MODKIT_WORLD.state.world.objects.length') === before, "撤销失败");
+    await cdp.eval('MODKIT_WORLD.redo()');
+    check(await cdp.eval('MODKIT_WORLD.state.world.objects.length') === before + 1, "重做失败");
+    await cdp.eval('MODKIT_WORLD.undo()');
   });
 
   await run("查看器渲染 + 关节/爆炸", async () => {

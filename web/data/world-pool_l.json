@@ -4,7 +4,7 @@
   "description": "8x4m 包围盒，切掉右下 4x2m；polygon footprint。",
   "units": "m",
   "gravity": 9.80665,
-  "environment": "pool",
+  "environment": "pool_l",
   "objects": [
     {
       "id": "deck_l",

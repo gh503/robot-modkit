@@ -370,7 +370,7 @@ async function main() {
     const room = await cdp.eval('(() => ({ objects: MODKIT_WORLD.state.world.objects.length, tris: MODKIT_WORLD.state.renderer.info.render.triangles, children: MODKIT_WORLD.state.root.children.length }))()');
     check(room.objects === 2 && room.tris > 100, "OBJ 房间没有渲染");
     await cdp.eval('MODKIT_WORLD.loadPreset("pool_l")');
-    await waitFor(() => cdp.eval('MODKIT_WORLD.state.world.environment === "pool" && MODKIT_WORLD.state.world.fluids[0].footprint.length === 6'), 5000, "L 形池");
+    await waitFor(() => cdp.eval('MODKIT_WORLD.state.world.environment === "pool_l" && MODKIT_WORLD.state.world.fluids[0].footprint.length === 6'), 5000, "L 形池");
     const l = await cdp.eval('(() => ({ volume: MODKIT_WORLD.bodyVolume(MODKIT_WORLD.state.world.fluids[0]), tris: MODKIT_WORLD.state.renderer.info.render.triangles, errors: MODKIT_WORLD.validateBasic(MODKIT_WORLD.state.world).length }))()');
     check(Math.abs(l.volume - 28.8) < 0.2, `L 形体积 ${l.volume}`);
     check(l.tris > 100 && l.errors === 0, "L 形池不完整");

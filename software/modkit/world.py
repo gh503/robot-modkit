@@ -511,7 +511,7 @@ def from_preset(key: str) -> World:
         return w
     if key == "pool_l":
         w = World("L 形泳池实验", "8x4m 包围盒，切掉右下 4x2m；polygon footprint。",
-                  environment="pool")
+                  environment="pool_l")
         w.add(_box("deck_l", "池边地坪", [0, 0, 0], [10.0, 6.0, 0.1], "#6b7280", "floor"))
         w.add(_box("pool_shell_l", "池体包围盒", [0, 0, 0.1], [8.0, 4.0, 1.5],
                    "#34495e", "pool", opacity=0.18))

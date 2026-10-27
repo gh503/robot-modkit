@@ -8,8 +8,11 @@ import pathlib
 import sys
 
 from . import __version__
+from . import batch as bt
+from . import calibrate as cb
 from . import model
 from . import report
+from .measurements import MeasurementError, MeasurementSet
 from .scenario import ScenarioError, Study
 
 
@@ -54,13 +57,29 @@ def cmd_validate(args) -> int:
 
 def cmd_study(args) -> int:
     s = _load(args.scenario)
+    calibration = None
+    measurements = None
+    if args.measurements:
+        try:
+            measurements = MeasurementSet.load(args.measurements)
+            calibration = cb.calibrate(s, measurements)
+        except (OSError, MeasurementError, cb.CalibrationError) as e:
+            print(f"校准失败：{e}")
+            return 2
+    elif args.calibration:
+        try:
+            calibration = cb.load(args.calibration)
+        except (OSError, cb.CalibrationError) as e:
+            print(f"读取校准失败：{e}")
+            return 2
     try:
-        result = model.run(s)
+        result = model.run(s, calibration=calibration)
     except ValueError as e:
         print(f"运行失败：{e}")
         return 2
     if args.out:
-        paths = report.write(s, result, args.out)
+        paths = report.write(s, result, args.out, calibration=calibration,
+                             measurements=measurements)
         result["outputs"] = paths
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -76,8 +95,13 @@ def cmd_study(args) -> int:
     if result.get("warnings"):
         for x in result["warnings"]:
             print("  ! " + x)
+    if calibration:
+        print(f"  校准：time×{calibration['factors']['time_scale']:.3f}，"
+              f"setup {calibration['factors']['setup_min']:.1f}min，"
+              f"energy×{calibration['factors']['energy_scale']:.3f}，"
+              f"pressure×{calibration['factors']['pressure_scale']:.3f}")
     if args.out:
-        print(f"输出：{args.out}/report.md、metrics.json、coverage.svg、dashboard.html")
+        print(f"输出：{args.out}/report.md、metrics.json、coverage.svg、dashboard.html、quote.html")
     return 0
 
 
@@ -109,6 +133,110 @@ def cmd_new(args) -> int:
     return 0
 
 
+def cmd_measurements(args) -> int:
+    try:
+        if str(args.file).lower().endswith(".csv"):
+            ms = MeasurementSet.from_csv(args.file, study=getattr(args, "study", "") or "",
+                                         source=getattr(args, "source", "field"))
+        else:
+            ms = MeasurementSet.load(args.file)
+    except (OSError, MeasurementError) as e:
+        print(f"读取测量失败：{e}")
+        return 2
+    v = ms.validate()
+    if args.json:
+        print(json.dumps({"validation": v, "data": ms.to_dict()}, ensure_ascii=False, indent=2))
+    else:
+        print("PASS" if v["ok"] else "FAIL")
+        for x in v["errors"]:
+            print("  ✗ " + x)
+        for x in v["warnings"]:
+            print("  ! " + x)
+        print(f"  {v['n_runs']} 条 run；source={ms.source}")
+    return 0 if v["ok"] else 2
+
+
+def cmd_calibrate(args) -> int:
+    s = _load(args.scenario)
+    try:
+        if str(args.measurements).lower().endswith(".csv"):
+            ms = MeasurementSet.from_csv(args.measurements, study=s.name,
+                                         source=getattr(args, "source", "field"))
+        else:
+            ms = MeasurementSet.load(args.measurements)
+        cal = cb.calibrate(s, ms)
+    except (OSError, MeasurementError, cb.CalibrationError) as e:
+        print(f"校准失败：{e}")
+        return 2
+    paths = cb.save(cal, args.out, s, ms) if args.out else {}
+    if args.json:
+        print(json.dumps({"calibration": cal, "outputs": paths}, ensure_ascii=False, indent=2))
+        return 0
+    f, m = cal["factors"], cal["metrics"]
+    print(f"AquaTwin 校准 · {s.name}（{cal['source']}，{cal['n_runs']} runs）")
+    print(f"  time_scale={f['time_scale']:.3f}  setup={f['setup_min']:.2f} min  "
+          f"energy_scale={f['energy_scale']:.3f}  pressure_scale={f['pressure_scale']:.3f}")
+    print(f"  MAPE：时间 {_fmt(m['time_mape_pct'], 1)}% / 能耗 {_fmt(m['energy_mape_pct'], 1)}% / "
+          f"压力 {_fmt(m['pressure_mape_pct'], 1)}%")
+    conf = cal.get("confidence_90", {})
+    if conf:
+        print("  90% bootstrap：" + "，".join(f"{k} {v['low']:.2f}–{v['high']:.2f}"
+                                             for k, v in conf.items()))
+    for x in cal["caveats"]:
+        print("  ! " + x)
+    if args.out:
+        print(f"输出：{args.out}/calibration.json、validation.md")
+    return 0
+
+
+def cmd_batch(args) -> int:
+    files = sorted(pathlib.Path(args.dir).glob("*.json"))
+    if not files:
+        print(f"{args.dir} 下没有场景")
+        return 1
+    calibration = None
+    if args.calibration:
+        try:
+            calibration = cb.load(args.calibration)
+        except (OSError, cb.CalibrationError) as e:
+            print(f"读取校准失败：{e}")
+            return 2
+    summary = bt.run_batch(files, args.out, calibration=calibration)
+    if args.json:
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    else:
+        print(f"批量：{summary['n']} 成功，{summary['n_errors']} 失败")
+        for r in summary["studies"]:
+            print(f"  {r['study']:24} {r['time_min']:6.1f} min  ¥{r['cost_cny']:.2f}  "
+                  f"覆盖 {r['coverage_pct']:.1f}%")
+        for e in summary["errors"]:
+            print(f"  ✗ {e['file']}: {e['error']}")
+        print(f"输出：{args.out}/portfolio.md、portfolio.json、portfolio.html")
+    return 0 if not summary["n_errors"] else 2
+
+
+def cmd_quote(args) -> int:
+    s = _load(args.scenario)
+    calibration = None
+    if args.calibration:
+        try:
+            calibration = cb.load(args.calibration)
+        except (OSError, cb.CalibrationError) as e:
+            print(f"读取校准失败：{e}")
+            return 2
+    try:
+        result = model.run(s, calibration=calibration)
+    except ValueError as e:
+        print(f"运行失败：{e}")
+        return 2
+    p = pathlib.Path(args.out)
+    p.mkdir(parents=True, exist_ok=True)
+    (p / "quote.html").write_text(report.quote(s, result, customer=args.customer,
+                                               valid_days=args.valid_days), encoding="utf-8")
+    print(f"已生成 {p / 'quote.html'}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="aquatwin", description="AquaTwin 泳池机器人数字孪生")
     ap.add_argument("--version", action="version", version=f"aquatwin {__version__}")
@@ -126,6 +254,8 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("study", help="跑研究并输出报告")
     st.add_argument("--scenario", required=True)
     st.add_argument("--out")
+    st.add_argument("--calibration")
+    st.add_argument("--measurements")
     st.add_argument("--json", action="store_true")
     st.set_defaults(func=cmd_study)
 
@@ -137,6 +267,36 @@ def build_parser() -> argparse.ArgumentParser:
     nw = sub.add_parser("new", help="生成场景模板")
     nw.add_argument("--out", default="scenarios/new.json")
     nw.set_defaults(func=cmd_new)
+
+    me = sub.add_parser("measurements", help="校验实测数据（JSON/CSV）")
+    me.add_argument("--file", required=True)
+    me.add_argument("--study", default="", help="CSV 没有 study 列时指定场景名")
+    me.add_argument("--source", default="field", choices=("field", "lab", "vendor", "synthetic"))
+    me.add_argument("--json", action="store_true")
+    me.set_defaults(func=cmd_measurements)
+
+    ca = sub.add_parser("calibrate", help="用实测数据拟合校准因子")
+    ca.add_argument("--scenario", required=True)
+    ca.add_argument("--measurements", required=True)
+    ca.add_argument("--source", default="field", choices=("field", "lab", "vendor", "synthetic"))
+    ca.add_argument("--out")
+    ca.add_argument("--json", action="store_true")
+    ca.set_defaults(func=cmd_calibrate)
+
+    ba = sub.add_parser("batch", help="批量跑目录下所有场景")
+    ba.add_argument("--dir", default="scenarios")
+    ba.add_argument("--out", required=True)
+    ba.add_argument("--calibration")
+    ba.add_argument("--json", action="store_true")
+    ba.set_defaults(func=cmd_batch)
+
+    qu = sub.add_parser("quote", help="生成可打印报价页")
+    qu.add_argument("--scenario", required=True)
+    qu.add_argument("--out", required=True)
+    qu.add_argument("--customer", default="")
+    qu.add_argument("--valid-days", type=int, default=30)
+    qu.add_argument("--calibration")
+    qu.set_defaults(func=cmd_quote)
     return ap
 
 

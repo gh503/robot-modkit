@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aquatwin"
-version = "0.1.0"
-description = "AquaTwin：泳池清洗机器人数字孪生与清洁经济性研究（独立应用）"
+version = "0.2.0"
+description = "AquaTwin：泳池清洗机器人数字孪生、实测校准与清洁经济性"
 requires-python = ">=3.10"
 dependencies = []
 

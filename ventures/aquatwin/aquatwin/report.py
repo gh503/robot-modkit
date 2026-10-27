@@ -17,10 +17,10 @@ def _f(v, n=2):
     return f"{v:.{n}f}"
 
 
-def write(study: Study, result: dict, out: str | pathlib.Path) -> dict:
+def write(study: Study, result: dict, out: str | pathlib.Path,
+          calibration: dict | None = None, measurements=None) -> dict:
     d = pathlib.Path(out)
     d.mkdir(parents=True, exist_ok=True)
-    r = result["results"]
     cov = cv.Coverage(**result["coverage"])
     study.save(d / "study.json")
     (d / "metrics.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",
@@ -29,9 +29,23 @@ def write(study: Study, result: dict, out: str | pathlib.Path) -> dict:
     cv.write_svg(cov, study.pool, d / "coverage.svg")
     (d / "report.md").write_text(markdown(study, result), encoding="utf-8")
     (d / "dashboard.html").write_text(dashboard(study, result), encoding="utf-8")
-    return {"metrics": str(d / "metrics.json"), "report": str(d / "report.md"),
-            "coverage_csv": str(d / "coverage.csv"), "coverage_svg": str(d / "coverage.svg"),
-            "dashboard": str(d / "dashboard.html"), "study": str(d / "study.json")}
+    (d / "quote.html").write_text(quote(study, result), encoding="utf-8")
+    paths = {"metrics": str(d / "metrics.json"), "report": str(d / "report.md"),
+             "coverage_csv": str(d / "coverage.csv"), "coverage_svg": str(d / "coverage.svg"),
+             "dashboard": str(d / "dashboard.html"), "quote": str(d / "quote.html"),
+             "study": str(d / "study.json")}
+    if calibration is not None:
+        (d / "calibration.json").write_text(json.dumps(calibration, ensure_ascii=False, indent=2) + "\n",
+                                            encoding="utf-8")
+        paths["calibration"] = str(d / "calibration.json")
+    if measurements is not None:
+        measurements.save(d / "measurements.json")
+        paths["measurements"] = str(d / "measurements.json")
+        from . import calibrate as cb
+        (d / "validation.md").write_text(cb.markdown(study, measurements, calibration or {}),
+                                         encoding="utf-8")
+        paths["validation"] = str(d / "validation.md")
+    return paths
 
 
 def markdown(study: Study, result: dict) -> str:
@@ -50,6 +64,11 @@ def markdown(study: Study, result: dict) -> str:
          f"- 年化净利（扣折旧）**¥{_f(r['annual_net_after_depreciation_cny'],0)}**；"
          f"1 年 ROI **{_f(r['roi_1y_pct'],1)}%**。", "",
          "> 以上是**场景假设**下的工程/经济模型，不是实测，也不是报价。", "",
+         (f"> 已应用校准：`{result['calibration']['time_scale']:.3f}` / "
+          f"`{result['calibration']['energy_scale']:.3f}` / "
+          f"`{result['calibration']['pressure_scale']:.3f}`；模型 `{result.get('model_version','—')}`。"
+          if result.get("calibration", {}).get("applied")
+          else "> 未应用实测校准；结论仅代表模型假设。"), "",
          "## 输入", "",
          "| 输入 | 值 |", "|---|---|",
          f"| 泳池 | {p.length_m:g}×{p.width_m:g}×{p.depth_m:g} m；{p.water_temp_c:g}°C；{p.salinity_ppt:g} ppt |",
@@ -97,6 +116,14 @@ def markdown(study: Study, result: dict) -> str:
     for row in sensitivity(study):
         L.append(f"| {row['variant']} | {_f(row['time_min'],1)} | {_f(row['energy_wh'],1)} | "
                  f"{_f(row['cost_cny'])} | {_f(row['coverage_pct'],1)} |")
+    if result.get("calibration", {}).get("applied"):
+        c = result["calibration"]
+        L += ["", "## 校准因子", "",
+              "| 因子 | 值 |", "|---|---:|",
+              f"| time_scale | {_f(c['time_scale'],3)} |",
+              f"| setup_min | {_f(c['setup_min'],2)} min |",
+              f"| energy_scale | {_f(c['energy_scale'],3)} |",
+              f"| pressure_scale | {_f(c['pressure_scale'],3)} |"]
     if result.get("warnings"):
         L += ["", "## 警告", ""] + [f"- {x}" for x in result["warnings"]]
     L += ["", "## 模型与边界", ""] + [f"- {x}" for x in result.get("assumptions", [])]
@@ -154,8 +181,54 @@ h2{{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.0
 <h2>结论</h2><p>覆盖率 {_f(r['coverage_pct'],1)}%，路径 {_f(r['path_length_m'],1)} m；
 过滤压升 {_f(r['filter_pressure_rise_kpa'],1)} kPa；年化净利（扣折旧）
 ¥{_f(r['annual_net_after_depreciation_cny'],0)}。</p>
-<p class="note">这是场景假设下的降阶模型，不是现场实测、报价或性能保证。
+<p class="note">这是场景假设下的降阶模型，不是现场实测、报价或性能保证。模型 {escape(result.get('model_version','—'))}；{'已校准（仅该数据集）' if result.get('calibration',{}).get('applied') else '未校准'}。
 完整输入/公式/敏感性见 <code>report.md</code>；机器可读结果见 <code>metrics.json</code>。</p>
 </main>
 <script type="application/json" id="result">{data}</script>
+</body></html>'''
+
+
+def quote(study: Study, result: dict, customer: str = "", valid_days: int = 30) -> str:
+    """可打印的客户报价页；不是合同，不承诺性能。"""
+    r = result["results"]
+    rows = [
+        ("单次清洁时间", f"{_f(r['total_time_min'],1)} min"),
+        ("单次运行成本", f"¥{_f(r['operating_cost_cny'])}"),
+        ("含折旧成本", f"¥{_f(r['cost_per_cleaning_cny'])}"),
+        ("建议服务价", f"¥{_f(r['service_price_cny'])}"),
+        ("单次毛利", f"¥{_f(r['margin_per_cleaning_cny'])}"),
+        ("相对人工节省", f"¥{_f(r['savings_per_cleaning_cny'])}"),
+        ("设备回收期（按节省）", f"{_f(r['payback_savings_months'],1)} 个月"),
+        ("覆盖率", f"{_f(r['coverage_pct'],1)}%"),
+    ]
+    tr = "".join(f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>" for k, v in rows)
+    calibrated = result.get("calibration", {}).get("applied")
+    cal_note = ("<b>已应用校准，但仅适用于本数据集覆盖的池型/机器人。</b>"
+                if calibrated else "<b>本报价未应用实测校准。</b>")
+    return f'''<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AquaTwin 报价 · {escape(study.name)}</title>
+<style>
+body{{font:14px/1.6 system-ui,-apple-system,"Noto Sans CJK SC",sans-serif;color:#17212b;max-width:820px;margin:32px auto;padding:0 24px}}
+h1{{font-size:24px;margin:0 0 4px}}h2{{font-size:15px;margin:24px 0 8px;border-bottom:1px solid #d8e0e8;padding-bottom:4px}}
+.meta{{color:#5b6b7c;font-size:12px}}table{{width:100%;border-collapse:collapse;margin:8px 0}}
+th,td{{text-align:left;padding:8px;border-bottom:1px solid #e6edf3}}th{{width:42%;color:#5b6b7c;font-weight:500}}
+.notice{{background:#fff8e6;border:1px solid #f0d48a;padding:12px;border-radius:8px;font-size:12px;margin-top:20px}}
+.sign{{display:flex;gap:40px;margin-top:36px}}.sign div{{flex:1;border-top:1px solid #9aa8b6;padding-top:6px;font-size:12px;color:#5b6b7c}}
+@media print{{body{{margin:0}} .no-print{{display:none}}}}
+</style></head><body>
+<div class="no-print" style="text-align:right"><button onclick="window.print()">打印/PDF</button></div>
+<h1>AquaTwin 清洁方案报价</h1>
+<div class="meta">客户：{escape(customer or '（待填）')} · 场景：{escape(study.name)} · 有效期：{valid_days} 天 · 模型：{escape(result.get('model_version','—'))}</div>
+<h2>方案输入</h2>
+<table><tr><th>泳池</th><td>{study.pool.length_m:g}×{study.pool.width_m:g}×{study.pool.depth_m:g} m；{study.pool.water_temp_c:g}°C；{study.pool.salinity_ppt:g} ppt</td></tr>
+<tr><th>机器人</th><td>清洁宽度 {study.robot.swath_m:g} m；速度 {study.robot.speed_m_s:g} m/s；电池 {study.robot.battery_wh:g} Wh</td></tr>
+<tr><th>过滤</th><td>捕获 {study.filter.capture_efficiency*100:g}%；容量 {study.filter.capacity_g:g} g</td></tr></table>
+<h2>结果与商务</h2><table>{tr}</table>
+<h2>说明</h2>
+<p>本报价基于场景假设与降阶模型，不含空驶、补人、失败重洗、维修/耗材、税费与现场安全措施；实际价格以现场勘察与合同为准。
+{cal_note}
+</p>
+<div class="notice">边界：这不是性能保证、投资建议或安全认证。物理闸门/现场验证：未做。报价有效期 {valid_days} 天。</div>
+<div class="sign"><div>客户确认</div><div>AquaTwin</div></div>
 </body></html>'''

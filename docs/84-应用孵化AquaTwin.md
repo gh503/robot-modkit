@@ -1,6 +1,6 @@
 # 84 · 独立应用孵化：AquaTwin
 
-> 状态：**0.1.0 商业 MVP，软件可运行；无现场数据/客户/收入**。
+> 状态：**0.2.0 实测校准闭环，软件可运行；无现场数据/客户/收入**。
 > 项目位置：[`ventures/aquatwin`](../ventures/aquatwin/README.md)。这是独立应用，
 > 不进入 modkit 的 Python 包，也不改变物理闸门 **0/5**。
 
@@ -36,7 +36,26 @@ AquaTwin 就是把这个闭环做成独立产品。
 - `dashboard.html`：离线单页，给销售/客户；
 - `coverage.svg` / `coverage.csv`：俯视路径；
 - `metrics.json`：机器可读，接 BI/CRM；
-- `study.json`：输入快照，保证复现。
+- `study.json`：输入快照，保证复现；
+- `quote.html`：可打印报价页（0.2）；
+- `calibration.json` / `validation.md` / `measurements.json`：校准因子、逐条残差、数据快照（0.2）；
+- `portfolio.{json,md,html}`：多池组合（0.2）。
+
+### 0.2 校准闭环
+
+```bash
+aquatwin measurements --file data/measurements-example.csv
+aquatwin calibrate --scenario scenarios/residential_8x4.json \
+  --measurements data/measurements-example.csv --out out/calibration
+aquatwin study --scenario scenarios/residential_8x4.json \
+  --calibration out/calibration/calibration.json --out out/calibrated
+aquatwin batch --dir scenarios --out out/portfolio
+aquatwin quote --scenario scenarios/residential_8x4.json --customer "客户" --out out/quote
+```
+
+只拟合 4 个透明因子（时间/部署/能耗/压升），带 90% bootstrap 区间；
+**synthetic 示例不是现场数据**，报告会降级标注。协议见
+[`ventures/aquatwin/docs/calibration.md`](../ventures/aquatwin/docs/calibration.md)。
 
 ## 84.3 示例结果（假设，不是实测）
 
@@ -90,9 +109,10 @@ pip install -e .
 aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 ```
 
-测试：`make aquatwin-check`（9 项），CI 有独立 job。
+测试：`make aquatwin-check`（16 项），CI 有独立 job。
 
 ## 84.7 下一步
 
-唯一重要的事：**拿 10–20 个真实池子标定**，把时间/能耗误差压到 ±20%、
-覆盖率 ±5pp；达不到就不对外承诺精度。功能扩张排在验证之后。
+软件侧的导入/校准/批量/报价管线已经就绪；唯一重要的事变成
+**拿 10–20 个真实池子跑这条管线**，把时间/能耗误差压到 ±20%、覆盖率 ±5pp。
+达不到就不对外承诺精度；下一步功能（白标/API/多边形池）排在现场验证之后。

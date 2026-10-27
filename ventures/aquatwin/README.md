@@ -2,7 +2,8 @@
 
 > **独立应用项目**（`ventures/aquatwin`），不是 modkit 的一个命令。
 > 目标客户：泳池服务运营商、泳池机器人 OEM、商业/酒店/社区泳池资产方。
-> 当前版本 **0.1.0**：可运行的商业 MVP + 可复现报告；**没有现场实测**。
+> 当前版本 **0.2.0**：可运行 MVP + 实测导入/校准/批量/报价闭环；**没有现场实测**，
+> 合成示例只用于验证软件管线，不能当 field-validated。
 
 ## 一句话
 
@@ -35,6 +36,18 @@ pip install -e .
 aquatwin list
 aquatwin validate --scenario scenarios/residential_8x4.json
 aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
+
+# 有实测数据后：导入/校验 → 校准 → 用校准模型出报告
+aquatwin measurements --file data/measurements-example.csv
+aquatwin calibrate --scenario scenarios/residential_8x4.json \
+  --measurements data/measurements-example.csv --out out/calibration
+aquatwin study --scenario scenarios/residential_8x4.json \
+  --calibration out/calibration/calibration.json --out out/calibrated
+
+# 多池组合 / 客户报价页
+aquatwin batch --dir scenarios --out out/portfolio
+aquatwin quote --scenario scenarios/residential_8x4.json \
+  --customer "示例客户" --out out/quote
 ```
 
 打开：
@@ -43,7 +56,10 @@ aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 - `out/residential/dashboard.html`：给销售/客户看的一页（离线、无 CDN）；
 - `out/residential/coverage.svg`：俯视覆盖路径；
 - `out/residential/metrics.json`：机器可读，接 BI/CRM；
-- `out/residential/study.json`：输入快照，保证可复现。
+- `out/residential/study.json`：输入快照，保证可复现；
+- `out/residential/quote.html`：可打印客户报价页（不是合同/性能保证）；
+- `out/calibration/calibration.json` + `validation.md`：校准因子与逐条残差；
+- `out/portfolio/portfolio.{json,md,html}`：多池组合。
 
 三个内置场景：住宅 8×4m、商业 25×10m、小型 6×3m。
 
@@ -56,6 +72,34 @@ aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 ```
 
 > 这是**示例假设**，不是市场报价/实测。报告里逐条列出假设与边界。
+
+## 实测导入与校准（0.2）
+
+没有实测数据时，模型只能做方案比较；有数据后走这条链：
+
+```text
+measurements.csv/json
+  → measurements（校验/字段/单位/缺失值）
+  → calibrate（time_scale / setup_min / energy_scale / pressure_scale）
+  → study --calibration（把因子应用到报告/报价）
+  → validation.md（逐条残差 + 边界）
+```
+
+CSV 最小列：
+
+```csv
+study,source,run_id,time_min,energy_wh,coverage_pct,pressure_kpa,speed_m_s,debris_g_m3
+住宅泳池 8×4m,field,r1,6.4,10.8,98.0,4.2,0.25,5
+```
+
+- `source`：`field` / `lab` / `vendor` / `synthetic`；只有 `field` 才能写现场验证；
+- 条件列可覆盖 `speed_m_s/swath_m/overlap/debris_g_m3/water_temp_c/...`，
+  用于让多条数据可区分参数；
+- `calibrate` 输出 4 个透明因子，不改变模型结构；`time_scale`/`setup_min` 约束在
+  合理范围，超出会截断并在 `caveats` 里说明；
+- **校准 ≠ 认证**：数据不足、非现场、外推到新池型都必须降级表述。
+
+完整协议/字段/判据见 [`docs/calibration.md`](docs/calibration.md)。
 
 ## 场景 JSON
 
@@ -91,6 +135,8 @@ aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 8. **回收期**：设备价 / 月节省；同时给“服务利润”口径，避免混淆。
 
 所有公式在 `aquatwin/model.py`，报告里重复一遍；没有黑盒 ML。
+校准只加 4 个乘子：`time_scale`、`setup_min`、`energy_scale`、`pressure_scale`；
+`model_version` 与因子一起写进 `metrics.json`/`calibration.json`，可追溯。
 
 ## 商业场景与方向
 
@@ -154,11 +200,15 @@ aquatwin/
   scenario.py    # schema/校验
   coverage.py    # 矩形 boustrophedon + SVG/CSV
   model.py       # 物理/时间/能耗/过滤/经济
-  report.py      # report.md / dashboard.html
-  cli.py         # list/validate/study/roi/new
+  measurements.py # 实测 schema/CSV/JSON/校验
+  calibrate.py    # 4 因子拟合 + validation.md
+  batch.py        # 多池组合/portfolio
+  report.py       # report/dashboard/quote/validation
+  cli.py          # list/validate/study/roi/new/measurements/calibrate/batch/quote
 scenarios/       # 3 个内置场景
-tests/           # 9 项 pytest
-docs/            # business/research/pricing/roadmap
+data/            # synthetic 示例测量（不是现场数据）
+tests/           # 16 项 pytest
+docs/            # calibration/business/research/pricing/roadmap
 ```
 
 ## 边界（必须读）
@@ -168,6 +218,7 @@ docs/            # business/research/pricing/roadmap
 - 不含水质化学、藻类、消毒副产物、溺水/电气安全；
 - 经济模型是**方案比较**，不是报价、收益承诺或投资建议；
 - 没有现场数据/物理闸门；对外必须标“modeled, not measured”；
+- 校准因子只在导入数据覆盖的池型/机器人/工况内有效；外推必须重新验证；
 - 与 modkit 的关系：可独立运行；modkit 提供机器人/世界/流体底座，
   AquaTwin 只带自己的商业逻辑（当前零运行时依赖）。
 

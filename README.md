@@ -38,7 +38,7 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor
-make check-fast          # 333 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 9 项
+make check-fast          # 333 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 16 项
 make web-smoke           # 需本机 Chrome
 ```
 

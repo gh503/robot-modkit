@@ -1,0 +1,5 @@
+study,source,run_id,time_min,energy_wh,coverage_pct,pressure_kpa,speed_m_s,debris_g_m3,notes
+住宅泳池 8×4m,synthetic,r1,11.346,13.143,98.0,4.968,0.18,,synthetic demo only
+住宅泳池 8×4m,synthetic,r2,8.917,9.82,98.0,4.968,0.25,,synthetic demo only
+住宅泳池 8×4m,synthetic,r3,7.551,8.011,98.0,4.968,0.32,,synthetic demo only
+住宅泳池 8×4m,synthetic,r4,8.917,9.82,98.0,8.942,,9.0,synthetic demo only

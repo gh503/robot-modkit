@@ -13,6 +13,11 @@ from . import coverage as cv
 from .scenario import Study
 
 G = 9.80665
+MODEL_VERSION = "aquatwin-model/1.0.0"
+DEFAULT_FACTORS = {"time_scale": 1.0, "setup_min": 0.0,
+                   "energy_scale": 1.0, "pressure_scale": 1.0}
+FACTOR_BOUNDS = {"time_scale": (0.30, 3.0), "setup_min": (0.0, 30.0),
+                 "energy_scale": (0.20, 5.0), "pressure_scale": (0.10, 5.0)}
 
 
 def water_density(temp_c: float, salinity_ppt: float) -> float:
@@ -20,7 +25,18 @@ def water_density(temp_c: float, salinity_ppt: float) -> float:
     return max(950.0, 998.2 + 0.8 * salinity_ppt - 0.25 * (temp_c - 20.0))
 
 
-def run(study: Study) -> dict:
+def factors_of(calibration: dict | None) -> dict:
+    if not calibration:
+        return dict(DEFAULT_FACTORS)
+    f = calibration.get("factors", calibration)
+    out = dict(DEFAULT_FACTORS)
+    for k in out:
+        if k in f and f[k] is not None:
+            out[k] = float(f[k])
+    return out
+
+
+def run(study: Study, calibration: dict | None = None) -> dict:
     v = study.validate()
     if not v["ok"]:
         raise ValueError("场景校验失败：" + "；".join(v["errors"]))
@@ -42,9 +58,21 @@ def run(study: Study) -> dict:
     total_h = active_h + charge_h
     energy_kwh = active_energy_wh / 1000.0
 
+    factors = factors_of(calibration)
+    calibrated = calibration is not None
+    if calibrated:
+        active_h = active_h * factors["time_scale"] + factors["setup_min"] / 60.0
+        active_energy_wh = active_energy_wh * factors["energy_scale"]
+        charges = max(0, int(math.ceil(active_energy_wh / usable)) - 1)
+        charge_h = charges * r.charge_time_h
+        total_h = active_h + charge_h
+        energy_kwh = active_energy_wh / 1000.0
+
     captured_g = p.volume * p.debris_g_m3 * ft.capture_efficiency
     filter_cycles = captured_g / ft.capacity_g if ft.capacity_g else 0.0
     pressure_rise = captured_g / 100.0 * ft.pressure_rise_kpa_per_100g
+    if calibrated:
+        pressure_rise *= factors["pressure_scale"]
     backwash_cost = filter_cycles * ft.backwash_cost_cny
     backwash_water_l = filter_cycles * 200.0
 
@@ -143,8 +171,15 @@ def run(study: Study) -> dict:
         "价格为示例假设，不是市场报价；ROI 仅作方案比较",
         "覆盖是矩形 boustrophedon 近似；不含障碍/斜池/水流",
     ]
+    if calibrated:
+        assumptions.append(
+            "已应用校准因子 time_scale/setup_min/energy_scale/pressure_scale；"
+            "因子来自导入数据，不改变模型结构，也不等于现场认证")
     return {
         "schema": "aquatwin.result/1",
+        "model_version": MODEL_VERSION,
+        "calibration": ({**factors, "applied": True} if calibrated
+                        else {**DEFAULT_FACTORS, "applied": False}),
         "study": study.name,
         "description": study.description,
         "inputs": study.to_dict(),
@@ -184,4 +219,5 @@ def sensitivity(study: Study) -> list[dict]:
     return variants
 
 
-__all__ = ["G", "water_density", "run", "sensitivity"]
+__all__ = ["G", "MODEL_VERSION", "DEFAULT_FACTORS", "FACTOR_BOUNDS",
+           "water_density", "factors_of", "run", "sensitivity"]

@@ -51,7 +51,10 @@ jobs:
         run: docker build -f software/Dockerfile -t modkit-api:ci .
       - name: 启动并检查
         run: |
-          docker run -d --rm --name modkit-api-ci             -e MODKIT_API_KEY=ci-key -p 127.0.0.1:18080:8080 modkit-api:ci
+          docker run -d --name modkit-api-ci \
+            -e MODKIT_API_KEY=ci-key -p 127.0.0.1:18080:8080 modkit-api:ci
+          sleep 2
+          docker logs modkit-api-ci || true
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:18080/v1/health >/tmp/health.json; then break; fi
             sleep 1

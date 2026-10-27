@@ -23,6 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: 校验静态资产/版本
+        run: python3 tools/web_assets.py web
       - name: 上传 web/
         uses: actions/upload-pages-artifact@v3
         with:

@@ -1,6 +1,6 @@
 # 86 · 本地 REST API 与部署
 
-> 状态：**v1.37.0 已实现**（API 代码/测试先于版本号；发布时统一）。默认只监听
+> 状态：**v1.38.0 已实现**（API 代码/测试先于版本号；发布时统一）。默认只监听
 > `127.0.0.1`；不是云服务、没有多租户/计费/公网鉴权。物理闸门仍 **0/5**。
 
 ## 86.1 启动
@@ -74,7 +74,10 @@ curl -s http://127.0.0.1:8080/v1/health
 - 镜像 `python:3.11-slim`，非 root 用户 `app`，`read_only` 根文件系统 + `/tmp` tmpfs；
 - compose 只把端口绑到 `127.0.0.1`；远程访问请自己做 TLS 反向代理；
 - **不要**把 `MODKIT_API_KEY` 写进镜像/仓库；用环境变量或 secret；
-- 世界仿真需要 numpy；镜像装 `[api,world]`。
+- 世界仿真需要 numpy；镜像装 `[api,world]`；
+- 镜像通过 `modkit` 控制台入口启动（`[project.scripts]`），不再依赖
+  `python -m`；CI 的 Docker job 会构建、启动、查 `/v1/health`、`/v1/schemas`
+  和未授权 401。本机没有 Docker daemon 时只能验证到 CLI/测试层，不能声称容器已跑。
 
 ## 86.4 错误与边界
 
@@ -89,3 +92,17 @@ curl -s http://127.0.0.1:8080/v1/health
 
 `software/tests/test_api.py`（7 项）：health/OpenAPI、世界校验/预设、异步 job、
 错误路径、管网/流体、API key、请求体上限。CI 安装 `software[vision,world,api,dev]`。
+2026-10 总测试 **364**。
+
+## 86.6 Pages 静态发布
+
+`.github/workflows/pages.yml` 直接上传 `web/`。上线前跑：
+
+```bash
+python tools/web_assets.py web
+```
+
+它检查 Service Worker 的 `SHELL`/`MODELS` 全部存在、HTML 同源引用存在、
+`web/data/world-*.json` 都是 `modkit.world/2`，并且 `sw.js` 缓存号与
+`modkit.__version__`、`world.js` `VERSION` 一致。CI 和 Pages 都调用它；
+资产缺失会让部署失败，而不是上线一个半坏的 PWA。

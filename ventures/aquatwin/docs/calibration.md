@@ -145,6 +145,10 @@ aquatwin study --scenario scenarios/residential_8x4.json \
 aquatwin study --scenario scenarios/residential_8x4.json \
   --measurements data/measurements.csv --out out/calibrated
 
+# 模型审计（软件/数据管线 vs 现场验证）
+aquatwin audit --scenario scenarios/residential_8x4.json \
+  --measurements data/measurements-example.csv --out out/audit
+
 # 多池组合
 aquatwin batch --dir scenarios --out out/portfolio \
   --calibration out/calibration/calibration.json
@@ -157,7 +161,19 @@ aquatwin batch --dir scenarios --out out/portfolio \
 - 同一输入重复运行应得到同一 JSON（无随机数；网格搜索确定性）；
 - 旧校准文件在新模型上不自动兼容：版本不一致时报告必须显式提示。
 
-## 8. 明确不做
+## 8. 模型审计
+
+`audit.json` 是固定 schema `aquatwin.audit/1`，由 `aquatwin audit` 生成。它至少检查：
+
+- `model_version` 与代码一致；校准因子在 `FACTOR_BOUNDS` 内；
+- 90% bootstrap 区间合法；校准的 `study` 与当前场景匹配；
+- 数据来源（field/lab/vendor/synthetic）、样本数、时间/能耗 MAPE；
+- `physical_gate` 硬编码为 `"0/5"`，`field_validated` 硬编码为 `false`。
+
+`software_ready:true` 只代表代码/数据管线可复现；**审计通过不是现场通过**。
+JSON Schema 也用 `const false` / `const "0/5"` 锁死，不能靠手改字段冒充验证。
+
+## 9. 明确不做
 
 - 不做逐池“记忆”/在线学习；每条数据先进入可审计文件；
 - 不用合成数据补足样本量；

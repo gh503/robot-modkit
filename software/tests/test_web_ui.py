@@ -76,3 +76,13 @@ def test_web_scene_has_safety_envelope():
     for key in ('"safety"', '"max_step"', '"torque_limit"', '"current_limit"',
                 '"voltage_min_v"', '"temp_max_c"'):
         assert key in scene
+
+
+def test_pages_assets_are_complete_and_versioned():
+    import importlib.util
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location("web_assets", root / "tools" / "web_assets.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.check(root / "web") == []

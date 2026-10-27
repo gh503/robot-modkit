@@ -31,6 +31,7 @@
 | 稳态管网 | `modkit network solve` | ✅ 节点/管/泵/需求；见 [85](docs/85-稳态管网.md) |
 | 本地 API | `modkit serve` + `/docs` | ✅ 世界异步 job/管网/流体；见 [86](docs/86-本地API与部署.md) |
 | glTF 导出 | `modkit world export` | ✅ glTF/GLB：盒/柱/球/平面/heightfield/水面 |
+| AquaTwin | [ventures/aquatwin](ventures/aquatwin/README.md) | ✅ 0.2.2：实测导入/校准/批量/报价/PDF/模型审计；现场仍 0/5 |
 | 整机实测 | 按 [docs/63](docs/63-硬件到货执行单.md) 执行 | ⬜ 0/5，硬件阻塞 |
 
 完整能力地图（仿真、生产、采购、验收）见 [docs/80 §80.2](docs/80-项目状态与版本历史.md)。
@@ -41,7 +42,8 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor
-make check-fast          # 361 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 26 项
+make check-fast          # 364 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 32 项
+make bench               # 世界/管网轻量基准（时间/体积误差）
 make web-smoke           # 需本机 Chrome
 ```
 

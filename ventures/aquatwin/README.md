@@ -2,7 +2,7 @@
 
 > **独立应用项目**（`ventures/aquatwin`），不是 modkit 的一个命令。
 > 目标客户：泳池服务运营商、泳池机器人 OEM、商业/酒店/社区泳池资产方。
-> 当前版本 **0.2.1**：实测导入/校准/批量/报价闭环 + PDF/schema；**没有现场实测**，
+> 当前版本 **0.2.2**：实测导入/校准/批量/报价闭环 + PDF/schema；**没有现场实测**，
 > 合成示例只用于验证软件管线，不能当 field-validated。
 
 ## 一句话
@@ -44,7 +44,9 @@ aquatwin calibrate --scenario scenarios/residential_8x4.json \
 aquatwin study --scenario scenarios/residential_8x4.json \
   --calibration out/calibration/calibration.json --out out/calibrated
 
-# 多池组合 / 客户报价页 / PDF / schema
+# 模型审计 / 多池组合 / 客户报价页 / PDF / schema
+aquatwin audit --scenario scenarios/residential_8x4.json \
+  --measurements data/measurements-example.csv --out out/audit
 aquatwin batch --dir scenarios --out out/portfolio
 aquatwin quote --scenario scenarios/residential_8x4.json \
   --customer "示例客户" --out out/quote
@@ -59,8 +61,9 @@ aquatwin quote --scenario scenarios/residential_8x4.json \
 - `out/residential/study.json`：输入快照，保证可复现；
 - `out/residential/quote.html`：可打印客户报价页（不是合同/性能保证）；
 - `aquatwin pdf --scenario ... --out out/quote --what quote`：PDF（WeasyPrint 或 wkhtmltopdf）；
-- `aquatwin schema --what measurements`：实测 JSON Schema；
+- `aquatwin schema --what measurements|audit`：实测/审计 JSON Schema；
 - `out/calibration/calibration.json` + `validation.md`：校准因子与逐条残差；
+- `out/audit/audit.json` + `audit.md`：模型审计（软件可用 vs 现场已验证，物理闸门 0/5）；
 - `out/portfolio/portfolio.{json,md,html}`：多池组合。
 
 四个内置场景：住宅 8×4m、商业 25×10m、小型 6×3m、L 形 8×4m（polygon）。

@@ -16,6 +16,7 @@ import pathlib
 import sys
 import time
 
+from . import __version__
 from . import backlash as bl
 from . import bench as bench
 from . import bringup as bu
@@ -1575,6 +1576,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="modkit", description="modkit 机器人命令行")
     ap.add_argument("--port", help="串口，如 /dev/ttyUSB0 或 COM3")
     ap.add_argument("--baud", type=int, default=1_000_000)
+    ap.add_argument("--version", action="version", version=f"modkit {__version__}")
     ap.add_argument("--sim", action="store_true", help="使用仿真链路（不需要硬件）")
     sub = ap.add_subparsers(dest="cmd", required=True)
 

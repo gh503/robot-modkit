@@ -8,6 +8,7 @@ import pathlib
 import sys
 
 from . import __version__
+from . import audit as au
 from . import batch as bt
 from . import calibrate as cb
 from . import model
@@ -243,8 +244,50 @@ def cmd_schema(args) -> int:
     if args.what == "measurements":
         print(json.dumps(ms.json_schema(), ensure_ascii=False, indent=2))
         return 0
+    if args.what == "audit":
+        print(json.dumps(au.schema_def(), ensure_ascii=False, indent=2))
+        return 0
     print(f"未知 schema：{args.what}")
     return 2
+
+
+def cmd_audit(args) -> int:
+    s = _load(args.scenario)
+    calibration = None
+    measurements = None
+    if args.measurements:
+        try:
+            measurements = MeasurementSet.load(args.measurements)
+            calibration = cb.calibrate(s, measurements)
+        except (OSError, MeasurementError, cb.CalibrationError) as e:
+            print(f"校准失败：{e}")
+            return 2
+    elif args.calibration:
+        try:
+            calibration = cb.load(args.calibration)
+        except (OSError, cb.CalibrationError) as e:
+            print(f"读取校准失败：{e}")
+            return 2
+    try:
+        result = model.run(s, calibration=calibration)
+    except ValueError as e:
+        print(f"运行失败：{e}")
+        return 2
+    a = au.run(s, result, calibration=calibration, measurements=measurements)
+    if args.out:
+        paths = au.write(s, a, args.out)
+        a["outputs"] = paths
+    if args.json:
+        print(json.dumps(a, ensure_ascii=False, indent=2))
+    else:
+        print(f"审计：{a['status']}；软件可用 {'是' if a['software_ready'] else '否'}；"
+              f"现场验证 {'是' if a['field_validated'] else '否'}；闸门 {a['physical_gate']}")
+        for c in a["checks"]:
+            if c["status"] != "pass":
+                print(f"  [{c['status']}] {c['id']}: {c['detail']}")
+        if args.out:
+            print(f"输出：{args.out}/audit.json、audit.md")
+    return 0 if a["software_ready"] else 2
 
 
 def cmd_pdf(args) -> int:
@@ -358,8 +401,16 @@ def build_parser() -> argparse.ArgumentParser:
     pd.add_argument("--engine", choices=("auto", "weasyprint", "wkhtmltopdf"), default="auto")
     pd.set_defaults(func=cmd_pdf)
 
+    au_p = sub.add_parser("audit", help="模型审计：软件可用 vs 现场已验证")
+    au_p.add_argument("--scenario", required=True)
+    au_p.add_argument("--calibration")
+    au_p.add_argument("--measurements")
+    au_p.add_argument("--out")
+    au_p.add_argument("--json", action="store_true")
+    au_p.set_defaults(func=cmd_audit)
+
     sc = sub.add_parser("schema", help="输出 JSON Schema")
-    sc.add_argument("--what", choices=("measurements",), default="measurements")
+    sc.add_argument("--what", choices=("measurements", "audit"), default="measurements")
     sc.set_defaults(func=cmd_schema)
     return ap
 

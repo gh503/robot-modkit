@@ -1,6 +1,6 @@
 # 84 · 独立应用孵化：AquaTwin
 
-> 状态：**0.2.1 实测校准闭环 + PDF/schema，软件可运行；无现场数据/客户/收入**。
+> 状态：**0.2.2 实测校准闭环 + PDF/schema + 模型审计，软件可运行；无现场数据/客户/收入**。
 > 项目位置：[`ventures/aquatwin`](../ventures/aquatwin/README.md)。这是独立应用，
 > 不进入 modkit 的 Python 包，也不改变物理闸门 **0/5**。
 
@@ -38,10 +38,11 @@ AquaTwin 就是把这个闭环做成独立产品。
 - `metrics.json`：机器可读，接 BI/CRM；
 - `study.json`：输入快照，保证复现；
 - `quote.html`：可打印报价页（0.2）；
-- `quote.pdf` / `dashboard.pdf`：`aquatwin pdf`（0.2.1，WeasyPrint/wkhtmltopdf）；
+- `quote.pdf` / `dashboard.pdf`：`aquatwin pdf`（0.2.2，WeasyPrint/wkhtmltopdf）；
 - `aquatwin schema`：`aquatwin.measurements/1` JSON Schema；
 - `calibration.json` / `validation.md` / `measurements.json`：校准因子、逐条残差、数据快照（0.2）；
-- `portfolio.{json,md,html}`：多池组合（0.2）。
+- `portfolio.{json,md,html}`：多池组合（0.2）；
+- `audit.json` / `audit.md`：模型审计，明确 `software_ready` 与 `field_validated:false`。
 
 ### 0.2 校准闭环
 
@@ -53,7 +54,13 @@ aquatwin study --scenario scenarios/residential_8x4.json \
   --calibration out/calibration/calibration.json --out out/calibrated
 aquatwin batch --dir scenarios --out out/portfolio
 aquatwin quote --scenario scenarios/residential_8x4.json --customer "客户" --out out/quote
+aquatwin audit --scenario scenarios/residential_8x4.json \
+  --measurements data/measurements-example.csv --out out/audit
 ```
+
+审计会检查模型版本、因子边界、置信区间、study 匹配、数据来源、样本量与误差，
+并把 `physical_gate:"0/5"`、`field_validated:false` 写进 JSON Schema——**不能靠改
+一个布尔值宣称现场通过**。
 
 只拟合 4 个透明因子（时间/部署/能耗/压升），带 90% bootstrap 区间；
 **synthetic 示例不是现场数据**，报告会降级标注。协议见
@@ -111,7 +118,7 @@ pip install -e .
 aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 ```
 
-测试：`make aquatwin-check`（26 项），CI 有独立 job。
+测试：`make aquatwin-check`（32 项），CI 有独立 job。
 
 ## 84.7 下一步
 

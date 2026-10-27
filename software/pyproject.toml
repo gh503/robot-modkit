@@ -1,9 +1,12 @@
 [project]
 name = "modkit"
-version = "1.37.0"
+version = "1.38.0"
 description = "可拆装模块化机器人：上位机软件（协议 / 运动学 / 仿真 / CLI）"
 requires-python = ">=3.10"
 dependencies = ["pyserial>=3.5"]
+
+[project.scripts]
+modkit = "modkit.cli:main"
 
 [project.optional-dependencies]
 vision = ["numpy>=1.24", "Pillow>=10"]

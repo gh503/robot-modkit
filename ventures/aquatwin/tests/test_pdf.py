@@ -38,3 +38,13 @@ def test_measurement_schema_cli(capsys):
     d = json.loads(capsys.readouterr().out)
     assert d["properties"]["schema"]["const"] == "aquatwin.measurements/1"
     assert "time_min" in d["properties"]["runs"]["items"]["required"]
+
+
+def test_quote_escapes_customer_html():
+    from aquatwin import model, report
+    from aquatwin.scenario import Study
+    s = Study.load("scenarios/small_6x3.json")
+    r = model.run(s)
+    html = report.quote(s, r, customer='<script>alert("x")</script>')
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html

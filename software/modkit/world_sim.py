@@ -12,6 +12,7 @@ import csv
 import json
 import math
 import pathlib
+import random
 from dataclasses import dataclass
 from typing import Any
 
@@ -72,27 +73,25 @@ class WorldRun:
 
     def _shallow(self, body: wd.FluidBody, fluid: fl.Fluid) -> dict:
         w, h = body.size[0], body.size[1]
+        # 固定 dx 由包围盒决定；多边形只影响 mask，不再用 mask 面积反推 dx。
+        # （反推会让 dx 与 mask 网格面积不一致，L 形池会凭空多水、出现假波。）
         dx = min(self.dx, w / 8.0, h / 8.0)
         nx = max(8, int(round(w / dx)))
         ny = max(8, int(round(h / dx)))
-        area = w * h
         mask = None
         if body.footprint:
-            area = wd._polygon_area(body.footprint)
-            # 用两轮迭代让 dx/掩膜面积一致；结果对可视化/守恒足够
-            for _ in range(2):
-                dx = math.sqrt(area / (nx * ny))
-                xs = (np.arange(nx) + 0.5) * dx - w / 2
-                ys = (np.arange(ny) + 0.5) * dx - h / 2
-                gx, gy = np.meshgrid(xs, ys)
-                mask = np.array([[wd._point_in_polygon(body.footprint, float(gx[j, i]), float(gy[j, i]))
-                                  for i in range(nx)] for j in range(ny)], dtype=bool)
-                nx_area = int(np.count_nonzero(mask)) * dx * dx
-                if nx_area > 0:
-                    area = nx_area
+            xs = (np.arange(nx) + 0.5) * dx - w / 2
+            ys = (np.arange(ny) + 0.5) * dx - h / 2
+            gx, gy = np.meshgrid(xs, ys)
+            mask = np.array([[wd._point_in_polygon(body.footprint, float(gx[j, i]), float(gy[j, i]))
+                              for i in range(nx)] for j in range(ny)], dtype=bool)
+            wet_cells = int(np.count_nonzero(mask))
+            if wet_cells == 0:
+                raise fs.FluidSimError(f"{body.id}: polygon 与网格没有交集；减小 dx")
+            area = wet_cells * dx * dx
         else:
-            dx = math.sqrt(area / (nx * ny))
-        depth = body.volume / area      # 用体积反推初始水深，避免网格面积误差
+            area = w * h
+        depth = body.volume / area      # 用实际湿格面积反推初始水深
         if depth <= 0:
             return {"type": body.type, "volume_m3": 0.0, "frames": [],
                     "metrics": {"volume_m3": 0.0, "max_depth_m": 0.0}}
@@ -161,17 +160,29 @@ class WorldRun:
             return {"type": s.type, "value": None, "modeled": False,
                     "note": "无 target 流体"}
         fluid = fl.get(body.fluid)
+        def noisy(raw: float, unit: str) -> dict:
+            d = {"type": s.type, "value": raw, "unit": unit, "modeled": True}
+            md = s.metadata if isinstance(s.metadata, dict) else {}
+            std = float(md.get("noise_std", 0.0) or 0.0)
+            if std > 0:
+                seed = int(md.get("noise_seed", 0)) + sum(ord(c) for c in s.id)
+                d["raw_value"] = raw
+                d["noise_std"] = std
+                d["value"] = raw + random.Random(seed).gauss(0.0, std)
+                d["noise_seed"] = seed
+                d["note"] = "seeded Gaussian sensor noise; not field calibration"
+            return d
+
         if s.type == "level":
-            return {"type": s.type, "value": body.depth_m, "unit": "m", "modeled": True}
+            return noisy(body.depth_m, "m")
         if s.type == "pressure":
-            return {"type": s.type, "value": fluid.density * G * body.depth_m,
-                    "unit": "Pa", "modeled": True, "note": "gauge pressure at bottom"}
+            d = noisy(fluid.density * G * body.depth_m, "Pa")
+            d.setdefault("note", "gauge pressure at bottom")
+            return d
         if s.type == "flow":
-            return {"type": s.type, "value": body.flow_m3_s, "unit": "m3/s",
-                    "modeled": bool(body.flow_m3_s)}
+            return noisy(body.flow_m3_s, "m3/s")
         if s.type == "temperature":
-            return {"type": s.type, "value": body.temperature_c,
-                    "unit": "C", "modeled": True}
+            return noisy(body.temperature_c, "C")
         if s.type == "turbidity":
             return {"type": s.type, "value": None, "unit": "NTU", "modeled": False,
                     "note": "需要水质/颗粒模型；当前不伪造"}

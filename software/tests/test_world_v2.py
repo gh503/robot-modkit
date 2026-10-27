@@ -97,3 +97,28 @@ def test_world_editor_markup_and_js_contract():
                   "function heightfieldMesh", "ExtrudeGeometry", "modkit.world/2"):
         assert token in js
     assert "modkit.world/1" in js  # 只用于迁移
+
+
+def test_resource_limits_are_explicit():
+    w = wd.World("limits")
+    for i in range(wd.MAX_OBJECTS + 1):
+        w.objects.append(wd.WorldObject(f"o{i}", "box", position=[0, 0, 0], size=[1, 1, 1]))
+    assert not w.validate()["ok"]
+    assert any("上限" in e for e in w.validate()["errors"])
+    f = wd.FluidBody("f", "pool", "water", position=[0, 0, 0], size=[1, 1, 1],
+                     footprint=[[0, 0], [0.5, 0], [0.5, 0.5]] * 200)
+    assert any("点数" in e or "非法" in e for e in wd.World("x", fluids=[f]).validate()["errors"])
+    hf = wd.WorldObject("h", "heightfield", position=[0, 0, 0], size=[1, 1, 1],
+                        heights=[[0.0] * 257 for _ in range(2)])
+    assert any("heights" in e for e in wd.World("h", objects=[hf]).validate()["errors"])
+
+
+def test_polygon_shallow_stays_flat_and_stable():
+    from modkit import world_sim
+    w = wd.from_preset("pool_l")
+    r = world_sim.WorldRun(w, duration=1.0, dx=0.4, frame_every=10).run()
+    m = r["fluids"]["water_l"]["metrics"]
+    assert m["wet_cells"] == 150
+    assert abs(m["volume_m3"] - 28.8) < 1e-6
+    assert abs(m["max_depth_m"] - 1.2) < 0.02
+    assert m["max_speed_m_s"] < 0.05

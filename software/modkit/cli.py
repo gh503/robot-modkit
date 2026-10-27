@@ -36,6 +36,7 @@ from . import fluid as fd
 from . import network as nwk
 from . import schema_defs as sch
 from . import world as wd
+from . import gltf as gl
 from . import camsim as cs
 from . import scenario as sn
 from . import simdiff as sd
@@ -1463,6 +1464,24 @@ def cmd_world(args) -> int:
         p = w.save(dst)
         print(f"已迁移到 {wd.SCHEMA}：{p}")
         return 0
+    if action == "export":
+        try:
+            w = wd.World.load(args.file) if args.file else wd.from_preset(args.preset)
+            out = args.out
+            suffix = ".glb" if args.format == "glb" else ".gltf"
+            pout = pathlib.Path(out)
+            if pout.suffix.lower() in (".gltf", ".glb"):
+                out = str(pout.with_suffix(suffix))
+            else:
+                out = str(pout / ("world" + suffix))
+            p, warnings = gl.write_gltf(w, out, binary=(args.format == "glb"))
+        except (OSError, wd.WorldError, gl.GltfError) as e:
+            print(f"导出失败：{e}")
+            return 2
+        print(f"已导出 {p}（{p.stat().st_size / 1024:.1f} KiB）")
+        for x in warnings:
+            print("  ! " + x)
+        return 0
     if action == "list":
         rows = wd.presets()
         if args.json:
@@ -1937,7 +1956,7 @@ def main(argv: list[str] | None = None) -> int:
 
     wp = sub.add_parser("world", help="三维世界/实验环境（JSON + 流体仿真）")
     wp.add_argument("action", choices=["list", "init", "demo", "schema", "migrate",
-                                       "validate", "summary", "run"])
+                                       "validate", "summary", "run", "export"])
     wp.add_argument("--preset", default="pool")
     wp.add_argument("--file")
     wp.add_argument("--out", default="out/world")
@@ -1946,6 +1965,7 @@ def main(argv: list[str] | None = None) -> int:
     wp.add_argument("--dx", type=float, default=0.2)
     wp.add_argument("--frame-every", type=int, default=10)
     wp.add_argument("--json", action="store_true")
+    wp.add_argument("--format", choices=["gltf", "glb"], default="gltf")
     wp.set_defaults(func=cmd_world)
 
     args = ap.parse_args(argv)

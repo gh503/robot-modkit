@@ -1,6 +1,6 @@
 # 84 · 独立应用孵化：AquaTwin
 
-> 状态：**0.2.0 实测校准闭环，软件可运行；无现场数据/客户/收入**。
+> 状态：**0.2.1 实测校准闭环 + PDF/schema，软件可运行；无现场数据/客户/收入**。
 > 项目位置：[`ventures/aquatwin`](../ventures/aquatwin/README.md)。这是独立应用，
 > 不进入 modkit 的 Python 包，也不改变物理闸门 **0/5**。
 
@@ -111,7 +111,7 @@ pip install -e .
 aquatwin study --scenario scenarios/residential_8x4.json --out out/residential
 ```
 
-测试：`make aquatwin-check`（25 项），CI 有独立 job。
+测试：`make aquatwin-check`（26 项），CI 有独立 job。
 
 ## 84.7 下一步
 

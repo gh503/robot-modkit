@@ -1,3 +1,19 @@
+## v1.37.0 — 2026-10-27
+
+### 资源限制 / 传感器噪声 / glTF / 打包
+
+- 世界校验加资源上限（对象/流体/传感器/多边形/heightfield），管网加上限；
+  超限明确报错，避免“合法但拖垮服务”的 JSON；
+- 修复 L 形池浅水初值：湿格面积反推水深、干—湿边界不制造压力梯度；
+  L 形静水 1s 回归（max depth 1.2m、速度≈0），不再出现 3m 假波；
+- 传感器可选确定性高斯噪声（`metadata.noise_std`/`noise_seed`），
+  同时给 raw/value；默认关闭，仍不是现场校准；
+- 新增 `modkit world export --format gltf|glb`：纯 Python glTF 2.0，
+  盒/柱/球/平面/heightfield/多边形水面；OBJ 源网格跳过并警告；
+- wheel 打包修复（显式 package 发现）、CI 增加 wheel 构建/导入 job；
+- `SECURITY.md`：本地 API 威胁模型、密钥、输入限制；
+- 主测试 **361**；AquaTwin **26**；Web smoke **16 组**；物理闸门 **0/5**。
+
 ## v1.36.0 — 2026-10-27
 
 ### API / JSON Schema / PDF

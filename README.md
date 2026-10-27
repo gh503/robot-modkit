@@ -30,6 +30,7 @@
 | 3D 世界/环境 | `modkit world` + [world.html](https://gh503.github.io/robot-modkit/world.html) | ✅ 9 预设 + 多边形/heightfield + 编辑；见 [82](docs/82-三维世界与环境.md) |
 | 稳态管网 | `modkit network solve` | ✅ 节点/管/泵/需求；见 [85](docs/85-稳态管网.md) |
 | 本地 API | `modkit serve` + `/docs` | ✅ 世界异步 job/管网/流体；见 [86](docs/86-本地API与部署.md) |
+| glTF 导出 | `modkit world export` | ✅ glTF/GLB：盒/柱/球/平面/heightfield/水面 |
 | 整机实测 | 按 [docs/63](docs/63-硬件到货执行单.md) 执行 | ⬜ 0/5，硬件阻塞 |
 
 完整能力地图（仿真、生产、采购、验收）见 [docs/80 §80.2](docs/80-项目状态与版本历史.md)。
@@ -40,7 +41,7 @@
 git clone https://github.com/gh503/robot-modkit.git && cd robot-modkit
 python3 -m venv .venv && ./.venv/bin/pip install -e software
 make doctor
-make check-fast          # 352 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 25 项
+make check-fast          # 361 项测试 + 16 组网页冒烟 + 11 装配示例 + AquaTwin 26 项
 make web-smoke           # 需本机 Chrome
 ```
 
@@ -50,6 +51,7 @@ make web-smoke           # 需本机 Chrome
 ./.venv/bin/python -m modkit.cli --sim scan
 ./.venv/bin/python -m modkit.cli --sim pose --x 150 --y 0 --z 150
 ./.venv/bin/python -m modkit.cli draw --shape square --z 150 --play --sim
+./.venv/bin/python -m modkit.cli world export --preset pool --format glb --out out/pool.glb
 ```
 
 生成某一阶段的完整硬件包：

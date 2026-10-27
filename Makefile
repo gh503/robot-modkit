@@ -1,11 +1,16 @@
 # robot-modkit：一条命令跑完所有"不依赖实物"的验证
 PY ?= .venv/bin/python
 
-.PHONY: check check-fast doctor cad firmware firmware-target software sim docs components components-cad web-design web-smoke aquatwin-check workbench demo preflight clean-out
+.PHONY: check check-fast package doctor cad firmware firmware-target software sim docs components components-cad web-design web-smoke aquatwin-check workbench demo preflight clean-out
 
 check: cad firmware software sim docs components
 
 check-fast: software sim docs components aquatwin-check
+
+# 本地构建 wheel；需要 `pip install build`。CI 也会跑。
+package:
+	rm -rf out/dist
+	cd software && ../$(PY) -m build --wheel --outdir ../out/dist
 
 # 需要本机 Chrome/Chromium；不在 check/check-fast 里，避免把浏览器变成硬依赖。
 web-smoke:

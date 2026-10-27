@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.35.0";
+  var VERSION = "1.37.0";
   var PRESETS = ["pool", "pool_l", "lab", "kitchen", "greenhouse", "pipeline", "factory", "outdoor", "aquarium"];
   var $ = function (id) { return document.getElementById(id); };
   var state = {

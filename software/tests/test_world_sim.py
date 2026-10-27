@@ -59,3 +59,16 @@ def test_world_invalid_does_not_run():
     w.fluids[0].level = 2.0
     with pytest.raises(Exception):
         ws.run_world(w, duration=0.1)
+
+
+def test_sensor_noise_is_seeded_and_reproducible():
+    from modkit import world as wd
+    from modkit.world_sim import WorldRun
+    w = wd.from_preset("lab")
+    w.sensors[0].metadata = {"noise_std": 0.02, "noise_seed": 7}
+    a = WorldRun(w, duration=0.2, dx=0.5).run()["sensors"][w.sensors[0].id]
+    b = WorldRun(w, duration=0.2, dx=0.5).run()["sensors"][w.sensors[0].id]
+    assert a["value"] == b["value"]
+    assert a["noise_std"] == 0.02
+    assert a["raw_value"] != a["value"]
+    assert "not field calibration" in a["note"]

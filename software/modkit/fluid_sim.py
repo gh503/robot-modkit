@@ -189,8 +189,18 @@ class ShallowWater:
         hh = np.maximum(self.h, self.min_depth)
         dhdx = np.zeros_like(h)
         dhdy = np.zeros_like(h)
-        dhdx[:, 1:-1] = (hh[:, 2:] - hh[:, :-2]) / (2 * self.dx)
-        dhdy[1:-1, :] = (hh[2:, :] - hh[:-2, :]) / (2 * self.dx)
+        # 只对“湿—湿”中心差分；干格/掩膜外不制造压力梯度。
+        # 否则边界湿格会把 min_depth 的干格当成深水，产生假加速度。
+        mx2 = np.ones_like(self.mask, dtype=bool)
+        my2 = np.ones_like(self.mask, dtype=bool)
+        mx2[:, 1:-1] = self.mask[:, :-2] & self.mask[:, 2:]
+        my2[1:-1, :] = self.mask[:-2, :] & self.mask[2:, :]
+        dhdx[:, 1:-1] = np.where(mx2[:, 1:-1],
+                                 (hh[:, 2:] - hh[:, :-2]) / (2 * self.dx), 0.0)
+        dhdy[1:-1, :] = np.where(my2[1:-1, :],
+                                 (hh[2:, :] - hh[:-2, :]) / (2 * self.dx), 0.0)
+        dhdx = np.where(self.mask, dhdx, 0.0)
+        dhdy = np.where(self.mask, dhdy, 0.0)
         if self.boundary == "periodic":
             dhdx[:, 0] = (hh[:, 1] - hh[:, -1]) / (2 * self.dx)
             dhdx[:, -1] = (hh[:, 0] - hh[:, -2]) / (2 * self.dx)
@@ -200,15 +210,19 @@ class ShallowWater:
         speed = np.sqrt(u * u + v * v)
         # 迎风对流
         dudx = np.zeros_like(u); dvdy = np.zeros_like(v)
-        dudx[:, 1:-1] = np.where(u[:, 1:-1] >= 0,
-                                 (u[:, 1:-1] - u[:, :-2]) / self.dx,
-                                 (u[:, 2:] - u[:, 1:-1]) / self.dx)
-        dvdy[1:-1, :] = np.where(v[1:-1, :] >= 0,
-                                 (v[1:-1, :] - v[:-2, :]) / self.dx,
-                                 (v[2:, :] - v[1:-1, :]) / self.dx)
+        dudx[:, 1:-1] = np.where(mx2[:, 1:-1],
+                                 np.where(u[:, 1:-1] >= 0,
+                                          (u[:, 1:-1] - u[:, :-2]) / self.dx,
+                                          (u[:, 2:] - u[:, 1:-1]) / self.dx), 0.0)
+        dvdy[1:-1, :] = np.where(my2[1:-1, :],
+                                 np.where(v[1:-1, :] >= 0,
+                                          (v[1:-1, :] - v[:-2, :]) / self.dx,
+                                          (v[2:, :] - v[1:-1, :]) / self.dx), 0.0)
         lap_u = np.zeros_like(u); lap_v = np.zeros_like(v)
-        lap_u[:, 1:-1] = (u[:, 2:] - 2 * u[:, 1:-1] + u[:, :-2]) / self.dx**2
-        lap_v[1:-1, :] = (v[2:, :] - 2 * v[1:-1, :] + v[:-2, :]) / self.dx**2
+        lap_u[:, 1:-1] = np.where(mx2[:, 1:-1],
+                                  (u[:, 2:] - 2 * u[:, 1:-1] + u[:, :-2]) / self.dx**2, 0.0)
+        lap_v[1:-1, :] = np.where(my2[1:-1, :],
+                                  (v[2:, :] - 2 * v[1:-1, :] + v[:-2, :]) / self.dx**2, 0.0)
         wet = self.h > self.min_depth
         u_new = u + dt * (-u * dudx - G * dhdx - cf * speed * u + self.nu * lap_u)
         v_new = v + dt * (-v * dvdy - G * dhdy - cf * speed * v + self.nu * lap_v)

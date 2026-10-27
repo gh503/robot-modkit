@@ -23,6 +23,12 @@ from . import fluid as fl
 SCHEMA = "modkit.world/2"
 SCHEMA_V1 = "modkit.world/1"
 SUPPORTED_SCHEMAS = (SCHEMA_V1, SCHEMA)
+MAX_OBJECTS = 1000
+MAX_FLUIDS = 200
+MAX_SENSORS = 200
+MAX_CUSTOM_FLUIDS = 64
+MAX_FOOTPRINT_POINTS = 512
+MAX_HEIGHTFIELD_CELLS = 256
 OBJECT_TYPES = ("box", "cylinder", "sphere", "plane", "mesh", "heightfield")
 FLUID_TYPES = ("pool", "tank", "pipe", "puddle", "rain", "reservoir")
 SENSOR_TYPES = ("level", "pressure", "flow", "temperature", "turbidity", "camera", "imu")
@@ -95,6 +101,8 @@ class WorldObject:
     def validate(self, errors: list[str]) -> None:
         if not self.id:
             errors.append("对象缺少 id")
+        if len(self.id) > 80:
+            errors.append(f"{self.id[:12]}…: id 超过 80 字符")
         if self.type not in OBJECT_TYPES:
             errors.append(f"{self.id}: 未知类型 {self.type}")
         if len(self.position) != 3 or len(self.rotation) != 3:
@@ -123,6 +131,8 @@ class WorldObject:
             if self.heights is not None:
                 if self.type != "heightfield":
                     errors.append(f"{self.id}: heights 只用于 heightfield")
+                elif len(self.heights) > MAX_HEIGHTFIELD_CELLS or len(self.heights[0]) > MAX_HEIGHTFIELD_CELLS:
+                    errors.append(f"{self.id}: heights 不能超过 {MAX_HEIGHTFIELD_CELLS}x{MAX_HEIGHTFIELD_CELLS}")
                 elif len(self.heights) < 2 or len(self.heights[0]) < 2:
                     errors.append(f"{self.id}: heights 至少 2x2")
                 else:
@@ -166,6 +176,8 @@ class FluidBody:
     def validate(self, errors: list[str], warnings: list[str]) -> None:
         if not self.id:
             errors.append("流体缺少 id")
+        if len(self.id) > 80:
+            errors.append(f"{self.id[:12]}…: id 超过 80 字符")
         if self.type not in FLUID_TYPES:
             errors.append(f"{self.id}: 未知流体类型 {self.type}")
         try:
@@ -180,6 +192,8 @@ class FluidBody:
             if len(self.size) != 3 or any(v <= 0 for v in self.size):
                 errors.append(f"{self.id}: {self.type}.size 需要 3 个正数")
             if self.footprint:
+                if len(self.footprint) > MAX_FOOTPRINT_POINTS:
+                    errors.append(f"{self.id}: footprint 点数不能超过 {MAX_FOOTPRINT_POINTS}")
                 if len(self.footprint) < 3:
                     errors.append(f"{self.id}: footprint 至少 3 个点")
                 else:
@@ -283,6 +297,12 @@ class Sensor:
             errors.append(f"{self.id}: position 需要 3 个数")
         if self.target and self.target not in fluid_ids:
             errors.append(f"{self.id}: target {self.target} 不存在")
+        ns = self.metadata.get("noise_std", 0) if isinstance(self.metadata, dict) else 0
+        if not isinstance(ns, (int, float)) or ns < 0 or not math.isfinite(float(ns)):
+            errors.append(f"{self.id}: metadata.noise_std 必须是非负有限数")
+        seed = self.metadata.get("noise_seed", 0) if isinstance(self.metadata, dict) else 0
+        if not isinstance(seed, int):
+            errors.append(f"{self.id}: metadata.noise_seed 必须是整数")
 
 
 @dataclass
@@ -343,6 +363,14 @@ class World:
             errors.append("单位必须是 m（米）")
         if self.gravity <= 0:
             errors.append("gravity 必须 >0")
+        if len(self.objects) > MAX_OBJECTS:
+            errors.append(f"对象数 {len(self.objects)} 超过上限 {MAX_OBJECTS}")
+        if len(self.fluids) > MAX_FLUIDS:
+            errors.append(f"流体数 {len(self.fluids)} 超过上限 {MAX_FLUIDS}")
+        if len(self.sensors) > MAX_SENSORS:
+            errors.append(f"传感器数 {len(self.sensors)} 超过上限 {MAX_SENSORS}")
+        if len(self.custom_fluids) > MAX_CUSTOM_FLUIDS:
+            errors.append(f"自定义流体数 {len(self.custom_fluids)} 超过 {MAX_CUSTOM_FLUIDS}")
         if not self.objects:
             warnings.append("世界没有对象")
         ids: set[str] = set()
@@ -585,6 +613,7 @@ def from_preset(key: str) -> World:
     raise WorldError(f"未知环境预设：{key}；可用：{', '.join(presets())}")
 
 
-__all__ = ["SCHEMA", "SCHEMA_V1", "SUPPORTED_SCHEMAS", "WorldError", "WorldObject",
-           "FluidBody", "RobotPlacement", "Sensor", "World", "presets", "from_preset",
-           "migrate_dict"]
+__all__ = ["SCHEMA", "SCHEMA_V1", "SUPPORTED_SCHEMAS", "MAX_OBJECTS", "MAX_FLUIDS",
+           "MAX_SENSORS", "MAX_CUSTOM_FLUIDS", "MAX_FOOTPRINT_POINTS",
+           "MAX_HEIGHTFIELD_CELLS", "WorldError", "WorldObject", "FluidBody",
+           "RobotPlacement", "Sensor", "World", "presets", "from_preset", "migrate_dict"]

@@ -71,3 +71,13 @@ def test_network_cli(tmp_path, capsys):
     assert "泵" in out
     assert (tmp_path / "network-result.json").is_file()
     assert (tmp_path / "report.md").is_file()
+
+
+def test_network_resource_limits():
+    nodes = [nw.Node(f"n{i}", head_m=0) for i in range(nw.MAX_NODES + 1)]
+    net = nw.Network("big", nodes=nodes, pipes=[])
+    v = net.validate()
+    assert not v["ok"] and any("超过" in e for e in v["errors"])
+    net2 = nw.Network("curve", nodes=[nw.Node("a", head_m=0), nw.Node("b", demand_m3_s=0)],
+                      pumps=[nw.Pump("p", "a", "b", curve=[[i, 1] for i in range(nw.MAX_CURVE_POINTS + 1)])])
+    assert any("曲线" in e for e in net2.validate()["errors"])

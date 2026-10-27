@@ -15,6 +15,9 @@ from . import fluid as fl
 
 G = fl.G
 SCHEMA = "modkit.network/1"
+MAX_NODES = 500
+MAX_EDGES = 1000
+MAX_CURVE_POINTS = 100
 
 
 class NetworkError(ValueError):
@@ -141,6 +144,12 @@ class Network:
                 errors.append(f"节点 id 重复：{n.id}")
             ids.add(n.id)
             n.validate(errors)
+        if len(self.nodes) > MAX_NODES:
+            errors.append(f"节点数 {len(self.nodes)} 超过 {MAX_NODES}")
+        if len(self.pipes) + len(self.pumps) > MAX_EDGES:
+            errors.append(f"边数超过 {MAX_EDGES}")
+        if any(len(p.curve) > MAX_CURVE_POINTS for p in self.pumps):
+            errors.append(f"泵曲线点数不能超过 {MAX_CURVE_POINTS}")
         if not any(n.head_m is not None for n in self.nodes):
             errors.append("至少需要一个定水头节点（head_m）")
         eids = set()
@@ -403,5 +412,5 @@ def run_file(path: str | pathlib.Path, out: str | None = None) -> dict:
     return r
 
 
-__all__ = ["SCHEMA", "NetworkError", "Node", "Pipe", "Pump", "Network", "solve",
-           "markdown", "run_file"]
+__all__ = ["SCHEMA", "MAX_NODES", "MAX_EDGES", "MAX_CURVE_POINTS", "NetworkError",
+           "Node", "Pipe", "Pump", "Network", "solve", "markdown", "run_file"]

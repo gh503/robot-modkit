@@ -60,7 +60,8 @@ jobs:
             sleep 1
           done
           cat /tmp/health.json
-          curl -fsS http://127.0.0.1:18080/v1/schemas
+          curl -fsS -H "X-API-Key: ci-key" http://127.0.0.1:18080/v1/schemas >/dev/null
+          curl -fsS -H "X-API-Key: ci-key" http://127.0.0.1:18080/v1/presets >/dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18080/v1/world/validate)" = "401"
       - name: 停止
         if: always()
